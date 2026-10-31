@@ -1093,6 +1093,11 @@
     <string name="settings_home_css_check_missing">以下类名/ID 在模板里找不到对应元素，相关规则不会生效：\n%1$s</string>
     <string name="settings_home_preview">预览网页主页</string>
     <string name="settings_home_web">网页主页设置</string>
+    <string name="settings_home_reset">恢复原生主页</string>
+    <string name="settings_home_export">导出网页主页配置</string>
+    <string name="settings_home_import_config">导入网页主页配置</string>
+    <string name="settings_home_export_failed">导出失败，请换个位置重试</string>
+    <string name="settings_home_reset_done">已切回 Sii 原生主页</string>
     <string name="settings_home_import">导入本地主页</string>
     <string name="settings_home_import_failed">导入失败，请换一个文件重试</string>
     <string name="settings_home_web_hint">网页主页下搜索框与常用网站由网页自己绘制，下列原生项不再生效</string>

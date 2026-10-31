@@ -1092,6 +1092,11 @@
     <string name="settings_home_css_check_missing">These class names/IDs have no matching element in the template; their rules will not apply:\n%1$s</string>
     <string name="settings_home_preview">Preview web home</string>
     <string name="settings_home_web">Web home settings</string>
+    <string name="settings_home_reset">Restore native home</string>
+    <string name="settings_home_export">Export web home config</string>
+    <string name="settings_home_import_config">Import web home config</string>
+    <string name="settings_home_export_failed">Export failed, try another location</string>
+    <string name="settings_home_reset_done">Switched back to the native home</string>
     <string name="settings_home_import">Import local home page</string>
     <string name="settings_home_import_failed">Import failed, try another file</string>
     <string name="settings_home_web_hint">With a web home, the search box and sites are drawn by the page; native options below no longer apply</string>

@@ -39,7 +39,7 @@ class SettingsDetailFragment : Fragment() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) applyImport(uri) }
 
-    /** 导入本地主页 HTML / CSS 文件（1 = HTML，2 = CSS）。 */
+    /** 导入本地主页 HTML / CSS / 片段 / 配置（1 = HTML，2 = CSS，3 = 片段，4 = 配置）。 */
     private var homeFileTarget = 0
     private val homeFileLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -50,9 +50,15 @@ class SettingsDetailFragment : Fragment() {
         when (target) {
             1 -> importHomeHtml(uri)
             3 -> importHomeSnippet(uri)
+            4 -> importHomeConfig(uri)
             else -> importHomeCss(uri)
         }
     }
+
+    /** 导出网页主页配置（JSON）。 */
+    private val homeExportLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) exportHomeConfig(uri) }
 
     /** 自定义字体文件选择。 */
     private val fontLauncher = registerForActivityResult(
@@ -1001,6 +1007,11 @@ class SettingsDetailFragment : Fragment() {
             }
             rows.add(navRow(getString(R.string.settings_home_css_check)) { checkHomeCss() })
             rows.add(navRow(getString(R.string.settings_home_preview)) { showHomePreview() })
+            rows.add(navRow(getString(R.string.settings_home_export)) {
+                homeExportLauncher.launch("sii-home.json")
+            })
+            rows.add(navRow(getString(R.string.settings_home_import_config)) { pickHomeFile(4) })
+            rows.add(navRow(getString(R.string.settings_home_reset)) { restoreNativeHome() })
         }
         if (mode == 2) {
             rows.add(
@@ -1133,7 +1144,7 @@ class SettingsDetailFragment : Fragment() {
     private fun showHomePreview() {
         if (!isAdded) return
         val context = requireContext()
-        val web = com.sii.browser.core.webview.HomeWebView(context, {}, {}, {}, {}, {})
+        val web = com.sii.browser.core.webview.HomeWebView(context, {}, {}, {}, {}, {}, {})
         val host = android.widget.FrameLayout(context).apply {
             minimumWidth = context.resources.displayMetrics.widthPixels - dpToPx(72)
             addView(
@@ -1160,6 +1171,55 @@ class SettingsDetailFragment : Fragment() {
             ).copy(template = true, url = "")
             if (dialog.isShowing) web.render(page)
         }
+    }
+
+    /** 一键回到原生主页：CSS 写坏了或不想用时用。 */
+    private fun restoreNativeHome() {
+        settings.setHomePageMode(0)
+        Toast.makeText(
+            requireContext(), R.string.settings_home_reset_done, Toast.LENGTH_SHORT
+        ).show()
+        build()
+    }
+
+    /** 导出模式 / 地址 / CSS / HTML 片段 / 插入位置，方便备份与分享。 */
+    private fun exportHomeConfig(uri: android.net.Uri) {
+        val json = org.json.JSONObject().apply {
+            put("mode", settings.homePageMode())
+            put("url", settings.homeUrl())
+            put("css", settings.homeCustomCss())
+            put("html", settings.homeCustomHtml())
+            put("htmlPos", settings.homeCustomHtmlPos())
+        }
+        runCatching {
+            requireContext().contentResolver.openOutputStream(uri)?.use { output ->
+                output.write(json.toString().toByteArray())
+            } ?: error("open failed")
+        }.onFailure {
+            Toast.makeText(
+                requireContext(), R.string.settings_home_export_failed, Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun importHomeConfig(uri: android.net.Uri) {
+        runCatching {
+            val text = requireContext().contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val json = org.json.JSONObject(text)
+            if (json.has("css")) settings.setHomeCustomCss(json.optString("css"))
+            if (json.has("html")) settings.setHomeCustomHtml(json.optString("html"))
+            if (json.has("htmlPos")) settings.setHomeCustomHtmlPos(json.optInt("htmlPos"))
+            if (json.has("url")) {
+                settings.setHomeUrl(json.optString("url").ifBlank { "about:home" })
+            }
+            if (json.has("mode")) settings.setHomePageMode(json.optInt("mode"))
+        }.onFailure {
+            Toast.makeText(
+                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
+            ).show()
+        }
+        build()
     }
 
     private fun checkHomeCss() {

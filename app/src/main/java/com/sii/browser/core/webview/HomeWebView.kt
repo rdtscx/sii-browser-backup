@@ -27,7 +27,8 @@ class HomeWebView(
     private val onOpen: (String) -> Unit,
     private val onSiteMenu: (String) -> Unit,
     private val onSetDefaultEngine: (String) -> Unit,
-    private val onSuggest: (String) -> Unit
+    private val onSuggest: (String) -> Unit,
+    private val onReorderSites: (String) -> Unit
 ) : WebView(context) {
 
     /** 一次渲染所需的全部状态；签名不变时不重新加载页面。 */
@@ -224,6 +225,12 @@ class HomeWebView(
             val value = query.trim()
             if (value.isEmpty()) return
             post { onSuggest(value) }
+        }
+
+        @JavascriptInterface
+        fun reorderSites(urlsJson: String) {
+            if (urlsJson.isBlank()) return
+            post { onReorderSites(urlsJson) }
         }
     }
 

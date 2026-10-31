@@ -4674,7 +4674,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     onOpen = { loadUrlFor(it) },
                     onSiteMenu = { showHomeSiteMenu(it) },
                     onSetDefaultEngine = { setHomeDefaultEngine(it) },
-                    onSuggest = { query -> loadHomeSuggestions(query) }
+                    onSuggest = { query -> loadHomeSuggestions(query) },
+                    onReorderSites = { json -> reorderHomeSites(json) }
                 )
                 host.addView(
                     home,
@@ -4823,6 +4824,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             requireContext(), R.string.home_engine_default_set, Toast.LENGTH_SHORT
         ).show()
         renderWebHome()
+    }
+
+    /** 主页卡片拖拽后按新顺序重排常用网站。 */
+    private fun reorderHomeSites(urlsJson: String) {
+        val urls = runCatching { org.json.JSONArray(urlsJson) }.getOrNull() ?: return
+        val byUrl = latestFavorites.associateBy { it.url }
+        val ids = mutableListOf<Long>()
+        for (i in 0 until urls.length()) {
+            byUrl[urls.optString(i)]?.let { ids.add(it.id) }
+        }
+        if (ids.isEmpty()) return
+        viewLifecycleOwner.lifecycleScope.launch {
+            AppServices.favoriteRepository.reorder(ids)
+        }
     }
 
     // ---- 标签面板（原生底部浮层） ----

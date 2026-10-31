@@ -293,7 +293,13 @@ class HomeCustomizeFragment : Fragment() {
             else -> advancedRows()
         }
         val card = CardList.styledCard(requireContext(), page = true)
-        CardList.addRows(card, rows)
+        val homeTabs = activeTab == 0 || activeTab == 1 || activeTab == 3 || activeTab == 4
+        val finalRows = if (settings.homePageMode() != 0 && homeTabs) {
+            listOf(hintRow(getString(R.string.settings_home_web_hint))) + rows
+        } else {
+            rows
+        }
+        CardList.addRows(card, finalRows)
         controls.addView(card)
     }
 
@@ -1562,6 +1568,14 @@ class HomeCustomizeFragment : Fragment() {
             )
             addView(value)
         }
+    }
+
+    /** 当前为网页主页时，在对应分类顶部提示原生项不再生效。 */
+    private fun hintRow(text: String): View = TextView(requireContext()).apply {
+        this.text = text
+        setTextSize(12f)
+        setTextColor(ThemeAccent.color(requireContext()))
+        setPadding(dp(16), dp(12), dp(16), dp(4))
     }
 
     private fun navRow(
