@@ -4,14 +4,12 @@ package com.sii.browser.core.webview
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Base64
 import com.sii.browser.data.SearchEngines
 import com.sii.browser.data.Settings
 import com.sii.browser.data.db.FavoriteItem
 import org.json.JSONArray
 import java.io.ByteArrayOutputStream
-import java.io.File
 
 /**
  * 把当前设置与常用网站组装成网页主页的一次渲染参数。
@@ -20,8 +18,6 @@ import java.io.File
  */
 object HomePageBuilder {
 
-    private var backgroundKey: String? = null
-    private var backgroundData: String? = null
     private var logoData: String? = null
 
     fun build(
@@ -29,6 +25,7 @@ object HomePageBuilder {
         settings: Settings,
         favorites: List<FavoriteItem>,
         accentColor: Int,
+        backgroundOffsetPx: Int = 0,
         cssOverride: String? = null
     ): HomeWebView.Page {
         val engines = runCatching {
@@ -62,43 +59,29 @@ object HomePageBuilder {
             engines = engineList,
             sitePages = sitePages,
             showSites = settings.showSites(),
-            background = background(context, settings),
+            background = HomeBackground.load(
+                context,
+                settings.homeBackground(),
+                settings.homeBgOverlay().coerceIn(0, 100) + if (settings.isNightMode()) 55 else 0,
+                blurPercent(settings)
+            )?.let { HomeBackground.dataUri(it) }.orEmpty(),
+            backgroundOffsetPx = backgroundOffsetPx,
             logoImage = if (settings.homeLogoMode() == 1) logo(context) else "",
             customHtml = settings.homeCustomHtml(),
             customHtmlPos = settings.homeCustomHtmlPos()
         )
     }
 
-    /** 主页背景图 → data URI（最长边 1600px、JPEG 82）。content:// 与文件路径都支持。 */
-    private fun background(context: Context, settings: Settings): String {
-        val raw = settings.homeBackground()?.takeIf { it.isNotBlank() } ?: return ""
-        val uri = when {
-            raw.startsWith("content://") || raw.startsWith("file://") ->
-                android.net.Uri.parse(raw)
-            else -> android.net.Uri.fromFile(File(raw))
+    /** 背景模糊百分比（与主页预览、窗口背景保持一致）。 */
+    private fun blurPercent(settings: Settings): Int {
+        val percent = settings.homeBgBlurPercent()
+        if (percent >= 0) return percent.coerceIn(0, 100)
+        return when (settings.homeBgBlur()) {
+            1 -> 33
+            2 -> 66
+            3 -> 100
+            else -> 0
         }
-        val stamp = if (uri.scheme == "content") raw
-        else raw + "|" + File(uri.path.orEmpty()).lastModified()
-        if (stamp == backgroundKey) return backgroundData.orEmpty()
-        val resolver = context.contentResolver
-        val data = runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            var sample = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
-            val bitmap = resolver.openInputStream(uri)?.use { input ->
-                BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply {
-                    inSampleSize = sample
-                })
-            } ?: return@runCatching ""
-            val out = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, out)
-            bitmap.recycle()
-            "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-        }.getOrDefault("")
-        backgroundKey = stamp
-        backgroundData = data
-        return data
     }
 
     /** 主页图标 Logo → data URI（矢量光栅化一次后缓存）。 */

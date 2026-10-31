@@ -47,6 +47,8 @@ class HomeWebView(
         val showSites: Boolean = true,
         /** 主页背景图（data URI），空 = 纯色底。 */
         val background: String = "",
+        /** 背景图相对窗口顶端的上移量（状态栏高度）。 */
+        val backgroundOffsetPx: Int = 0,
         /** 标题图标（data URI），空 = 显示文字。 */
         val logoImage: String = "",
         /** 自定义 HTML 片段，插入位置见 [customHtmlPos]。 */
@@ -59,6 +61,7 @@ class HomeWebView(
             append(title).append('|').append(night).append('|').append(accent).append('|')
             append(searchBase).append('|')
             append(background.hashCode()).append('|').append(logoImage.hashCode()).append('|')
+            append(backgroundOffsetPx).append('|')
             append(customHtml.hashCode()).append('|').append(customHtmlPos).append('|')
             append(showSites).append('|')
             sitePages.forEachIndexed { page, list ->
@@ -103,7 +106,6 @@ class HomeWebView(
 
             override fun onPageFinished(view: WebView, url: String) {
                 injectCss()
-                syncBackgroundOffset()
             }
         }
     }
@@ -148,19 +150,9 @@ class HomeWebView(
         val css = sanitizeCss(page.css)
         val themeCss = buildString {
             if (page.background.isNotBlank()) {
-                append("body{background-image:")
-                if (page.night) {
-                    append("linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),")
-                }
-                append("url(\"").append(page.background).append("\");")
-                if (page.night) {
-                    // 第一层是遮罩渐变（铺满），第二层是背景图（铺满整个窗口，与窗口背景重合）
-                    append("background-size:100% 100%,100% var(--sii-win-h, 100vh);")
-                    append("background-position:center,center var(--sii-bg-offset, 0px);")
-                } else {
-                    append("background-size:100% var(--sii-win-h, 100vh);")
-                    append("background-position:center var(--sii-bg-offset, 0px);")
-                }
+                append("body{background-image:url(\"").append(page.background).append("\");")
+                append("background-size:100% auto;")
+                append("background-position:center -").append(page.backgroundOffsetPx).append("px;")
                 append("background-repeat:no-repeat;}")
             }
             if (page.logoImage.isNotBlank()) {
@@ -255,23 +247,6 @@ class HomeWebView(
             if (urlsJson.isBlank()) return
             post { onReorderSites(urlsJson) }
         }
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        syncBackgroundOffset()
-    }
-
-    /** 页面背景图与窗口背景同尺度：窗口高度 + 控件顶部偏移都交给网页。 */
-    private fun syncBackgroundOffset() {
-        val location = IntArray(2)
-        getLocationInWindow(location)
-        val windowHeight = rootView?.height ?: 0
-        val script = "(function(){var s=document.documentElement.style;" +
-            "s.setProperty('--sii-bg-offset','-${location[1]}px');" +
-            if (windowHeight > 0) "s.setProperty('--sii-win-h','${windowHeight}px');})();"
-            else "})();"
-        evaluateJavascript(script, null)
     }
 
     /** 覆盖层打开时暂停主页渲染，避免菜单/标签面板下面的 WebView 继续绘制（卡顿主因）。 */

@@ -61,8 +61,8 @@ class HomePanel(
     private var editing = false
     private var lastSiteStyle: String? = null
     private var sites: List<FavoriteItem> = emptyList()
-    /** 浏览器窗口已自行绘制背景与遮罩：主页不再重复叠加遮罩。 */
-    var externalOverlay: Boolean = false
+    /** 浏览器窗口已自行绘制背景图：主页不再重复绘制，避免两层错位。 */
+    var externalBackground: Boolean = false
     /** 当前显示的主页页（0 开始）。 */
     private var sitePage = 0
     private var siteSwipeInstalled = false
@@ -927,12 +927,12 @@ class HomePanel(
     /** 应用主页背景：有图时异步采样解码并缓存，避免每次回主页阻塞主线程。 */
     private fun applyBackground() {
         val uri = runCatching { AppServices.settings.homeBackground() }.getOrNull()
-        if (uri.isNullOrBlank()) {
+        if (uri.isNullOrBlank() || externalBackground) {
             bgJob?.cancel()
             bgJob = null
             bgKey = null
             view.background = null
-            applyBgColor()
+            if (uri.isNullOrBlank()) applyBgColor()
             return
         }
         val blur = blurPercent()
@@ -977,8 +977,7 @@ class HomePanel(
             }
         }.getOrNull() ?: return null
         val shown = blurBitmap(decoded, blur, targetWidth)
-        // 与窗口背景同尺度绘制（按宽度缩放、顶对齐），否则与底栏之间会出现接缝
-        val overlayColor = if (externalOverlay || overlay <= 0) 0
+        val overlayColor = if (overlay <= 0) 0
         else Color.argb(overlay * 255 / 100, 0, 0, 0)
         return WidthTopDrawable(shown, overlayColor)
     }

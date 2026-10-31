@@ -21,6 +21,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import com.sii.browser.core.webview.HomeBackground
 import kotlinx.coroutines.launch
 import com.sii.browser.R
 import com.sii.browser.data.ExitCleanup
@@ -208,26 +209,25 @@ class ShellActivity : AppCompatActivity() {
             applyStatusBarColor(null)
             return
         }
-        val bitmap = if (uri == chromeImageUri && chromeImageBitmap != null) {
-            chromeImageBitmap
-        } else {
-            decodeChromeBackground(uri)?.also {
-                chromeImageBitmap = it
-                chromeImageUri = uri
-            }
+        val overlay = overlayPercent.coerceIn(0, 100)
+        val blur = if (settings.homeBgBlurPercent() >= 0) {
+            settings.homeBgBlurPercent()
+        } else when (settings.homeBgBlur()) {
+            1 -> 33
+            2 -> 66
+            3 -> 100
+            else -> 0
         }
-        if (bitmap == null) {
+        // 与主页/网页主页共用同一张处理图（裁成窗口比例 + 模糊 + 遮罩），三处像素才能重合
+        val bitmap = HomeBackground.load(this, uri, overlay, blur) ?: run {
             applyChromeBackground(null)
             return
         }
-        val overlay = overlayPercent.coerceIn(0, 100)
         chromeImageActive = true
+        chromeImageUri = uri
+        chromeImageBitmap = bitmap
         chromeImageLight = isLightBitmap(bitmap)
-        // 按宽度等比缩放、顶部对齐：与主页区域、网页主页保持同一尺度，否则工具栏处会出现接缝
-        root.background = WidthTopDrawable(
-            bitmap,
-            if (overlay > 0) android.graphics.Color.argb(overlay * 255 / 100, 0, 0, 0) else 0
-        )
+        root.background = WidthTopDrawable(bitmap, 0)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, window.decorView)
             .isAppearanceLightStatusBars = chromeImageLight
@@ -238,20 +238,6 @@ class ShellActivity : AppCompatActivity() {
 
     /** 背景图是否为浅色；未启用图片时返回 null。 */
     fun chromeImageIsLight(): Boolean? = if (chromeImageActive) chromeImageLight else null
-
-    private fun decodeChromeBackground(uri: String): android.graphics.Bitmap? = runCatching {
-        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, bounds)
-        }
-        var sample = 1
-        val maxW = resources.displayMetrics.widthPixels.coerceAtLeast(1)
-        while (bounds.outWidth / sample > maxW * 2 && sample < 8) sample *= 2
-        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, options)
-        }
-    }.getOrNull()
 
     private fun isLightBitmap(bitmap: android.graphics.Bitmap): Boolean {
         val stepX = (bitmap.width / 24).coerceAtLeast(1)

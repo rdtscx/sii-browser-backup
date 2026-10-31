@@ -4716,7 +4716,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             )
         )
         panel.bind(latestFavorites)
-        panel.externalOverlay = true
+        panel.externalBackground = true
         homePanel = panel
     }
 
@@ -4745,10 +4745,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         home.render(
             com.sii.browser.core.webview.HomePageBuilder.build(
                 requireContext(), AppServices.settings, latestFavorites,
-                ThemeAccent.color(requireContext())
+                ThemeAccent.color(requireContext()),
+                backgroundOffsetPx = statusBarInsetTop()
             )
         )
     }
+
+    /** 状态栏高度：网页主页背景图需要上移这么多才能与窗口背景重合。 */
+    private fun statusBarInsetTop(): Int =
+        view?.rootWindowInsets
+            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
 
     /** 网页主页的搜索建议：复用地址栏的本地/联网建议，结果回送页面渲染。 */
     private fun loadHomeSuggestions(query: String) {
