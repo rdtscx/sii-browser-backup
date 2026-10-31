@@ -17,13 +17,29 @@ import com.sii.browser.di.AppServices
  */
 object GlassStyle {
 
-    /** 胶囊底栏不透明度下限：强度再高也要压住网页原文，否则透出的色块与文字会被读成渲染异常。 */
+    /** 胶囊底栏不透明度下限（仅「跟随玻璃强度」时生效）：强度再高也要压住网页原文。 */
     const val DOCK_GLASS_MIN_ALPHA = 170
 
     /** 底栏强度：单独设了「悬浮工具栏透明度」就用它，否则跟随玻璃强度。 */
     fun dockStrength(): Int {
         val custom = AppServices.settings.dockTransparency()
         return (if (custom >= 0) custom else AppServices.settings.glassStrength()).coerceIn(0, 100)
+    }
+
+    /**
+     * 底栏填色：单独设了「悬浮工具栏透明度」时按百分比线性换算（100 = 完全透明），
+     * 否则跟随玻璃强度并夹到不透明度下限。
+     */
+    fun dockFill(dark: Boolean, base: Int?): Int {
+        val custom = AppServices.settings.dockTransparency()
+        val alpha = if (custom >= 0) {
+            255 - custom.coerceIn(0, 100) * 255 / 100
+        } else {
+            (255 - AppServices.settings.glassStrength().coerceIn(0, 100))
+                .coerceIn(DOCK_GLASS_MIN_ALPHA, 255)
+        }
+        val rgb = base?.let { it and 0x00FFFFFF } ?: if (dark) 0x1B1E23 else 0xFFFFFF
+        return (alpha shl 24) or rgb
     }
 
     fun fill(context: Context, dark: Boolean, strength: Int, minAlpha: Int = 150, base: Int? = null): Int {
@@ -59,13 +75,14 @@ object GlassStyle {
         highlight: Float = if (dark) 0.10f else 0.06f,
         shade: Float = 0f,
         strokeOverride: Int? = null,
-        overlay: Drawable? = null
+        overlay: Drawable? = null,
+        fillOverride: Int? = null
     ): Drawable {
         val radii = cornerRadii(radiusPx, topOnly)
         val body = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadii = radii
-            setColor(fill(context, dark, strength, minAlpha, base))
+            setColor(fillOverride ?: fill(context, dark, strength, minAlpha, base))
             setStroke(
                 context.resources.displayMetrics.density.toInt().coerceAtLeast(1),
                 strokeOverride ?: stroke(dark, strength)

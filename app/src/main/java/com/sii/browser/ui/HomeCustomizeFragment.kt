@@ -774,7 +774,9 @@ class HomeCustomizeFragment : Fragment() {
         })
         val dockTransparencyRow = sliderRow(
             "悬浮工具栏透明度",
-            settings.dockTransparency().takeIf { it >= 0 } ?: settings.glassStrength(),
+            // 未单独设置时显示跟随玻璃强度得到的当前透明度，拖动后改为独立控制。
+            settings.dockTransparency().takeIf { it >= 0 }
+                ?: (100 - (255 - settings.glassStrength().coerceIn(0, 100)) * 100 / 255),
             0, 100
         ) { value ->
             settings.setDockTransparency(value)
