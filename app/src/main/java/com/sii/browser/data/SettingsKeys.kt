@@ -119,6 +119,7 @@ object SettingsKeys {
     const val SUGGESTION_DIRECTION = "suggestdir"
     const val SUGGESTION_COUNT = "suggestcount"
     const val HOME_LAYOUT_POS = "homelayoutpos"
+    const val HOME_SITE_PAGES = "home_site_pages"
     const val HOME_CUSTOM_HTML_POS = "home_custom_html_pos"
     const val HOME_LOGO_TEXT = "homelogotext"
     const val HOME_GRID_COLUMNS = "homegridcols"

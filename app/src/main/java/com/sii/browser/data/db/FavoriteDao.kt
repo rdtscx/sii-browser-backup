@@ -18,10 +18,10 @@ interface FavoriteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: FavoriteItem)
 
-    @Query("SELECT * FROM favorites ORDER BY f_order")
+    @Query("SELECT * FROM favorites ORDER BY f_page, f_order")
     fun all(): Flow<List<FavoriteItem>>
 
-    @Query("SELECT * FROM favorites ORDER BY f_order")
+    @Query("SELECT * FROM favorites ORDER BY f_page, f_order")
     suspend fun allOnce(): List<FavoriteItem>
 
     @Update
@@ -33,8 +33,8 @@ interface FavoriteDao {
     @Query("SELECT * FROM favorites WHERE f_url = :url LIMIT 1")
     suspend fun findByUrl(url: String): FavoriteItem?
 
-    @Query("SELECT COALESCE(MAX(f_order), 0) + 1 FROM favorites")
-    suspend fun nextOrder(): Int
+    @Query("SELECT COALESCE(MAX(f_order), 0) + 1 FROM favorites WHERE f_page = :page")
+    suspend fun nextOrder(page: Int): Int
 
     @Query("DELETE FROM favorites WHERE f_id = :id")
     suspend fun delete(id: Long)

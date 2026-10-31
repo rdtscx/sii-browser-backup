@@ -354,6 +354,11 @@ interface HomeSearchSettings {
 
     fun setHomeCustomHtmlPos(value: Int)
 
+    /** 常用网站主页页数（1–5）。 */
+    fun homeSitePages(): Int
+
+    fun setHomeSitePages(value: Int)
+
     /** 主页按键动作（keyhome）。 */
     fun homeKey(): Int
 

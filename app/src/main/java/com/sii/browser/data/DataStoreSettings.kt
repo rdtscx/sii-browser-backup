@@ -568,6 +568,12 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeCustomHtmlPos(value: Int) =
         putInt(SettingsKeys.HOME_CUSTOM_HTML_POS, value.coerceIn(0, 2))
 
+    override fun homeSitePages(): Int =
+        int(SettingsKeys.HOME_SITE_PAGES, SettingsDefaults.HOME_SITE_PAGES).coerceIn(1, 5)
+
+    override fun setHomeSitePages(value: Int) =
+        putInt(SettingsKeys.HOME_SITE_PAGES, value.coerceIn(1, 5))
+
     override fun homeKey(): Int = int(SettingsKeys.KEY_HOME, 4)
 
     override fun setHomeKey(value: Int) {
