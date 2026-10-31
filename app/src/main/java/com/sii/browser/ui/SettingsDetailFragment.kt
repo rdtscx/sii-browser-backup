@@ -1024,10 +1024,33 @@ class SettingsDetailFragment : Fragment() {
             rows.add(navRow(getString(R.string.settings_home_import)) { pickHomeFile(1) })
         }
         rows.add(navRow(getString(R.string.settings_home_logo)) { open(VIEW_V2_HOME_LOGO) })
+        // 分页与管理不随主页模式失效：网页主页下 DIY 的常用网站分类会被禁用，入口放这里
+        rows.add(
+            choiceRow(
+                getString(R.string.settings_home_site_pages),
+                arrayOf("1", "2", "3", "4", "5"),
+                settings.homeSitePages().coerceIn(1, 5) - 1
+            ) { index ->
+                settings.setHomeSitePages(index + 1)
+                viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    AppServices.favoriteRepository.clampToPages(index + 1)
+                }
+                build()
+            }
+        )
+        rows.add(navRow(getString(R.string.settings_home_sites_manage)) { openSitesManage() })
         rows.add(navRow(getString(R.string.settings_home_sites)) { open(VIEW_V2_HOME_SITES) })
         rows.add(navRow(getString(R.string.settings_home_search)) { open(VIEW_V2_HOME_SEARCH) })
         rows.add(navRow(getString(R.string.settings_home_background)) { open(VIEW_V2_HOME_BG) })
         card(*rows.toTypedArray())
+    }
+
+    /** 常用网站管理页（分页后才有意义，不随主页模式禁用）。 */
+    private fun openSitesManage() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, HomeSitesManageFragment())
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun homeChoiceRow(): View = choiceRow(
