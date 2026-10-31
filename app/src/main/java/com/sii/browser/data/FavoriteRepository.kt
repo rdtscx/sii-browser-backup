@@ -28,6 +28,8 @@ class FavoriteRepository(private val dao: FavoriteDao) {
 
     suspend fun delete(id: Long) = dao.delete(id)
 
+    suspend fun update(item: FavoriteItem) = dao.update(item)
+
     /** 将收藏上移/下移一位（交换排序值）。 */
     suspend fun move(item: FavoriteItem, up: Boolean) {
         val list = dao.allOnce()

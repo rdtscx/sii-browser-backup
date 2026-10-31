@@ -1082,6 +1082,8 @@
     <string name="settings_home_import">Import local home page</string>
     <string name="settings_home_import_failed">Import failed, try another file</string>
     <string name="settings_home_web_hint">With a web home, the search box and sites are drawn by the page; native options below no longer apply</string>
+    <string name="home_site_edit">Edit site</string>
+    <string name="home_engine_default_set">Set as default search engine</string>
     <string name="settings_home_url">Home URL</string>
     <string name="settings_engine_url_hint">Search URL with %s for the query, e.g. https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>

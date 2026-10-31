@@ -1083,6 +1083,8 @@
     <string name="settings_home_import">导入本地主页</string>
     <string name="settings_home_import_failed">导入失败，请换一个文件重试</string>
     <string name="settings_home_web_hint">网页主页下搜索框与常用网站由网页自己绘制，下列原生项不再生效</string>
+    <string name="home_site_edit">编辑常用网站</string>
+    <string name="home_engine_default_set">已设为默认搜索引擎</string>
     <string name="settings_home_url">主页网址</string>
     <string name="settings_engine_url_hint">搜索地址，关键词用 %s 代替，例如 https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>

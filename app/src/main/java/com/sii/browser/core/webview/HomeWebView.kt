@@ -24,7 +24,9 @@ import org.json.JSONObject
 class HomeWebView(
     context: Context,
     private val onSearch: (String) -> Unit,
-    private val onOpen: (String) -> Unit
+    private val onOpen: (String) -> Unit,
+    private val onSiteMenu: (String) -> Unit,
+    private val onSetDefaultEngine: (String) -> Unit
 ) : WebView(context) {
 
     /** 一次渲染所需的全部状态；签名不变时不重新加载页面。 */
@@ -37,12 +39,17 @@ class HomeWebView(
         val accent: String,
         val searchBase: String,
         val engines: List<Pair<String, String>>,
-        val sites: List<Pair<String, String>>
+        val sites: List<Pair<String, String>>,
+        /** 主页背景图（data URI），空 = 纯色底。 */
+        val background: String = "",
+        /** 标题图标（data URI），空 = 显示文字。 */
+        val logoImage: String = ""
     ) {
         fun signature(): String = buildString {
             append(template).append('|').append(url).append('|').append(css).append('|')
             append(title).append('|').append(night).append('|').append(accent).append('|')
             append(searchBase).append('|')
+            append(background.hashCode()).append('|').append(logoImage.hashCode()).append('|')
             engines.forEach { append(it.first).append('→').append(it.second).append(';') }
             append('|')
             sites.forEach { append(it.first).append('→').append(it.second).append(';') }
@@ -123,10 +130,23 @@ class HomeWebView(
             .bufferedReader()
             .use { it.readText() }
         val css = sanitizeCss(page.css)
+        val themeCss = buildString {
+            if (page.background.isNotBlank()) {
+                append("body{background-image:")
+                if (page.night) {
+                    append("linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),")
+                }
+                append("url(\"").append(page.background).append("\");}")
+            }
+            if (page.logoImage.isNotBlank()) {
+                append(".gradient-title{background:none;-webkit-text-fill-color:initial;}")
+            }
+        }
         val config = JSONObject().apply {
             put("title", page.title)
             put("night", if (page.night) 1 else 0)
             put("accent", page.accent)
+            put("logoImage", page.logoImage)
             put("searchBase", page.searchBase)
             put("engines", JSONArray().apply {
                 page.engines.forEach { (name, url) ->
@@ -139,7 +159,9 @@ class HomeWebView(
                 }
             })
         }.toString().replace("<", "\\u003c")
-        raw.replace("/*__SII_CSS__*/", css).replace("__SII_CONFIG__", config)
+        raw.replace("/*__SII_THEME__*/", themeCss)
+            .replace("/*__SII_CSS__*/", css)
+            .replace("__SII_CONFIG__", config)
     }.getOrNull()
 
     /** 自定义地址主页：整页加载后追加用户 CSS，不干扰页面自身样式表。 */
@@ -173,6 +195,20 @@ class HomeWebView(
             val value = url.trim()
             if (value.isEmpty()) return
             post { onOpen(value) }
+        }
+
+        @JavascriptInterface
+        fun menuSite(url: String) {
+            val value = url.trim()
+            if (value.isEmpty()) return
+            post { onSiteMenu(value) }
+        }
+
+        @JavascriptInterface
+        fun setDefaultEngine(url: String) {
+            val value = url.trim()
+            if (value.isEmpty()) return
+            post { onSetDefaultEngine(value) }
         }
     }
 

@@ -100,6 +100,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var tabBar: View? = null
     private var homePanel: HomePanel? = null
     private var homeWeb: com.sii.browser.core.webview.HomeWebView? = null
+    private var homeBgCacheKey: String? = null
+    private var homeBgCacheData: String? = null
+    private var homeLogoCacheData: String? = null
     private var latestFavorites: List<com.sii.browser.data.db.FavoriteItem> = emptyList()
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
@@ -4671,7 +4674,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 val home = com.sii.browser.core.webview.HomeWebView(
                     requireContext(),
                     onSearch = { navigateFromHome(it) },
-                    onOpen = { loadUrlFor(it) }
+                    onOpen = { loadUrlFor(it) },
+                    onSiteMenu = { showHomeSiteMenu(it) },
+                    onSetDefaultEngine = { setHomeDefaultEngine(it) }
                 )
                 host.addView(
                     home,
@@ -4764,9 +4769,130 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 searchBase = settings.searchEngineUrl()
                     ?: com.sii.browser.data.SearchEngines.DEFAULT.first().second,
                 engines = engineList,
-                sites = latestFavorites.take(30).map { it.title to it.url }
+                sites = latestFavorites.take(30).map { it.title to it.url },
+                background = homeBackgroundData(),
+                logoImage = if (settings.homeLogoMode() == 1) homeLogoData() else ""
             )
         )
+    }
+
+    /** 主页背景图转 data URI（按来源 + 文件修改时间缓存）。 */
+    private fun homeBackgroundData(): String {
+        val raw = AppServices.settings.homeBackground()?.takeIf { it.isNotBlank() } ?: return ""
+        val uri = when {
+            raw.startsWith("content://") || raw.startsWith("file://") -> android.net.Uri.parse(raw)
+            else -> android.net.Uri.fromFile(java.io.File(raw))
+        }
+        val stamp = if (uri.scheme == "content") raw else raw + "|" + java.io.File(uri.path.orEmpty()).lastModified()
+        if (stamp == homeBgCacheKey) return homeBgCacheData.orEmpty()
+        val resolver = requireContext().contentResolver
+        val data = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            resolver.openInputStream(uri)?.use { input ->
+                android.graphics.BitmapFactory.decodeStream(input, null, bounds)
+            }
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
+            val bitmap = resolver.openInputStream(uri)?.use { input ->
+                android.graphics.BitmapFactory.decodeStream(
+                    input, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                )
+            } ?: return@runCatching ""
+            val out = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out)
+            bitmap.recycle()
+            "data:image/jpeg;base64," + android.util.Base64.encodeToString(
+                out.toByteArray(), android.util.Base64.NO_WRAP
+            )
+        }.getOrDefault("")
+        homeBgCacheKey = stamp
+        homeBgCacheData = data
+        return data
+    }
+
+    /** 主页图标 Logo 转 data URI（矢量图光栅化一次后缓存）。 */
+    private fun homeLogoData(): String {
+        homeLogoCacheData?.let { return it }
+        val data = runCatching {
+            val drawable = androidx.core.content.ContextCompat
+                .getDrawable(requireContext(), R.drawable.ic_logo_home) ?: return@runCatching ""
+            val size = 128
+            val bitmap = android.graphics.Bitmap.createBitmap(
+                size, size, android.graphics.Bitmap.Config.ARGB_8888
+            )
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(android.graphics.Canvas(bitmap))
+            val out = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            bitmap.recycle()
+            "data:image/png;base64," + android.util.Base64.encodeToString(
+                out.toByteArray(), android.util.Base64.NO_WRAP
+            )
+        }.getOrDefault("")
+        homeLogoCacheData = data
+        return data
+    }
+
+    /** 主页站点卡长按：打开 / 编辑 / 删除。 */
+    private fun showHomeSiteMenu(url: String) {
+        val item = latestFavorites.firstOrNull { it.url == url }
+        if (item == null) {
+            loadUrlFor(url)
+            return
+        }
+        val options = arrayOf(
+            getString(R.string.download_open),
+            getString(R.string.home_site_edit),
+            getString(R.string.delete)
+        )
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(item.title.ifBlank { item.url })
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> loadUrlFor(item.url)
+                    1 -> editHomeSite(item)
+                    else -> viewLifecycleOwner.lifecycleScope.launch {
+                        AppServices.favoriteRepository.delete(item.id)
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun editHomeSite(item: com.sii.browser.data.db.FavoriteItem) {
+        val context = requireContext()
+        val nameInput = android.widget.EditText(context).apply { setText(item.title) }
+        val urlInput = android.widget.EditText(context).apply { setText(item.url) }
+        val box = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(20), dpToPx(8), dpToPx(20), 0)
+            addView(nameInput)
+            addView(urlInput)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle(R.string.home_site_edit)
+            .setView(box)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val newTitle = nameInput.text.toString().trim()
+                val newUrl = urlInput.text.toString().trim()
+                if (newUrl.isBlank()) return@setPositiveButton
+                viewLifecycleOwner.lifecycleScope.launch {
+                    AppServices.favoriteRepository.update(
+                        item.copy(title = newTitle.ifBlank { newUrl }, url = newUrl)
+                    )
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun setHomeDefaultEngine(url: String) {
+        if (url.isBlank()) return
+        AppServices.settings.setSearchEngineUrl(url)
+        Toast.makeText(
+            requireContext(), R.string.home_engine_default_set, Toast.LENGTH_SHORT
+        ).show()
+        renderWebHome()
     }
 
     // ---- 标签面板（原生底部浮层） ----
