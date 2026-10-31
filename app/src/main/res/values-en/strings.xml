@@ -1098,6 +1098,13 @@
     <string name="settings_home_import_config">Import web home config</string>
     <string name="settings_home_export_failed">Export failed, try another location</string>
     <string name="settings_home_reset_done">Switched back to the native home</string>
+    <string name="settings_home_sites_manage">Manage sites</string>
+    <string name="settings_home_site_pages">Home pages</string>
+    <string name="home_page_label">Page %1$d</string>
+    <string name="home_page_move">Move to page</string>
+    <string name="home_sites_page_empty">No sites on this page</string>
+    <string name="favorite_move_up">Move up</string>
+    <string name="favorite_move_down">Move down</string>
     <string name="settings_home_import">Import local home page</string>
     <string name="settings_home_import_failed">Import failed, try another file</string>
     <string name="settings_home_web_hint">With a web home, the search box and sites are drawn by the page; native options below no longer apply</string>

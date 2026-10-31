@@ -646,7 +646,24 @@ class HomeCustomizeFragment : Fragment() {
         return rows
     }
 
+    /** 常用网站管理页（按页分组、跨页移动）。 */
+    private fun openSitesManage() {
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.shell_root, HomeSitesManageFragment())
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun favoriteRows(): List<View> = listOf(
+        navRow(getString(R.string.settings_home_sites_manage), null) { openSitesManage() },
+        choiceRow(
+            getString(R.string.settings_home_site_pages),
+            arrayOf("1", "2", "3", "4", "5"),
+            settings.homeSitePages().coerceIn(1, 5) - 1
+        ) { index ->
+            settings.setHomeSitePages(index + 1)
+            refreshPreview()
+        },
         choiceRow(
             getString(R.string.settings_home_grid_columns),
             arrayOf("4 列", "5 列", "6 列"),

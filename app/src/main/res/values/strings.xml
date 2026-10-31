@@ -1099,6 +1099,13 @@
     <string name="settings_home_import_config">导入网页主页配置</string>
     <string name="settings_home_export_failed">导出失败，请换个位置重试</string>
     <string name="settings_home_reset_done">已切回 Sii 原生主页</string>
+    <string name="settings_home_sites_manage">常用网站管理</string>
+    <string name="settings_home_site_pages">主页页数</string>
+    <string name="home_page_label">第 %1$d 页</string>
+    <string name="home_page_move">移到第几页</string>
+    <string name="home_sites_page_empty">这一页还没有网站</string>
+    <string name="favorite_move_up">上移</string>
+    <string name="favorite_move_down">下移</string>
     <string name="settings_home_import">导入本地主页</string>
     <string name="settings_home_import_failed">导入失败，请换一个文件重试</string>
     <string name="settings_home_web_hint">网页主页下搜索框与常用网站由网页自己绘制，下列原生项不再生效</string>

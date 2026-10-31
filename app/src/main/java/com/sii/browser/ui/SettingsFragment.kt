@@ -77,6 +77,8 @@ class SettingsFragment : Fragment() {
         SearchEntry("Logo", "外观与主页", "显示内容 时间", diyTab = 0),
         SearchEntry("常用网站", "外观与主页", "主页图标", diyTab = 4),
         SearchEntry("常用网站阴影", "外观与主页", "阴影 卡片 shadow", diyTab = 4),
+        SearchEntry("常用网站管理", "外观与主页", "管理 排序 分页 移到", diyTab = 4),
+        SearchEntry("主页页数", "外观与主页", "分页 页面 常用网站", diyTab = 4),
         SearchEntry("搜索框阴影", "外观与主页", "阴影 主页搜索框 shadow", diyTab = 1),
         SearchEntry("地址栏", "外观与主页", "address", diyTab = 2),
         SearchEntry("工具栏", "外观与主页", "toolbar", diyTab = 5),
