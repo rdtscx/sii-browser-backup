@@ -860,7 +860,7 @@ class HomePanel(
         val on = AppServices.settings.homeSitesCardBg()
         val dark = AppServices.settings.isNightMode()
         val themeFill = ThemePalette.fill(context, ThemePart.SITES)
-        val base = if (dark) 0xFF1B1E23.toInt() else context.getColor(R.color.card)
+        val base = context.getColor(R.color.card)
         card.background = when {
             !on -> null
             // 磨砂：半透明填充 + 亮描边 + 高光，跟随日夜；开启时不再叠主题色淡底。
@@ -911,7 +911,7 @@ class HomePanel(
             dark -> 0x24FFFFFF
             else -> context.getColor(R.color.line)
         }
-        val baseColor = if (dark) 0xFF1B1E23.toInt() else context.getColor(R.color.card)
+        val baseColor = context.getColor(R.color.card)
         val radiusPx = dp(radius).toFloat()
         if (AppServices.settings.homeFrosted()) {
             // 磨砂：半透明填充 + 亮描边 + 顶部高光；聚焦换成主色淡底，仍保留磨砂层。

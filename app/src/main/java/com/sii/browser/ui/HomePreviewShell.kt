@@ -115,10 +115,16 @@ class HomePreviewShell(
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(4), dp(6), dp(4))
             val showBackground = AppServices.settings.dockBackground()
+            val onHome = !previewWeb
             background = when {
                 !showBackground -> null
-                AppServices.settings.homeFrosted() ->
+                onHome && AppServices.settings.homeFrosted() ->
                     GlassStyle.frosted(context, night, dp(28).toFloat())
+                onHome -> GradientDrawable().apply {
+                    cornerRadius = dp(28).toFloat()
+                    setColor(dockTint ?: ContextCompat.getColor(context, R.color.card))
+                    setStroke(dp(1), if (night) 0x1FFFFFFF else 0x14000000)
+                }
                 else -> GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
                     setColor(

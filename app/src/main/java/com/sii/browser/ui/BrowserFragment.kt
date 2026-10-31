@@ -10216,24 +10216,37 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         dockProgressClip = clip
         val frosted = AppServices.settings.homeFrosted()
-        dock.background = if (showBackground && frosted) {
-            // 磨砂：与主页搜索框/常用网站同一材质，进度层照旧插入。
-            GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
-        } else {
-            GlassStyle.surface(
+        // 主页上底栏与搜索框/常用网站同一套材质；网页页仍是玻璃（需透出网页内容）。
+        val onHome = homeContainer?.visibility == View.VISIBLE
+        dock.background = when {
+            !showBackground -> GlassStyle.surface(
+                requireContext(), night, radius, strength,
+                highlight = 0f,
+                shade = 0f,
+                strokeOverride = android.graphics.Color.TRANSPARENT,
+                overlay = clip,
+                // 关背景色：只留图标与进度填充。
+                fillOverride = android.graphics.Color.TRANSPARENT
+            )
+            onHome && frosted ->
+                GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
+            onHome -> GlassStyle.surface(
+                requireContext(), night, radius, strength,
+                highlight = 0f,
+                shade = 0f,
+                strokeOverride = if (night) 0x1FFFFFFF else 0x14000000,
+                overlay = clip,
+                // 实心卡：与搜索框/常用网站卡片同底色、同一描边。
+                fillOverride = dockBaseColor() ?: requireContext().getColor(R.color.card)
+            )
+            else -> GlassStyle.surface(
                 requireContext(), night, radius, strength,
                 minAlpha = GlassStyle.DOCK_GLASS_MIN_ALPHA,
                 base = dockBaseColor(),
                 highlight = 0f,
-                shade = if (showBackground) 0.03f else 0f,
-                strokeOverride = when {
-                    !showBackground -> android.graphics.Color.TRANSPARENT
-                    night -> 0x2AFFFFFF
-                    else -> 0x1C000000
-                },
-                overlay = clip,
-                // 关背景色：只留图标与进度填充。
-                fillOverride = if (showBackground) null else android.graphics.Color.TRANSPARENT
+                shade = 0.03f,
+                strokeOverride = if (night) 0x2AFFFFFF else 0x1C000000,
+                overlay = clip
             )
         }
         val layer = dock.background as? android.graphics.drawable.LayerDrawable
