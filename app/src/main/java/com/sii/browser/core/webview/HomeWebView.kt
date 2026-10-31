@@ -42,6 +42,8 @@ class HomeWebView(
         val searchBase: String,
         val engines: List<Pair<String, String>>,
         val sites: List<Pair<String, String>>,
+        /** 是否显示常用网站网格（跟随原生「显示常用网站」开关）。 */
+        val showSites: Boolean = true,
         /** 主页背景图（data URI），空 = 纯色底。 */
         val background: String = "",
         /** 标题图标（data URI），空 = 显示文字。 */
@@ -57,6 +59,7 @@ class HomeWebView(
             append(searchBase).append('|')
             append(background.hashCode()).append('|').append(logoImage.hashCode()).append('|')
             append(customHtml.hashCode()).append('|').append(customHtmlPos).append('|')
+            append(showSites).append('|')
             engines.forEach { append(it.first).append('→').append(it.second).append(';') }
             append('|')
             sites.forEach { append(it.first).append('→').append(it.second).append(';') }
@@ -156,6 +159,7 @@ class HomeWebView(
             put("logoImage", page.logoImage)
             put("customHtml", page.customHtml)
             put("customHtmlPos", page.customHtmlPos)
+            put("showSites", page.showSites)
             put("searchBase", page.searchBase)
             put("engines", JSONArray().apply {
                 page.engines.forEach { (name, url) ->

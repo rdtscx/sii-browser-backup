@@ -337,6 +337,9 @@ body{
   }
 
   var grid = $('navGrid');
+  if (!cfg.showSites) {
+    grid.style.display = 'none';
+  }
   cfg.sites.forEach(function (site) {
     var card = document.createElement('a');
     card.className = 'nav-card';
@@ -520,13 +523,16 @@ body{
   // 自定义 HTML 片段：可插到顶部 / 搜索框下方 / 页面底部；<script> 重建后才会执行
   function injectCustomHtml() {
     if (!cfg.customHtml) return;
-    var slot = cfg.customHtmlPos === 1 ? $('siiSlotBottom')
-      : (cfg.customHtmlPos === 2 ? $('siiSlotHead') : $('siiSlotTop'));
-    if (!slot) return;
-    slot.innerHTML = cfg.customHtml;
-    // 片段自带标题/时钟时移除模板内置的那份，否则会出现两份、且脚本取错元素
     var html = cfg.customHtml;
-    if (/id\s*=\s*["']?vtime|id\s*=\s*["']?vdate|class\s*=\s*["'][^"']*\bclock\b/.test(html)) {
+    var hasClock = /id\s*=\s*["']?vtime|id\s*=\s*["']?vdate|class\s*=\s*["'][^"']*\bclock\b/.test(html);
+    var pos = cfg.customHtmlPos || 0;
+    // 片段自带时钟 = 它本来就是标题/时钟层，固定放顶部，不跟着旧的位置设置跑到下面
+    if (hasClock) pos = 2;
+    var slot = pos === 1 ? $('siiSlotBottom') : (pos === 2 ? $('siiSlotHead') : $('siiSlotTop'));
+    if (!slot) return;
+    slot.innerHTML = html;
+    // 片段自带标题/时钟时移除模板内置的那份，否则会出现两份、且脚本取错元素
+    if (hasClock) {
       var builtinClock = document.querySelector('.page > .clock');
       if (builtinClock) builtinClock.remove();
       hasBuiltinClock = false;

@@ -54,6 +54,7 @@ object HomePageBuilder {
             searchBase = settings.searchEngineUrl() ?: SearchEngines.DEFAULT.first().second,
             engines = engineList,
             sites = favorites.take(30).map { it.title to it.url },
+            showSites = settings.showSites(),
             background = background(context, settings),
             logoImage = if (settings.homeLogoMode() == 1) logo(context) else "",
             customHtml = settings.homeCustomHtml(),
