@@ -699,7 +699,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             setPadding(dp(16), dp(10), dp(6), dp(10))
             background = GlassStyle.surface(
                 context, dark, dp(22).toFloat(),
-                AppServices.settings.glassStrength(), minAlpha = 165,
+                AppServices.settings.glassStrength(), minAlpha = 92,
                 highlight = 0f
             )
             elevation = dp(8).toFloat()
@@ -4595,7 +4595,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 悬浮与经典都走玻璃；经典面板贴底，只圆上方两角。
         panel.background = GlassStyle.surface(
             requireContext(), night, radius, strength,
-            topOnly = !modern, minAlpha = 165, base = themeFill
+            topOnly = !modern, minAlpha = 92, base = themeFill
         )
         val actionText = if (dark) android.graphics.Color.WHITE
         else if (modern) 0xFF1A1A1A.toInt()
@@ -4605,7 +4605,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 if (modern) {
                     background = android.graphics.drawable.GradientDrawable().apply {
                         cornerRadius = dp(22).toFloat()
-                        setColor(GlassStyle.fill(requireContext(), dark, strength, 155))
+                        setColor(GlassStyle.fill(requireContext(), dark, strength, 84))
                         setStroke(dp(1), GlassStyle.stroke(dark, strength))
                     }
                 } else {
@@ -5346,7 +5346,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             background = GlassStyle.surface(
                 requireContext(), night, dp(28).toFloat(),
                 AppServices.settings.glassStrength(), topOnly = !modern,
-                minAlpha = 170, base = menuBg ?: menuFill
+                minAlpha = 96, base = menuBg ?: menuFill
             )
             backgroundTintList = null
         }
@@ -10186,7 +10186,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun applyDockGlass() {
         val dock = view?.findViewById<LinearLayout>(R.id.modern_chrome) ?: return
         val night = AppServices.settings.isNightMode()
-        val strength = GlassStyle.dockStrength()
+        val strength = AppServices.settings.glassStrength()
+        val showBackground = AppServices.settings.dockBackground()
         val radius = dp(28).toFloat()
         // 进度用胶囊本身的背景表达：一层从左往右裁剪的主色，插在填充与高光之间。
         val accent = ThemeAccent.color(requireContext())
@@ -10201,11 +10202,18 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dockProgressClip = clip
         dock.background = GlassStyle.surface(
             requireContext(), night, radius, strength,
+            minAlpha = GlassStyle.DOCK_GLASS_MIN_ALPHA,
+            base = dockBaseColor(),
             highlight = 0f,
-            shade = 0.03f,
-            strokeOverride = if (night) 0x2AFFFFFF else 0x1C000000,
+            shade = if (showBackground) 0.03f else 0f,
+            strokeOverride = when {
+                !showBackground -> android.graphics.Color.TRANSPARENT
+                night -> 0x2AFFFFFF
+                else -> 0x1C000000
+            },
             overlay = clip,
-            fillOverride = GlassStyle.dockFill(night, dockBaseColor())
+            // 关背景色：只留图标与进度填充。
+            fillOverride = if (showBackground) null else android.graphics.Color.TRANSPARENT
         )
     }
 

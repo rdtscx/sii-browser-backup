@@ -166,11 +166,16 @@ class HomePanel(
                 searchBox.elevation = if (AppServices.settings.homeSearchShadow()) {
                     dp(shadowDp(9f)).toFloat()
                 } else 0f
-                searchBox.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    androidx.core.graphics.ColorUtils.setAlphaComponent(
-                        context.getColor(R.color.accent_soft), searchFillAlpha()
+                if (AppServices.settings.homeSearchFrosted()) {
+                    // 磨砂层不能被 tint 覆盖（高光也会被染色），直接重建带主色淡底的磨砂底。
+                    applySearchStyle(focused = true)
+                } else {
+                    searchBox.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                        androidx.core.graphics.ColorUtils.setAlphaComponent(
+                            context.getColor(R.color.accent_soft), searchFillAlpha()
+                        )
                     )
-                )
+                }
                 searchScan.imageTintList = android.content.res.ColorStateList.valueOf(
                     ThemeAccent.color(context)
                 )
@@ -516,7 +521,9 @@ class HomePanel(
             return
         }
         val popup = topSuggestionPopup ?: SuggestionPopup(
-            context, topSearchBox, horizontalShiftDp = 5
+            context, topSearchBox,
+            horizontalShiftDp = 5,
+            frosted = { AppServices.settings.homeSearchFrosted() }
         ) { item -> pickTopSuggestion(item) }.also { topSuggestionPopup = it }
         popup.show(sorted)
     }
@@ -536,6 +543,18 @@ class HomePanel(
         if (!show) {
             topSearchInput.clearFocus()
             topSuggestionPopup?.dismiss(false)
+        }
+    }
+
+    /** 顶部搜索入口与主搜索框共用一套磨砂材质。 */
+    private fun applyTopSearchStyle() {
+        val top = view.findViewById<View>(R.id.home_top_search) ?: return
+        if (AppServices.settings.homeSearchFrosted()) {
+            top.background = GlassStyle.frosted(
+                context, AppServices.settings.isNightMode(), dp(22).toFloat()
+            )
+        } else {
+            top.setBackgroundResource(R.drawable.bg_search_box)
         }
     }
 
@@ -750,6 +769,7 @@ class HomePanel(
     /** 应用主页样式：位置、Logo、列数、图标、搜索框、背景与名称。 */
     fun applyHomeStyle() {
         applyTopSearchVisibility()
+        applyTopSearchStyle()
         applySearchVisibility()
         applyLayoutPos()
         val modern = AppServices.settings.uiStyle() == 1
@@ -794,7 +814,7 @@ class HomePanel(
         }
         val columns = s.homeGridColumns().coerceIn(4, 6)
         if (grid.columnCount != columns) grid.columnCount = columns
-        applySearchStyle()
+        applySearchStyle(searchInput.hasFocus())
         applyBackground()
         applySitesVisibility()
         // 只有站点格子样式变化才重建，拖动无关滑块时不再每帧重建网格。
@@ -883,33 +903,53 @@ class HomePanel(
     private fun applySearchStyle(focused: Boolean = false) {
         val box = view.findViewById<LinearLayout>(R.id.home_search_box) ?: return
         val modern = AppServices.settings.uiStyle() == 1
-        val dark = modern && AppServices.settings.isNightMode()
+        val night = AppServices.settings.isNightMode()
+        val dark = modern && night
         val radius = searchCornerRadiusDp()
         val strokeColor = when {
             modern && focused -> ThemeAccent.color(context)
             dark -> 0x24FFFFFF
             else -> context.getColor(R.color.line)
         }
-        // 搜索框不走玻璃：不透明卡 + 细描边 + 投影（阴影不再调淡）。
         val baseColor = if (dark) 0xFF1B1E23.toInt() else context.getColor(R.color.card)
         val radiusPx = dp(radius).toFloat()
-        box.background = GradientDrawable().apply {
-            cornerRadius = radiusPx
-            setColor(
-                androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, searchFillAlpha())
+        if (AppServices.settings.homeSearchFrosted()) {
+            // 磨砂：半透明填充 + 亮描边 + 顶部高光；聚焦换成主色淡底，仍保留磨砂层。
+            box.background = GlassStyle.frosted(
+                context, night, radiusPx,
+                fillOverride = if (focused) {
+                    (0x8C shl 24) or (ThemeAccent.color(context) and 0x00FFFFFF)
+                } else null,
+                strokeOverride = if (focused) ThemeAccent.color(context) else null
             )
-            setStroke(dp(1), strokeColor)
+            box.backgroundTintList = null
+        } else {
+            // 搜索框不走玻璃：不透明卡 + 细描边 + 投影（阴影不再调淡）。
+            box.background = GradientDrawable().apply {
+                cornerRadius = radiusPx
+                setColor(
+                    androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, searchFillAlpha())
+                )
+                setStroke(dp(1), strokeColor)
+            }
         }
         box.outlineProvider = roundOutline(radiusPx)
         box.elevation = if (AppServices.settings.homeSearchShadow()) {
             dp(shadowDp(if (focused) 9f else 6f)).toFloat()
         } else 0f
-        val padV = when (AppServices.settings.homeSearchHeight()) {
-            0 -> 2
-            2 -> 8
-            else -> 4
+        // 高度选项改的是外框高度：内边距固定，否则只挤压内容、看不出变化。
+        val boxHeight = when (AppServices.settings.homeSearchHeight()) {
+            0 -> 48
+            2 -> 64
+            else -> 56
         }
-        box.setPadding(dp(8), dp(padV), dp(4), dp(padV))
+        (box.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
+            if (lp.height != dp(boxHeight)) {
+                lp.height = dp(boxHeight)
+                box.layoutParams = lp
+            }
+        }
+        box.setPadding(dp(8), dp(4), dp(4), dp(4))
         val normalIcon = if (dark) 0xCCFFFFFF.toInt()
         else context.getColor(R.color.text_secondary)
         searchScan.imageTintList = android.content.res.ColorStateList.valueOf(
@@ -1167,7 +1207,8 @@ class HomePanel(
             searchBox,
             minWidthDp = 0,
             cornerRadiusDp = { searchCornerRadiusDp() },
-            horizontalShiftDp = 5
+            horizontalShiftDp = 5,
+            frosted = { AppServices.settings.homeSearchFrosted() }
         ) { item ->
             pickSuggestion(item)
         }.also { suggestionPopup = it }

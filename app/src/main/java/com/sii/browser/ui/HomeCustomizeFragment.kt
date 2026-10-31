@@ -541,6 +541,19 @@ class HomeCustomizeFragment : Fragment() {
                 view?.post { buildControls() }
             }
         )
+        val transparencyRow = sliderRow(
+            "搜索框透明度", settings.homeSearchTransparency(), 0, 100
+        ) { value ->
+            settings.setHomeSearchTransparency(value)
+            refreshPreview()
+        }
+        // 磨砂自带固定半透明，两者同时生效会互相抵消。
+        if (settings.homeSearchFrosted()) disableRow(transparencyRow, true)
+        val frostedRow = switchRow("磨砂质感", settings.homeSearchFrosted()) { on ->
+            settings.setHomeSearchFrosted(on)
+            refreshPreview()
+            view?.post { buildControls() }
+        }
         val details = listOf(
             switchRow(
                 "主页顶部显示搜索框",
@@ -592,10 +605,8 @@ class HomeCustomizeFragment : Fragment() {
                 settings.setHomeSearchShadow(it)
                 refreshPreview()
             },
-            sliderRow("搜索框透明度", settings.homeSearchTransparency(), 0, 100) { value ->
-                settings.setHomeSearchTransparency(value)
-                refreshPreview()
-            }
+            frostedRow,
+            transparencyRow
         )
         rows.addAll(if (show) details else details.map { disabledRow(it) })
         return rows
@@ -772,18 +783,12 @@ class HomeCustomizeFragment : Fragment() {
         rows.add(switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
             settings.setToolbarAutoHide(it)
         })
-        val dockTransparencyRow = sliderRow(
-            "悬浮工具栏透明度",
-            // 未单独设置时显示跟随玻璃强度得到的当前透明度，拖动后改为独立控制。
-            settings.dockTransparency().takeIf { it >= 0 }
-                ?: (100 - (255 - settings.glassStrength().coerceIn(0, 100)) * 100 / 255),
-            0, 100
-        ) { value ->
-            settings.setDockTransparency(value)
+        val dockBackgroundRow = switchRow("悬浮工具栏背景色", settings.dockBackground()) { on ->
+            settings.setDockBackground(on)
             refreshPreview()
         }
-        rows.add(dockTransparencyRow)
-        if (!modern) disableRow(dockTransparencyRow, true)
+        rows.add(dockBackgroundRow)
+        if (!modern) disableRow(dockBackgroundRow, true)
         val tabBarRow = choiceRow(
             "标签栏位置",
             arrayOf("地址栏上方", "工具栏上方", "隐藏"),

@@ -5,6 +5,7 @@ package com.sii.browser.ui
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
@@ -17,6 +18,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.sii.browser.R
 import com.sii.browser.core.mcp.DiagLog
+import com.sii.browser.di.AppServices
 import kotlin.math.min
 
 /** 地址栏和主页搜索框共用的建议弹层：原地更新、轻量淡入、自动翻转和滚动。 */
@@ -27,6 +29,8 @@ class SuggestionPopup(
     private val cornerRadiusDp: (() -> Int)? = null,
     /** 水平微调：正值向右、负值向左（相对锚点左边界，屏幕边缘仍会回收）。 */
     private val horizontalShiftDp: Int = 0,
+    /** 磨砂建议卡片（主页搜索框打开「磨砂质感」时生效）。 */
+    private val frosted: (() -> Boolean)? = null,
     private val onPick: (Suggestion) -> Unit
 ) {
     private var popup: PopupWindow? = null
@@ -138,8 +142,11 @@ class SuggestionPopup(
 
         val view = ScrollView(context).apply {
             isVerticalScrollBarEnabled = true
-            if (cornerRadiusDp != null) background = panelBackground()
-            else setBackgroundResource(R.drawable.bg_suggestion_panel)
+            when {
+                frosted?.invoke() == true -> background = frostedBackground()
+                cornerRadiusDp != null -> background = panelBackground()
+                else -> setBackgroundResource(R.drawable.bg_suggestion_panel)
+            }
             clipToOutline = true
             addView(
                 column,
@@ -384,6 +391,13 @@ class SuggestionPopup(
         setColor(ContextCompat.getColor(context, R.color.card))
         setStroke(dp(1), ContextCompat.getColor(context, R.color.line))
     }
+
+    /** 磨砂卡片：与主页搜索框同一材质，透出下方主页内容。 */
+    private fun frostedBackground(): Drawable = GlassStyle.frosted(
+        context,
+        AppServices.settings.isNightMode(),
+        dp(cornerRadiusDp?.invoke() ?: 22).toFloat()
+    )
 
     private fun buildColumn(items: List<Suggestion>): LinearLayout {
         val column = LinearLayout(context).apply {

@@ -98,6 +98,9 @@ object SettingsDefaults {
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
     const val HOME_SEARCH_TRANSPARENCY = 0
 
+    /** 主页搜索框磨砂质感（建议卡片同步）。 */
+    const val HOME_SEARCH_FROSTED = false
+
     /** 网页文字颜色：0 原色 / 1 跟随主色 / 2 仅白天 / 3 仅夜晚。 */
     const val WEB_TEXT_COLOR = 0
 
@@ -206,8 +209,8 @@ object SettingsDefaults {
     /** 玻璃质感强度：0 不透明 → 100 最通透。 */
     const val GLASS_STRENGTH = 40
 
-    /** 悬浮工具栏透明度：-1 跟随玻璃强度，0–100 单独指定。 */
-    const val DOCK_TRANSPARENCY = -1
+    /** 悬浮工具栏背景色（关闭后胶囊只剩图标与进度）。 */
+    const val DOCK_BACKGROUND = true
 
 
     /** 主页风格：0 玻璃 / 1 极简 / 2 杂志。 */

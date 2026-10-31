@@ -981,10 +981,15 @@ interface WebPageSettings {
 
     fun setHomeSearchTransparency(value: Int)
 
-    /** 悬浮工具栏透明度：-1 跟随玻璃强度，0–100 单独指定。 */
-    fun dockTransparency(): Int
+    /** 主页搜索框磨砂质感（建议卡片同步）。 */
+    fun homeSearchFrosted(): Boolean
 
-    fun setDockTransparency(value: Int)
+    fun setHomeSearchFrosted(value: Boolean)
+
+    /** 悬浮工具栏背景色。 */
+    fun dockBackground(): Boolean
+
+    fun setDockBackground(value: Boolean)
 
     /** 网页调试（WebView 远程调试）。 */
     fun webDebug(): Boolean

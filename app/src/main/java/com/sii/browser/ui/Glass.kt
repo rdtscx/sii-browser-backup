@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
-import com.sii.browser.di.AppServices
 
 /**
  * 玻璃材质：统一由「玻璃强度」推导填充、描边、顶部高光与底部内阴影。
@@ -17,38 +16,37 @@ import com.sii.browser.di.AppServices
  */
 object GlassStyle {
 
-    /** 胶囊底栏不透明度下限（仅「跟随玻璃强度」时生效）：强度再高也要压住网页原文。 */
-    const val DOCK_GLASS_MIN_ALPHA = 170
-
-    /** 底栏强度：单独设了「悬浮工具栏透明度」就用它，否则跟随玻璃强度。 */
-    fun dockStrength(): Int {
-        val custom = AppServices.settings.dockTransparency()
-        return (if (custom >= 0) custom else AppServices.settings.glassStrength()).coerceIn(0, 100)
-    }
-
-    /**
-     * 底栏填色：单独设了「悬浮工具栏透明度」时按百分比线性换算（100 = 完全透明），
-     * 否则跟随玻璃强度并夹到不透明度下限。
-     */
-    fun dockFill(dark: Boolean, base: Int?): Int {
-        val custom = AppServices.settings.dockTransparency()
-        val alpha = if (custom >= 0) {
-            255 - custom.coerceIn(0, 100) * 255 / 100
-        } else {
-            (255 - AppServices.settings.glassStrength().coerceIn(0, 100))
-                .coerceIn(DOCK_GLASS_MIN_ALPHA, 255)
-        }
-        val rgb = base?.let { it and 0x00FFFFFF } ?: if (dark) 0x1B1E23 else 0xFFFFFF
-        return (alpha shl 24) or rgb
-    }
+    /** 胶囊底栏不透明度下限：强度拉满也要压住网页原文，否则透出的文字会被读成渲染异常。 */
+    const val DOCK_GLASS_MIN_ALPHA = 96
 
     fun fill(context: Context, dark: Boolean, strength: Int, minAlpha: Int = 150, base: Int? = null): Int {
         val s = strength.coerceIn(0, 100)
-        // 强度越高越通透：0 完全不透明，100 减 100 个 alpha，再由 minAlpha 保底。
-        val alpha = (255 - s).coerceIn(minAlpha.coerceIn(0, 255), 255)
+        // 0–40 段维持 1:1（默认强度观感不变），之后加速，强度 100 时 alpha 约 75。
+        val alpha = if (s <= 40) 255 - s else 215 - (s - 40) * 7 / 3
+        val clamped = alpha.coerceIn(minAlpha.coerceIn(0, 255), 255)
         val rgb = base?.let { it and 0x00FFFFFF } ?: if (dark) 0x1B1E23 else 0xFFFFFF
-        return (alpha shl 24) or rgb
+        return (clamped shl 24) or rgb
     }
+
+    /** 磨砂底填充：白天约 60%、夜间约 69% 不透明，需能透出下层才能看到磨砂感。 */
+    fun frostedFill(dark: Boolean): Int =
+        ((if (dark) 0xB0 else 0x99) shl 24) or (if (dark) 0x1B1E23 else 0xFFFFFF)
+
+    /** 磨砂表面：半透明填充 + 亮描边 + 顶部高光 + 极淡内阴影。 */
+    fun frosted(
+        context: Context,
+        dark: Boolean,
+        radiusPx: Float,
+        fillOverride: Int? = null,
+        strokeOverride: Int? = null
+    ): Drawable =
+        surface(
+            context, dark, radiusPx, strength = 100,
+            fillOverride = fillOverride ?: frostedFill(dark),
+            highlight = 0.06f,
+            shade = 0.02f,
+            strokeOverride = strokeOverride ?: if (dark) 0x33FFFFFF else 0x1F000000
+        )
 
     fun stroke(dark: Boolean, strength: Int): Int {
         val s = strength.coerceIn(0, 100)

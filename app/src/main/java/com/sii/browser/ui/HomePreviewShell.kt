@@ -116,8 +116,21 @@ class HomePreviewShell(
             setPadding(dp(8), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = dp(28).toFloat()
-                setColor(GlassStyle.dockFill(night, dockTint))
-                setStroke(dp(1), if (night) 0x24FFFFFF else 0x1A000000)
+                val showBackground = AppServices.settings.dockBackground()
+                setColor(
+                    if (showBackground) GlassStyle.fill(
+                        context, night, AppServices.settings.glassStrength(),
+                        GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
+                    ) else Color.TRANSPARENT
+                )
+                setStroke(
+                    dp(1),
+                    when {
+                        !showBackground -> Color.TRANSPARENT
+                        night -> 0x24FFFFFF
+                        else -> 0x1A000000
+                    }
+                )
             }
             setOnClickListener { onToolbarClick() }
         }
