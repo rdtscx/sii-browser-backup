@@ -9774,7 +9774,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 outline.setRoundRect(0, 0, view.width, view.height, dp(28).toFloat())
             }
         }
-        dock.elevation = dp(12).toFloat()
+        dock.elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
         addressHost.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
         address.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -10215,21 +10215,27 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             level = (progressBar?.progress ?: 0).coerceIn(0, 100) * 100
         }
         dockProgressClip = clip
-        dock.background = GlassStyle.surface(
-            requireContext(), night, radius, strength,
-            minAlpha = GlassStyle.DOCK_GLASS_MIN_ALPHA,
-            base = dockBaseColor(),
-            highlight = 0f,
-            shade = if (showBackground) 0.03f else 0f,
-            strokeOverride = when {
-                !showBackground -> android.graphics.Color.TRANSPARENT
-                night -> 0x2AFFFFFF
-                else -> 0x1C000000
-            },
-            overlay = clip,
-            // 关背景色：只留图标与进度填充。
-            fillOverride = if (showBackground) null else android.graphics.Color.TRANSPARENT
-        )
+        val frosted = AppServices.settings.homeFrosted()
+        dock.background = if (showBackground && frosted) {
+            // 磨砂：与主页搜索框/常用网站同一材质，进度层照旧插入。
+            GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
+        } else {
+            GlassStyle.surface(
+                requireContext(), night, radius, strength,
+                minAlpha = GlassStyle.DOCK_GLASS_MIN_ALPHA,
+                base = dockBaseColor(),
+                highlight = 0f,
+                shade = if (showBackground) 0.03f else 0f,
+                strokeOverride = when {
+                    !showBackground -> android.graphics.Color.TRANSPARENT
+                    night -> 0x2AFFFFFF
+                    else -> 0x1C000000
+                },
+                overlay = clip,
+                // 关背景色：只留图标与进度填充。
+                fillOverride = if (showBackground) null else android.graphics.Color.TRANSPARENT
+            )
+        }
         val layer = dock.background as? android.graphics.drawable.LayerDrawable
         dockGlassLayer = layer
         dockProgressLayerIndex = layer?.let { bg ->

@@ -89,14 +89,11 @@ object SettingsDefaults {
     /** 常用网站卡片背景。 */
     const val HOME_SITES_CARD_BG = true
 
-    /** 常用网站卡片阴影（强度随玻璃强度降低）。 */
-    const val HOME_SITES_SHADOW = true
+    /** 主页磨砂质感：搜索框、常用网站卡片、悬浮工具栏与建议弹层共用。 */
+    const val HOME_FROSTED = false
 
-    /** 常用网站卡片磨砂质感。 */
-    const val HOME_SITES_FROSTED = false
-
-    /** 主页搜索框阴影（强度随玻璃强度降低）。 */
-    const val HOME_SEARCH_SHADOW = true
+    /** 卡片与悬浮工具栏阴影（与磨砂质感互斥）；强度随玻璃强度降低。 */
+    const val HOME_SHADOW = true
 
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
     const val HOME_SEARCH_TRANSPARENCY = 0

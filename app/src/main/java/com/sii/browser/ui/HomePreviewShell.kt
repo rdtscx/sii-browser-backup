@@ -114,24 +114,23 @@ class HomePreviewShell(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(4), dp(6), dp(4))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(28).toFloat()
-                val showBackground = AppServices.settings.dockBackground()
-                setColor(
-                    if (showBackground) GlassStyle.fill(
-                        context, night, AppServices.settings.glassStrength(),
-                        GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
-                    ) else Color.TRANSPARENT
-                )
-                setStroke(
-                    dp(1),
-                    when {
-                        !showBackground -> Color.TRANSPARENT
-                        night -> 0x24FFFFFF
-                        else -> 0x1A000000
-                    }
-                )
+            val showBackground = AppServices.settings.dockBackground()
+            background = when {
+                !showBackground -> null
+                AppServices.settings.homeFrosted() ->
+                    GlassStyle.frosted(context, night, dp(28).toFloat())
+                else -> GradientDrawable().apply {
+                    cornerRadius = dp(28).toFloat()
+                    setColor(
+                        GlassStyle.fill(
+                            context, night, AppServices.settings.glassStrength(),
+                            GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
+                        )
+                    )
+                    setStroke(dp(1), if (night) 0x24FFFFFF else 0x1A000000)
+                }
             }
+            elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
             setOnClickListener { onToolbarClick() }
         }
         val address = LinearLayout(context).apply {

@@ -161,10 +161,10 @@ class HomePanel(
         searchInput.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
                 // 聚焦样式统一走经典：提阴影 + 主色淡底 tint，阴影受开关与玻璃强度控制。
-                searchBox.elevation = if (AppServices.settings.homeSearchShadow()) {
+                searchBox.elevation = if (AppServices.settings.homeShadow()) {
                     dp(shadowDp(9f)).toFloat()
                 } else 0f
-                if (AppServices.settings.homeSearchFrosted()) {
+                if (AppServices.settings.homeFrosted()) {
                     // 磨砂层不能被 tint 覆盖（高光也会被染色），直接重建带主色淡底的磨砂底。
                     applySearchStyle(focused = true)
                 } else {
@@ -521,7 +521,7 @@ class HomePanel(
         val popup = topSuggestionPopup ?: SuggestionPopup(
             context, topSearchBox,
             horizontalShiftDp = 5,
-            frosted = { AppServices.settings.homeSearchFrosted() }
+            frosted = { AppServices.settings.homeFrosted() }
         ) { item -> pickTopSuggestion(item) }.also { topSuggestionPopup = it }
         popup.show(sorted)
     }
@@ -547,7 +547,7 @@ class HomePanel(
     /** 顶部搜索入口与主搜索框共用一套磨砂材质。 */
     private fun applyTopSearchStyle() {
         val top = view.findViewById<View>(R.id.home_top_search) ?: return
-        if (AppServices.settings.homeSearchFrosted()) {
+        if (AppServices.settings.homeFrosted()) {
             top.background = GlassStyle.frosted(
                 context, AppServices.settings.isNightMode(), dp(22).toFloat()
             )
@@ -864,10 +864,7 @@ class HomePanel(
         card.background = when {
             !on -> null
             // 磨砂：半透明填充 + 亮描边 + 高光，跟随日夜；开启时不再叠主题色淡底。
-            AppServices.settings.homeSitesFrosted() -> GlassStyle.frosted(
-                context, dark, dp(24).toFloat(),
-                fillOverride = GlassStyle.frostedPanelFill(dark)
-            )
+            AppServices.settings.homeFrosted() -> GlassStyle.frosted(context, dark, dp(24).toFloat())
             themeFill != null -> GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
                 setColor(themeFill)
@@ -880,7 +877,7 @@ class HomePanel(
             }
         }
         card.outlineProvider = roundOutline(dp(24).toFloat())
-        val shadowOn = AppServices.settings.homeSitesShadow()
+        val shadowOn = AppServices.settings.homeShadow()
         card.elevation = if (!shadowOn || card.background == null) 0f
         else dp(shadowDp(if (dark) 6f else 8f)).toFloat()
     }
@@ -916,7 +913,7 @@ class HomePanel(
         }
         val baseColor = if (dark) 0xFF1B1E23.toInt() else context.getColor(R.color.card)
         val radiusPx = dp(radius).toFloat()
-        if (AppServices.settings.homeSearchFrosted()) {
+        if (AppServices.settings.homeFrosted()) {
             // 磨砂：半透明填充 + 亮描边 + 顶部高光；聚焦换成主色淡底，仍保留磨砂层。
             box.background = GlassStyle.frosted(
                 context, night, radiusPx,
@@ -937,7 +934,7 @@ class HomePanel(
             }
         }
         box.outlineProvider = roundOutline(radiusPx)
-        box.elevation = if (AppServices.settings.homeSearchShadow()) {
+        box.elevation = if (AppServices.settings.homeShadow()) {
             dp(shadowDp(if (focused) 9f else 6f)).toFloat()
         } else 0f
         // 高度选项改的是外框高度：内边距固定，否则只挤压内容、看不出变化。
@@ -1174,7 +1171,7 @@ class HomePanel(
             minWidthDp = 0,
             cornerRadiusDp = { searchCornerRadiusDp() },
             horizontalShiftDp = 5,
-            frosted = { AppServices.settings.homeSearchFrosted() }
+            frosted = { AppServices.settings.homeFrosted() }
         ) { item ->
             pickSuggestion(item)
         }.also { suggestionPopup = it }

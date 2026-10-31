@@ -548,12 +548,7 @@ class HomeCustomizeFragment : Fragment() {
             refreshPreview()
         }
         // 磨砂自带固定半透明，两者同时生效会互相抵消。
-        if (settings.homeSearchFrosted()) disableRow(transparencyRow, true)
-        val frostedRow = switchRow("磨砂质感", settings.homeSearchFrosted()) { on ->
-            settings.setHomeSearchFrosted(on)
-            refreshPreview()
-            view?.post { buildControls() }
-        }
+        if (settings.homeFrosted()) disableRow(transparencyRow, true)
         val details = listOf(
             switchRow(
                 "主页顶部显示搜索框",
@@ -598,14 +593,6 @@ class HomeCustomizeFragment : Fragment() {
                 settings.setHomeSearchHeight(index)
                 refreshPreview()
             },
-            switchRow(
-                getString(R.string.settings_home_search_shadow),
-                settings.homeSearchShadow()
-            ) {
-                settings.setHomeSearchShadow(it)
-                refreshPreview()
-            },
-            frostedRow,
             transparencyRow
         )
         rows.addAll(if (show) details else details.map { disabledRow(it) })
@@ -649,6 +636,23 @@ class HomeCustomizeFragment : Fragment() {
             ) { value ->
                 settings.setHomeBgOverlay(value)
                 refreshPreview()
+            }
+        )
+        // 磨砂与阴影互斥：开启一个自动关掉另一个。
+        rows.add(
+            switchRow("磨砂质感", settings.homeFrosted()) { on ->
+                settings.setHomeFrosted(on)
+                if (on) settings.setHomeShadow(false)
+                refreshPreview()
+                view?.post { buildControls() }
+            }
+        )
+        rows.add(
+            switchRow("卡片与工具栏阴影", settings.homeShadow()) { on ->
+                settings.setHomeShadow(on)
+                if (on) settings.setHomeFrosted(false)
+                refreshPreview()
+                view?.post { buildControls() }
             }
         )
         return rows
@@ -719,16 +723,11 @@ class HomeCustomizeFragment : Fragment() {
             refreshPreview()
             view?.post { buildControls() }
         },
-        // 卡片背景关闭时站点直接浮在主页上，磨砂无意义，整行变灰。
-        switchRow("磨砂质感", settings.homeSitesFrosted()) {
-            settings.setHomeSitesFrosted(it)
-            refreshPreview()
-        }.let { row -> if (settings.homeSitesCardBg()) row else disabledRow(row) },
         switchRow(
-            getString(R.string.settings_home_sites_shadow),
-            settings.homeSitesShadow()
+            "卡片与工具栏阴影",
+            settings.homeShadow()
         ) {
-            settings.setHomeSitesShadow(it)
+            settings.setHomeShadow(it)
             refreshPreview()
         }
     )

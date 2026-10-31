@@ -28,28 +28,26 @@ object GlassStyle {
         return (clamped shl 24) or rgb
     }
 
-    /** 磨砂底填充（主页搜索框）：白天约 38%、夜间约 52% 不透明，需能透出下层才有磨砂感。 */
+    /** 磨砂底填充（搜索框、常用网站卡片、悬浮底栏、建议弹层共用）：白天约 38%、夜间约 52%。 */
     fun frostedFill(dark: Boolean): Int =
         ((if (dark) 0x85 else 0x61) shl 24) or (if (dark) 0x1B1E23 else 0xFFFFFF)
 
-    /** 磨砂卡片填充（建议弹层，成排文字要读，比搜索框实一些）：白天约 60%、夜间约 69%。 */
-    fun frostedPanelFill(dark: Boolean): Int =
-        ((if (dark) 0xB0 else 0x99) shl 24) or (if (dark) 0x1B1E23 else 0xFFFFFF)
-
-    /** 磨砂表面：半透明填充 + 亮描边 + 顶部高光 + 底部内阴影。 */
+    /** 磨砂表面：半透明填充 + 亮描边 + 顶部高光 + 底部内阴影；overlay 用于悬浮底栏的进度层。 */
     fun frosted(
         context: Context,
         dark: Boolean,
         radiusPx: Float,
         fillOverride: Int? = null,
-        strokeOverride: Int? = null
+        strokeOverride: Int? = null,
+        overlay: Drawable? = null
     ): Drawable =
         surface(
             context, dark, radiusPx, strength = 100,
             fillOverride = fillOverride ?: frostedFill(dark),
             highlight = 0.08f,
             shade = 0.03f,
-            strokeOverride = strokeOverride ?: if (dark) 0x3DFFFFFF else 0x24000000
+            strokeOverride = strokeOverride ?: if (dark) 0x3DFFFFFF else 0x24000000,
+            overlay = overlay
         )
 
     fun stroke(dark: Boolean, strength: Int): Int {

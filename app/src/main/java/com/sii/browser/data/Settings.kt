@@ -966,30 +966,20 @@ interface WebPageSettings {
 
     fun setHomeSitesCardBg(value: Boolean)
 
-    /** 常用网站卡片阴影。 */
-    fun homeSitesShadow(): Boolean
+    /** 主页磨砂质感：搜索框、常用网站卡片、悬浮工具栏与建议弹层共用。 */
+    fun homeFrosted(): Boolean
 
-    fun setHomeSitesShadow(value: Boolean)
+    fun setHomeFrosted(value: Boolean)
 
-    /** 常用网站卡片磨砂质感。 */
-    fun homeSitesFrosted(): Boolean
+    /** 卡片与悬浮工具栏阴影（与磨砂质感互斥）。 */
+    fun homeShadow(): Boolean
 
-    fun setHomeSitesFrosted(value: Boolean)
-
-    /** 主页搜索框阴影。 */
-    fun homeSearchShadow(): Boolean
-
-    fun setHomeSearchShadow(value: Boolean)
+    fun setHomeShadow(value: Boolean)
 
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
     fun homeSearchTransparency(): Int
 
     fun setHomeSearchTransparency(value: Int)
-
-    /** 主页搜索框磨砂质感（建议卡片同步）。 */
-    fun homeSearchFrosted(): Boolean
-
-    fun setHomeSearchFrosted(value: Boolean)
 
     /** 悬浮工具栏背景色。 */
     fun dockBackground(): Boolean

@@ -1268,23 +1268,17 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeSitesCardBg(value: Boolean) =
         putBool(SettingsKeys.HOME_SITES_CARD_BG, value)
 
-    override fun homeSitesShadow(): Boolean =
-        bool(SettingsKeys.HOME_SITES_SHADOW, SettingsDefaults.HOME_SITES_SHADOW)
+    override fun homeFrosted(): Boolean =
+        bool(SettingsKeys.HOME_FROSTED, SettingsDefaults.HOME_FROSTED)
 
-    override fun setHomeSitesShadow(value: Boolean) =
-        putBool(SettingsKeys.HOME_SITES_SHADOW, value)
+    override fun setHomeFrosted(value: Boolean) =
+        putBool(SettingsKeys.HOME_FROSTED, value)
 
-    override fun homeSitesFrosted(): Boolean =
-        bool(SettingsKeys.HOME_SITES_FROSTED, SettingsDefaults.HOME_SITES_FROSTED)
+    override fun homeShadow(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW, SettingsDefaults.HOME_SHADOW)
 
-    override fun setHomeSitesFrosted(value: Boolean) =
-        putBool(SettingsKeys.HOME_SITES_FROSTED, value)
-
-    override fun homeSearchShadow(): Boolean =
-        bool(SettingsKeys.HOME_SEARCH_SHADOW, SettingsDefaults.HOME_SEARCH_SHADOW)
-
-    override fun setHomeSearchShadow(value: Boolean) =
-        putBool(SettingsKeys.HOME_SEARCH_SHADOW, value)
+    override fun setHomeShadow(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW, value)
 
     override fun homeSearchTransparency(): Int =
         int(
@@ -1294,12 +1288,6 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setHomeSearchTransparency(value: Int) =
         putInt(SettingsKeys.HOME_SEARCH_TRANSPARENCY, value.coerceIn(0, 100))
-
-    override fun homeSearchFrosted(): Boolean =
-        bool(SettingsKeys.HOME_SEARCH_FROSTED, SettingsDefaults.HOME_SEARCH_FROSTED)
-
-    override fun setHomeSearchFrosted(value: Boolean) =
-        putBool(SettingsKeys.HOME_SEARCH_FROSTED, value)
 
     override fun dockBackground(): Boolean =
         bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)

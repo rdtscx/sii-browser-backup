@@ -392,16 +392,12 @@ class SuggestionPopup(
         setStroke(dp(1), ContextCompat.getColor(context, R.color.line))
     }
 
-    /** 磨砂卡片：与主页搜索框同一材质，文字多所以填充更实、透出下方主页内容。 */
-    private fun frostedBackground(): Drawable {
-        val dark = AppServices.settings.isNightMode()
-        return GlassStyle.frosted(
-            context,
-            dark,
-            dp(cornerRadiusDp?.invoke() ?: 22).toFloat(),
-            fillOverride = GlassStyle.frostedPanelFill(dark)
-        )
-    }
+    /** 磨砂卡片：与搜索框同一材质、同一参数，透出下方主页内容。 */
+    private fun frostedBackground(): Drawable = GlassStyle.frosted(
+        context,
+        AppServices.settings.isNightMode(),
+        dp(cornerRadiusDp?.invoke() ?: 22).toFloat()
+    )
 
     private fun buildColumn(items: List<Suggestion>): LinearLayout {
         val column = LinearLayout(context).apply {
