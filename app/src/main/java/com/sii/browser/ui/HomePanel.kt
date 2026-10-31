@@ -921,12 +921,14 @@ class HomePanel(
     /** 应用主页背景：有图时异步采样解码并缓存，避免每次回主页阻塞主线程。 */
     private fun applyBackground() {
         val uri = runCatching { AppServices.settings.homeBackground() }.getOrNull()
-        if (uri.isNullOrBlank()) {
+        // 浏览器里背景图由窗口根容器整窗绘制（ShellActivity.applyChromeBackground），
+        // 主页只留透明；再画一张比例不同的副本会在工具栏接缝处错位。DIY 预览没有窗口背景，自己画。
+        if (uri.isNullOrBlank() || !previewMode) {
             bgJob?.cancel()
             bgJob = null
             bgKey = null
             view.background = null
-            applyBgColor()
+            if (uri.isNullOrBlank()) applyBgColor()
             return
         }
         val blur = blurPercent()
@@ -987,6 +989,8 @@ class HomePanel(
 
     /** 无背景图时的背景色；0 = 跟随主题。 */
     private fun applyBgColor() {
+        // 有背景图时铺底色会把窗口背景图盖掉（下载「背景填充」每秒也会重绘一次）。
+        if (!runCatching { AppServices.settings.homeBackground() }.getOrNull().isNullOrBlank()) return
         // 「背景填充」样式：主页背景按当前下载进度铺一层 10% 主色。
         val active = com.sii.browser.download.DownloadService.activeProgress
         if (AppServices.settings.downloadProgressStyle() == 6 && active >= 0) {

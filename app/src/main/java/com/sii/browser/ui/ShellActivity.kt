@@ -75,7 +75,7 @@ class ShellActivity : AppCompatActivity() {
         }
     }
     private var chromeImageLight = false
-    private var chromeImageUri: String? = null
+    private var chromeImageKey: String? = null
     private var chromeImageDrawable: android.graphics.drawable.BitmapDrawable? = null
     private var appliedDialogTheme = 0
 
@@ -196,20 +196,21 @@ class ShellActivity : AppCompatActivity() {
     }
 
     /** 主页背景图：铺到窗口根容器并延伸到状态栏；传 null 恢复纯色系统栏。 */
-    fun applyChromeBackground(uri: String?, overlayPercent: Int = 0) {
+    fun applyChromeBackground(uri: String?, overlayPercent: Int = 0, blurPercent: Int = 0) {
         val root = findViewById<View>(R.id.shell_root) ?: return
         if (uri.isNullOrBlank()) {
             chromeImageActive = false
-            chromeImageUri = null
+            chromeImageKey = null
             chromeImageDrawable = null
             root.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_bg))
             applyStatusBarColor(null)
             return
         }
-        val drawable = if (uri == chromeImageUri && chromeImageDrawable != null) {
+        val key = "$uri|${blurPercent.coerceIn(0, 100)}"
+        val drawable = if (key == chromeImageKey && chromeImageDrawable != null) {
             chromeImageDrawable
         } else {
-            decodeChromeBackground(uri)?.let {
+            decodeChromeBackground(uri, blurPercent)?.let {
                 android.graphics.drawable.BitmapDrawable(resources, it).apply {
                     gravity = android.view.Gravity.FILL
                 }
@@ -220,7 +221,7 @@ class ShellActivity : AppCompatActivity() {
             return
         }
         chromeImageActive = true
-        chromeImageUri = uri
+        chromeImageKey = key
         chromeImageDrawable = drawable
         chromeImageLight = isLightBitmap(drawable.bitmap)
         val overlay = overlayPercent.coerceIn(0, 100)
@@ -245,19 +246,33 @@ class ShellActivity : AppCompatActivity() {
     /** 背景图是否为浅色；未启用图片时返回 null。 */
     fun chromeImageIsLight(): Boolean? = if (chromeImageActive) chromeImageLight else null
 
-    private fun decodeChromeBackground(uri: String): android.graphics.Bitmap? = runCatching {
-        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, bounds)
-        }
-        var sample = 1
-        val maxW = resources.displayMetrics.widthPixels.coerceAtLeast(1)
-        while (bounds.outWidth / sample > maxW * 2 && sample < 8) sample *= 2
-        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
-            android.graphics.BitmapFactory.decodeStream(it, null, options)
-        }
-    }.getOrNull()
+    private fun decodeChromeBackground(uri: String, blurPercent: Int): android.graphics.Bitmap? {
+        val decoded = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, bounds)
+            }
+            var sample = 1
+            val maxW = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+            while (bounds.outWidth / sample > maxW * 2 && sample < 8) sample *= 2
+            val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
+                android.graphics.BitmapFactory.decodeStream(it, null, options)
+            }
+        }.getOrNull() ?: return null
+        val percent = blurPercent.coerceIn(0, 100)
+        if (percent <= 0) return decoded
+        // 模糊靠缩小再让 BitmapDrawable 拉伸回去：档位越高位图越小。
+        val scale = 1f + percent / 100f * 19f
+        val small = android.graphics.Bitmap.createScaledBitmap(
+            decoded,
+            (decoded.width / scale).toInt().coerceAtLeast(1),
+            (decoded.height / scale).toInt().coerceAtLeast(1),
+            true
+        )
+        if (small !== decoded) decoded.recycle()
+        return small
+    }
 
     private fun isLightBitmap(bitmap: android.graphics.Bitmap): Boolean {
         val stepX = (bitmap.width / 24).coerceAtLeast(1)

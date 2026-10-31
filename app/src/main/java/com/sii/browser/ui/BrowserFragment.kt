@@ -4372,9 +4372,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val toolbarColor = ContextCompat.getColor(requireContext(), R.color.toolbar_bg)
         val shell = activity as? ShellActivity
         val overlay = AppServices.settings.homeBgOverlay().coerceIn(0, 100)
+        val blur = AppServices.settings.homeBgBlurPercent().coerceIn(0, 100)
         shell?.applyChromeBackground(
             if (hasImage) uri else null,
-            if (hasImage) overlay else 0
+            if (hasImage) overlay else 0,
+            if (hasImage) blur else 0
+        )
+        // 背景图由窗口根容器整窗绘制，主页容器必须透明，否则会把图盖成底色。
+        homeContainer?.setBackgroundColor(
+            if (hasImage) android.graphics.Color.TRANSPARENT
+            else ContextCompat.getColor(requireContext(), R.color.bg)
         )
         val menuPanel = view?.findViewById<View>(R.id.menu_panel)
         menuPanel?.foreground = if (hasImage && overlay > 0) {
