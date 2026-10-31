@@ -976,6 +976,16 @@ interface WebPageSettings {
 
     fun setHomeSearchShadow(value: Boolean)
 
+    /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
+    fun homeSearchTransparency(): Int
+
+    fun setHomeSearchTransparency(value: Int)
+
+    /** 悬浮工具栏透明度：-1 跟随玻璃强度，0–100 单独指定。 */
+    fun dockTransparency(): Int
+
+    fun setDockTransparency(value: Int)
+
     /** 网页调试（WebView 远程调试）。 */
     fun webDebug(): Boolean
 

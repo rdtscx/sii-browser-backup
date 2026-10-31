@@ -591,6 +591,10 @@ class HomeCustomizeFragment : Fragment() {
             ) {
                 settings.setHomeSearchShadow(it)
                 refreshPreview()
+            },
+            sliderRow("搜索框透明度", settings.homeSearchTransparency(), 0, 100) { value ->
+                settings.setHomeSearchTransparency(value)
+                refreshPreview()
             }
         )
         rows.addAll(if (show) details else details.map { disabledRow(it) })
@@ -768,6 +772,16 @@ class HomeCustomizeFragment : Fragment() {
         rows.add(switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
             settings.setToolbarAutoHide(it)
         })
+        val dockTransparencyRow = sliderRow(
+            "悬浮工具栏透明度",
+            settings.dockTransparency().takeIf { it >= 0 } ?: settings.glassStrength(),
+            0, 100
+        ) { value ->
+            settings.setDockTransparency(value)
+            refreshPreview()
+        }
+        rows.add(dockTransparencyRow)
+        if (!modern) disableRow(dockTransparencyRow, true)
         val tabBarRow = choiceRow(
             "标签栏位置",
             arrayOf("地址栏上方", "工具栏上方", "隐藏"),

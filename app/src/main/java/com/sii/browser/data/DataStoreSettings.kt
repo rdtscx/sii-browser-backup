@@ -1280,6 +1280,24 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeSearchShadow(value: Boolean) =
         putBool(SettingsKeys.HOME_SEARCH_SHADOW, value)
 
+    override fun homeSearchTransparency(): Int =
+        int(
+            SettingsKeys.HOME_SEARCH_TRANSPARENCY,
+            SettingsDefaults.HOME_SEARCH_TRANSPARENCY
+        ).coerceIn(0, 100)
+
+    override fun setHomeSearchTransparency(value: Int) =
+        putInt(SettingsKeys.HOME_SEARCH_TRANSPARENCY, value.coerceIn(0, 100))
+
+    override fun dockTransparency(): Int =
+        int(
+            SettingsKeys.DOCK_TRANSPARENCY,
+            SettingsDefaults.DOCK_TRANSPARENCY
+        ).coerceIn(-1, 100)
+
+    override fun setDockTransparency(value: Int) =
+        putInt(SettingsKeys.DOCK_TRANSPARENCY, value.coerceIn(-1, 100))
+
     override fun webDebug(): Boolean = bool(SettingsKeys.WEB_DEBUG, false)
 
     override fun setWebDebug(value: Boolean) = putBool(SettingsKeys.WEB_DEBUG, value)

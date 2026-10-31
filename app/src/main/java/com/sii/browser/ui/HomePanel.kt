@@ -167,7 +167,9 @@ class HomePanel(
                     dp(shadowDp(9f)).toFloat()
                 } else 0f
                 searchBox.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    context.getColor(R.color.accent_soft)
+                    androidx.core.graphics.ColorUtils.setAlphaComponent(
+                        context.getColor(R.color.accent_soft), searchFillAlpha()
+                    )
                 )
                 searchScan.imageTintList = android.content.res.ColorStateList.valueOf(
                     ThemeAccent.color(context)
@@ -871,6 +873,12 @@ class HomePanel(
         return if (AppServices.settings.uiStyle() == 1) base.coerceAtLeast(22) else base
     }
 
+    /** 搜索框填充不透明度：透明度 0 = 不透明，100 = 全透明。 */
+    private fun searchFillAlpha(): Int {
+        val transparency = AppServices.settings.homeSearchTransparency().coerceIn(0, 100)
+        return 255 - transparency * 255 / 100
+    }
+
     /** 应用搜索框圆角、高度、颜色与图标色。 */
     private fun applySearchStyle(focused: Boolean = false) {
         val box = view.findViewById<LinearLayout>(R.id.home_search_box) ?: return
@@ -887,7 +895,9 @@ class HomePanel(
         val radiusPx = dp(radius).toFloat()
         box.background = GradientDrawable().apply {
             cornerRadius = radiusPx
-            setColor(baseColor)
+            setColor(
+                androidx.core.graphics.ColorUtils.setAlphaComponent(baseColor, searchFillAlpha())
+            )
             setStroke(dp(1), strokeColor)
         }
         box.outlineProvider = roundOutline(radiusPx)

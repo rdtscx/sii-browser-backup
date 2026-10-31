@@ -17,6 +17,15 @@ import com.sii.browser.di.AppServices
  */
 object GlassStyle {
 
+    /** 胶囊底栏不透明度下限：强度再高也要压住网页原文，否则透出的色块与文字会被读成渲染异常。 */
+    const val DOCK_GLASS_MIN_ALPHA = 170
+
+    /** 底栏强度：单独设了「悬浮工具栏透明度」就用它，否则跟随玻璃强度。 */
+    fun dockStrength(): Int {
+        val custom = AppServices.settings.dockTransparency()
+        return (if (custom >= 0) custom else AppServices.settings.glassStrength()).coerceIn(0, 100)
+    }
+
     fun fill(context: Context, dark: Boolean, strength: Int, minAlpha: Int = 150, base: Int? = null): Int {
         val s = strength.coerceIn(0, 100)
         // 强度越高越通透：0 完全不透明，100 减 100 个 alpha，再由 minAlpha 保底。

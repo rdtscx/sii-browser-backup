@@ -10186,7 +10186,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun applyDockGlass() {
         val dock = view?.findViewById<LinearLayout>(R.id.modern_chrome) ?: return
         val night = AppServices.settings.isNightMode()
-        val strength = AppServices.settings.glassStrength()
+        val strength = GlassStyle.dockStrength()
         val radius = dp(28).toFloat()
         // 进度用胶囊本身的背景表达：一层从左往右裁剪的主色，插在填充与高光之间。
         val accent = ThemeAccent.color(requireContext())
@@ -10201,7 +10201,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dockProgressClip = clip
         dock.background = GlassStyle.surface(
             requireContext(), night, radius, strength,
-            minAlpha = DOCK_GLASS_MIN_ALPHA, base = dockBaseColor(),
+            minAlpha = GlassStyle.DOCK_GLASS_MIN_ALPHA, base = dockBaseColor(),
             highlight = 0f,
             shade = 0.03f,
             strokeOverride = if (night) 0x2AFFFFFF else 0x1C000000,
@@ -10658,8 +10658,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressTextProgrammatic = false
 
     private companion object {
-        /** 胶囊底栏不透明度下限：强度再高也要压住网页原文，否则透出的色块与文字会被读成渲染异常。 */
-        const val DOCK_GLASS_MIN_ALPHA = 170
         const val KEY_URL = "sii_browser_url"
         const val KEY_TABS = "sii_browser_tabs"
         /** 固定栏默认项：夜间/隐身/无图/电脑模式。 */

@@ -116,7 +116,12 @@ class HomePreviewShell(
             setPadding(dp(8), dp(4), dp(6), dp(4))
             background = GradientDrawable().apply {
                 cornerRadius = dp(28).toFloat()
-                setColor(dockTint ?: if (night) 0xFA1B1E23.toInt() else 0xFAFFFFFF.toInt())
+                setColor(
+                    GlassStyle.fill(
+                        context, night, GlassStyle.dockStrength(),
+                        GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
+                    )
+                )
                 setStroke(dp(1), if (night) 0x24FFFFFF else 0x1A000000)
             }
             setOnClickListener { onToolbarClick() }

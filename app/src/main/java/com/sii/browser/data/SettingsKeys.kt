@@ -269,6 +269,8 @@ object SettingsKeys {
     const val THEME_PARTS_NIGHT = "theme_parts_night"
     const val THEME_COLOR_TABS = "theme_color_tabs"
     const val HOME_SEARCH_SHADOW = "home_search_shadow"
+    const val HOME_SEARCH_TRANSPARENCY = "home_search_transparency"
+    const val DOCK_TRANSPARENCY = "dock_transparency"
     const val HOME_SITES_SHADOW = "home_sites_shadow"
     const val WEB_TEXT_COLOR = "webtextcolor"
     const val WEBVIEW_DARK = "webviewdark"
