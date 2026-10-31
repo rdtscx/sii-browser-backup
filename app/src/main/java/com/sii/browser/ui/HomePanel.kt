@@ -811,7 +811,13 @@ class HomePanel(
             else -> logo?.setTextColor(context.getColor(R.color.text_primary))
         }
         val columns = s.homeGridColumns().coerceIn(4, 6)
-        if (grid.columnCount != columns) grid.columnCount = columns
+        if (grid.columnCount != columns) {
+            // GridLayout 布局后会把隐式列位落成子 View 的显式下标，直接缩小列数会越界抛 IllegalArgumentException；
+            // 先清空子 View 再改列数，下面靠 siteStyle 重新 render()。
+            grid.removeAllViews()
+            grid.columnCount = columns
+            lastSiteStyle = null
+        }
         applySearchStyle(searchInput.hasFocus())
         applyBackground()
         applySitesVisibility()

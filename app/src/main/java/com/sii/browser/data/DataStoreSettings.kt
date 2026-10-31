@@ -687,7 +687,7 @@ class DataStoreSettings(private val context: Context) : Settings {
         putStr(SettingsKeys.HOME_LOGO_TEXT, value)
 
     override fun homeGridColumns(): Int =
-        int(SettingsKeys.HOME_GRID_COLUMNS, 4)
+        int(SettingsKeys.HOME_GRID_COLUMNS, SettingsDefaults.HOME_GRID_COLUMNS)
 
     override fun setHomeGridColumns(value: Int) =
         putInt(SettingsKeys.HOME_GRID_COLUMNS, value)
