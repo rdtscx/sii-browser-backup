@@ -25,15 +25,18 @@ class WidthTopDrawable(
     /** 控件顶部距离窗口顶部的距离；用于与窗口背景对齐（状态栏高度）。 */
     var topOffsetPx: Int = 0
 
+    /** 目标高度（窗口高度）；> 0 时竖向拉伸到该高度，与窗口背景完全重合。 */
+    var targetHeightPx: Int = 0
+
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
     private val overlayPaint = Paint()
 
     override fun draw(canvas: Canvas) {
         val width = bounds.width().toFloat()
-        if (width <= 0f || bitmap.width <= 0) return
-        val scale = width / bitmap.width
+        if (width <= 0f || bitmap.width <= 0 || bitmap.height <= 0) return
+        val height = if (targetHeightPx > 0) targetHeightPx.toFloat() else bounds.height().toFloat()
         val top = -topOffsetPx.toFloat()
-        val dst = RectF(0f, top, width, top + bitmap.height * scale)
+        val dst = RectF(0f, top, width, top + height)
         canvas.drawBitmap(bitmap, null, dst, paint)
         if (Color.alpha(overlayColor) > 0) {
             overlayPaint.color = overlayColor

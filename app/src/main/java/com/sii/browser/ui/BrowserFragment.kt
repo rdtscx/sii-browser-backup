@@ -9258,6 +9258,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // 切走时回收窗口背景，避免状态栏/其他页面残留主页背景图；onResume 会重新应用。
+        (activity as? ShellActivity)?.applyChromeBackground(null)
+    }
+
     override fun onResume() {
         super.onResume()
         (activity as? ShellActivity)?.refreshDialogTheme()

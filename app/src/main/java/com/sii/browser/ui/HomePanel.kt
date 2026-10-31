@@ -983,15 +983,22 @@ class HomePanel(
         return WidthTopDrawable(shown, overlayColor)
     }
 
-    /** 与窗口背景对齐：控件顶部相对窗口的偏移（状态栏高度）。 */
+    /** 与窗口背景对齐：控件顶部偏移与窗口高度（背景图竖向拉伸到整个窗口）。 */
     private fun syncBackgroundOffset() {
         val drawable = view.background as? WidthTopDrawable ?: return
         val location = IntArray(2)
         view.getLocationInWindow(location)
+        val windowHeight = view.rootView.height
+        var changed = false
         if (drawable.topOffsetPx != location[1]) {
             drawable.topOffsetPx = location[1]
-            view.invalidate()
+            changed = true
         }
+        if (windowHeight > 0 && drawable.targetHeightPx != windowHeight) {
+            drawable.targetHeightPx = windowHeight
+            changed = true
+        }
+        if (changed) view.invalidate()
     }
 
     /** 主页底色：开启「主页背景」时用主色淡底，否则用页面底色。 */

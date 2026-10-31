@@ -154,11 +154,11 @@ class HomeWebView(
                 }
                 append("url(\"").append(page.background).append("\");")
                 if (page.night) {
-                    // 第一层是遮罩渐变（铺满），第二层是背景图（按宽度缩放、顶对齐）
-                    append("background-size:100% 100%,100% auto;")
+                    // 第一层是遮罩渐变（铺满），第二层是背景图（铺满整个窗口，与窗口背景重合）
+                    append("background-size:100% 100%,100% var(--sii-win-h, 100vh);")
                     append("background-position:center,center var(--sii-bg-offset, 0px);")
                 } else {
-                    append("background-size:100% auto;")
+                    append("background-size:100% var(--sii-win-h, 100vh);")
                     append("background-position:center var(--sii-bg-offset, 0px);")
                 }
                 append("background-repeat:no-repeat;}")
@@ -262,14 +262,16 @@ class HomeWebView(
         syncBackgroundOffset()
     }
 
-    /** 页面背景图与窗口背景同尺度：把控件顶部相对窗口的偏移告诉网页。 */
+    /** 页面背景图与窗口背景同尺度：窗口高度 + 控件顶部偏移都交给网页。 */
     private fun syncBackgroundOffset() {
         val location = IntArray(2)
         getLocationInWindow(location)
-        evaluateJavascript(
-            "document.documentElement.style.setProperty('--sii-bg-offset','-${location[1]}px')",
-            null
-        )
+        val windowHeight = rootView?.height ?: 0
+        val script = "(function(){var s=document.documentElement.style;" +
+            "s.setProperty('--sii-bg-offset','-${location[1]}px');" +
+            if (windowHeight > 0) "s.setProperty('--sii-win-h','${windowHeight}px');})();"
+            else "})();"
+        evaluateJavascript(script, null)
     }
 
     /** 覆盖层打开时暂停主页渲染，避免菜单/标签面板下面的 WebView 继续绘制（卡顿主因）。 */
