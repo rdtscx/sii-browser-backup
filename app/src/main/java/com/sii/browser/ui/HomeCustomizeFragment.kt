@@ -293,13 +293,14 @@ class HomeCustomizeFragment : Fragment() {
             else -> advancedRows()
         }
         val card = CardList.styledCard(requireContext(), page = true)
+        CardList.addRows(card, rows)
+        // 网页主页模式下这些原生项不生效：顶部亮色提示 + 整张卡真正禁用
         val homeTabs = activeTab == 0 || activeTab == 1 || activeTab == 3 || activeTab == 4
-        val finalRows = if (settings.homePageMode() != 0 && homeTabs) {
-            listOf(hintRow(getString(R.string.settings_home_web_hint))) + rows
-        } else {
-            rows
+        if (settings.homePageMode() != 0 && homeTabs) {
+            controls.addView(hintRow(getString(R.string.settings_home_web_hint)))
+            disableTree(card)
+            card.alpha = 0.55f
         }
-        CardList.addRows(card, finalRows)
         controls.addView(card)
     }
 
@@ -1570,12 +1571,20 @@ class HomeCustomizeFragment : Fragment() {
         }
     }
 
-    /** 当前为网页主页时，在对应分类顶部提示原生项不再生效。 */
+    /** 当前为网页主页时，在对应分类顶部提示并禁用原生项。 */
     private fun hintRow(text: String): View = TextView(requireContext()).apply {
         this.text = text
         setTextSize(12f)
         setTextColor(ThemeAccent.color(requireContext()))
         setPadding(dp(16), dp(12), dp(16), dp(4))
+    }
+
+    /** 递归禁用（含开关与文字行），禁用后点击不会再触发。 */
+    private fun disableTree(view: View) {
+        view.isEnabled = false
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) disableTree(view.getChildAt(i))
+        }
     }
 
     private fun navRow(
