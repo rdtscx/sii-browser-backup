@@ -1315,6 +1315,22 @@ class HomeCustomizeFragment : Fragment() {
             .commit()
     }
 
+    /** 主页设置页（主页模式、自定义 CSS、导入本地主页）。 */
+    private fun openHomeSettings() {
+        val fragment = SettingsDetailFragment().apply {
+            arguments = android.os.Bundle().apply {
+                putString(
+                    SettingsDetailFragment.ARG_VIEW,
+                    SettingsDetailFragment.VIEW_V2_HOME
+                )
+            }
+        }
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.shell_root, fragment)
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun advancedRows(): List<View> = listOf(
         choiceRow(
             "预览界面",
@@ -1327,16 +1343,22 @@ class HomeCustomizeFragment : Fragment() {
         },
         choiceRow(
             getString(R.string.settings_home),
-            arrayOf(getString(R.string.settings_home_sii), getString(R.string.settings_home_custom)),
-            if (settings.homeUrl() == "about:home") 0 else 1
+            arrayOf(
+                getString(R.string.settings_home_sii),
+                getString(R.string.settings_home_template),
+                getString(R.string.settings_home_custom)
+            ),
+            settings.homePageMode().coerceIn(0, 2)
         ) { index ->
-            if (index == 0) {
-                settings.setHomeUrl("about:home")
-                buildControls()
-            } else {
-                urlDialog()
+            when (index) {
+                0, 1 -> {
+                    settings.setHomePageMode(index)
+                    buildControls()
+                }
+                else -> urlDialog()
             }
         },
+        navRow(getString(R.string.settings_home_css), null) { openHomeSettings() },
         navRow(
             getString(R.string.settings_custom_font),
             if (settings.customFont().isNullOrBlank()) getString(R.string.settings_custom_font_none)
@@ -1363,9 +1385,10 @@ class HomeCustomizeFragment : Fragment() {
             .setView(input)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
+                settings.setHomePageMode(2)
                 buildControls()
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(android.R.string.cancel) { _, _ -> buildControls() }
             .show()
     }
 

@@ -59,6 +59,8 @@ object SettingsKeys {
     const val PASSWORD_AUTOFILL = "pwdautofill"
     const val PASSWORD_IGNORED = "pwdignored"
     const val HOME_BACKGROUND = "homebg"
+    const val HOME_PAGE_MODE = "home_page_mode"
+    const val HOME_CUSTOM_CSS = "home_custom_css"
     const val CUSTOM_CSS = "customcss"
     const val UI_SCALE = "uiscale"
     const val SAFE_BROWSING = "safebrowsing"

@@ -91,7 +91,10 @@ class SettingsFragment : Fragment() {
         SearchEntry("夜间", "外观与主页", "night 夜间模式 暗色 夜间 CSS", diyTab = 8),
         SearchEntry("网页主题色识别", "外观与主页", "识别 网站 theme-color", diyTab = 8),
         SearchEntry("网页应用主题色", "外观与主页", "主题色 网页 scope", diyTab = 8),
-        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8)
+        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8),
+        SearchEntry("主页模式", "主页", "Sii 主页 内置网页主页 自定义网址 html css"),
+        SearchEntry("自定义主页 CSS", "主页", "css 样式 主页美化 玻璃 渐变"),
+        SearchEntry("导入本地主页", "主页", "html 文件 导入 css")
     )
 
     /** 诊断接口只在测试包出现，正式包的搜索索引里也不留。 */
@@ -221,6 +224,7 @@ class SettingsFragment : Fragment() {
         "隐私与安全" -> SettingsDetailFragment.VIEW_PRIVACY
         "高级" -> SettingsDetailFragment.VIEW_ADVANCED
         "关于" -> SettingsDetailFragment.VIEW_ABOUT
+        "主页" -> SettingsDetailFragment.VIEW_V2_HOME
         else -> SettingsDetailFragment.VIEW_GENERAL
     }
 

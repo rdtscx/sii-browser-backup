@@ -540,6 +540,22 @@ class DataStoreSettings(private val context: Context) : Settings {
         putStr(SettingsKeys.HOME, url)
     }
 
+    override fun homePageMode(): Int {
+        val saved = int(SettingsKeys.HOME_PAGE_MODE, SettingsDefaults.HOME_PAGE_MODE)
+        if (saved in 0..2) return saved
+        // 旧配置没有模式键：设过自定义地址就当自定义网址主页。
+        return if (homeUrl() == SettingsDefaults.HOME) 0 else 2
+    }
+
+    override fun setHomePageMode(value: Int) =
+        putInt(SettingsKeys.HOME_PAGE_MODE, value.coerceIn(0, 2))
+
+    override fun homeCustomCss(): String =
+        str(SettingsKeys.HOME_CUSTOM_CSS, null).orEmpty()
+
+    override fun setHomeCustomCss(value: String) =
+        putStr(SettingsKeys.HOME_CUSTOM_CSS, value)
+
     override fun homeKey(): Int = int(SettingsKeys.KEY_HOME, 4)
 
     override fun setHomeKey(value: Int) {

@@ -1073,6 +1073,16 @@
     <string name="suggest_tag_clipboard">剪贴板</string>
     <string name="settings_home_sii">Sii 主页</string>
     <string name="settings_home_custom">自定义网址</string>
+    <string name="settings_home_template">内置网页主页</string>
+    <string name="settings_home_css">自定义主页 CSS</string>
+    <string name="settings_home_css_desc">追加到内置主页模板，兼容常见主页类名（如 .search_bar / .nav-card / .clock）</string>
+    <string name="settings_home_css_none">未设置</string>
+    <string name="settings_home_css_chars">已设置 · %1$d 字符</string>
+    <string name="settings_home_css_clear">清空自定义 CSS</string>
+    <string name="settings_home_css_import">导入 CSS 文件</string>
+    <string name="settings_home_import">导入本地主页</string>
+    <string name="settings_home_import_failed">导入失败，请换一个文件重试</string>
+    <string name="settings_home_web_hint">网页主页下搜索框与常用网站由网页自己绘制，下列原生项不再生效</string>
     <string name="settings_home_url">主页网址</string>
     <string name="settings_engine_url_hint">搜索地址，关键词用 %s 代替，例如 https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>

@@ -39,6 +39,17 @@ class SettingsDetailFragment : Fragment() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) applyImport(uri) }
 
+    /** 导入本地主页 HTML / CSS 文件（1 = HTML，2 = CSS）。 */
+    private var homeFileTarget = 0
+    private val homeFileLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val target = homeFileTarget
+        homeFileTarget = 0
+        if (uri == null) return@registerForActivityResult
+        if (target == 1) importHomeHtml(uri) else importHomeCss(uri)
+    }
+
     /** 自定义字体文件选择。 */
     private val fontLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -956,13 +967,25 @@ class SettingsDetailFragment : Fragment() {
     private fun buildV2Home() {
         val rows = mutableListOf<View>()
         rows.add(homeChoiceRow())
-        if (settings.homeUrl() != "about:home") {
+        val mode = settings.homePageMode()
+        if (mode != 0) {
+            rows.add(navRow(getString(R.string.settings_home_css), homeCssSummary()) { editHomeCss() })
+            rows.add(navRow(getString(R.string.settings_home_css_import)) { pickHomeFile(2) })
+            if (settings.homeCustomCss().isNotBlank()) {
+                rows.add(navRow(getString(R.string.settings_home_css_clear)) {
+                    settings.setHomeCustomCss("")
+                    build()
+                })
+            }
+        }
+        if (mode == 2) {
             rows.add(
                 textRow(getString(R.string.settings_home_url), settings.homeUrl()) {
                     settings.setHomeUrl(it.ifBlank { "about:home" })
                     build()
                 }
             )
+            rows.add(navRow(getString(R.string.settings_home_import)) { pickHomeFile(1) })
         }
         rows.add(navRow(getString(R.string.settings_home_logo)) { open(VIEW_V2_HOME_LOGO) })
         rows.add(navRow(getString(R.string.settings_home_sites)) { open(VIEW_V2_HOME_SITES) })
@@ -973,27 +996,123 @@ class SettingsDetailFragment : Fragment() {
 
     private fun homeChoiceRow(): View = choiceRow(
         getString(R.string.settings_home),
-        arrayOf(getString(R.string.settings_home_sii), getString(R.string.settings_home_custom)),
-        if (settings.homeUrl() == "about:home") 0 else 1
+        arrayOf(
+            getString(R.string.settings_home_sii),
+            getString(R.string.settings_home_template),
+            getString(R.string.settings_home_custom)
+        ),
+        settings.homePageMode().coerceIn(0, 2)
     ) { index ->
-        if (index == 0) {
-            settings.setHomeUrl("about:home")
-            build()
-        } else {
-            val input = EditText(requireContext()).apply {
-                setText(settings.homeUrl().takeIf { it != "about:home" }.orEmpty())
-                hint = "https://example.com"
+        when (index) {
+            0, 1 -> {
+                settings.setHomePageMode(index)
+                build()
             }
-            AlertDialog.Builder(requireContext())
-                .setTitle(R.string.settings_home_url)
-                .setView(input)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
-                    build()
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            else -> homeUrlDialog()
         }
+    }
+
+    private fun homeUrlDialog() {
+        val input = EditText(requireContext()).apply {
+            setText(settings.homeUrl().takeIf { it != "about:home" }.orEmpty())
+            hint = "https://example.com"
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_home_url)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
+                settings.setHomePageMode(2)
+                build()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> build() }
+            .show()
+    }
+
+    private fun homeCssSummary(): String {
+        val css = settings.homeCustomCss()
+        return if (css.isBlank()) getString(R.string.settings_home_css_none)
+        else getString(R.string.settings_home_css_chars, css.length)
+    }
+
+    private fun editHomeCss() {
+        val input = EditText(requireContext()).apply {
+            setText(settings.homeCustomCss())
+            hint = getString(R.string.settings_home_css_desc)
+            minLines = 8
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            setTextSize(12.5f)
+            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+        }
+        val wrapper = android.widget.ScrollView(requireContext()).apply {
+            addView(
+                input,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), 0)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_home_css)
+            .setView(wrapper)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                settings.setHomeCustomCss(input.text.toString())
+                build()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun pickHomeFile(target: Int) {
+        homeFileTarget = target
+        homeFileLauncher.launch(
+            arrayOf("text/html", "text/plain", "text/css", "application/octet-stream")
+        )
+    }
+
+    private fun importHomeCss(uri: android.net.Uri) {
+        runCatching {
+            val text = requireContext().contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (text.isBlank()) error("empty css")
+            settings.setHomeCustomCss(text.take(200_000))
+            if (settings.homePageMode() == 0) settings.setHomePageMode(1)
+        }.onFailure {
+            Toast.makeText(
+                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
+            ).show()
+        }
+        build()
+    }
+
+    private fun importHomeHtml(uri: android.net.Uri) {
+        runCatching {
+            val dir = java.io.File(requireContext().filesDir, "home").apply { mkdirs() }
+            val target = java.io.File(dir, "homepage.html")
+            requireContext().contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            } ?: error("open failed")
+            val text = target.readText()
+            // 片段文件没有文档骨架与 viewport，直接加载会缩放错位，这里补一层。
+            if (!Regex("(?i)^\\s*(<!doctype|<html)").containsMatchIn(text)) {
+                target.writeText(
+                    "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n" +
+                        "<meta charset=\"utf-8\">\n" +
+                        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" +
+                        "<title>主页</title>\n</head>\n<body>\n" + text +
+                        "\n</body>\n</html>\n"
+                )
+            }
+            settings.setHomeUrl("file://" + target.absolutePath)
+            settings.setHomePageMode(2)
+        }.onFailure {
+            Toast.makeText(
+                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
+            ).show()
+        }
+        build()
     }
 
     // ---- 浏览（新结构） ----

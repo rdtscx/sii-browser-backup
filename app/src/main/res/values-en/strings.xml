@@ -1072,6 +1072,16 @@
     <string name="suggest_tag_clipboard">Clipboard</string>
     <string name="settings_home_sii">Sii home</string>
     <string name="settings_home_custom">Custom URL</string>
+    <string name="settings_home_template">Built-in web home</string>
+    <string name="settings_home_css">Custom home CSS</string>
+    <string name="settings_home_css_desc">Appended to the built-in home template; common home class names are supported</string>
+    <string name="settings_home_css_none">Not set</string>
+    <string name="settings_home_css_chars">Set · %1$d chars</string>
+    <string name="settings_home_css_clear">Clear custom CSS</string>
+    <string name="settings_home_css_import">Import CSS file</string>
+    <string name="settings_home_import">Import local home page</string>
+    <string name="settings_home_import_failed">Import failed, try another file</string>
+    <string name="settings_home_web_hint">With a web home, the search box and sites are drawn by the page; native options below no longer apply</string>
     <string name="settings_home_url">Home URL</string>
     <string name="settings_engine_url_hint">Search URL with %s for the query, e.g. https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>

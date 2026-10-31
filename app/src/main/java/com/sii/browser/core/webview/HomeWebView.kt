@@ -1,0 +1,183 @@
+// SPDX-License-Identifier: LicenseRef-Sii-NC
+// Copyright (c) 2026 wanwuwww
+package com.sii.browser.core.webview
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Color
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import com.sii.browser.R
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * 网页主页容器（独立于标签栈，挂在 home_container 里）。
+ *
+ * 两种数据源：内置 HTML 模板（注入常用网站/搜索引擎/主色/夜间与自定义 CSS）
+ * 或用户指定的主页地址（本地 HTML / 网址，自定义 CSS 另行注入）。
+ * 页面里的搜索与跳转通过 `window.sii` 桥交回原生，避免污染标签历史。
+ */
+class HomeWebView(
+    context: Context,
+    private val onSearch: (String) -> Unit,
+    private val onOpen: (String) -> Unit
+) : WebView(context) {
+
+    /** 一次渲染所需的全部状态；签名不变时不重新加载页面。 */
+    data class Page(
+        val template: Boolean,
+        val url: String,
+        val css: String,
+        val title: String,
+        val night: Boolean,
+        val accent: String,
+        val searchBase: String,
+        val engines: List<Pair<String, String>>,
+        val sites: List<Pair<String, String>>
+    ) {
+        fun signature(): String = buildString {
+            append(template).append('|').append(url).append('|').append(css).append('|')
+            append(title).append('|').append(night).append('|').append(accent).append('|')
+            append(searchBase).append('|')
+            engines.forEach { append(it.first).append('→').append(it.second).append(';') }
+            append('|')
+            sites.forEach { append(it.first).append('→').append(it.second).append(';') }
+        }
+    }
+
+    private var appliedSignature = ""
+    private var pendingCss = ""
+    private var templateLoaded = false
+
+    init {
+        setBackgroundColor(Color.WHITE)
+        settings.apply {
+            javaScriptEnabled = true
+            javaScriptCanOpenWindowsAutomatically = false
+            domStorageEnabled = true
+            allowFileAccess = true
+            allowContentAccess = true
+            setSupportMultipleWindows(false)
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            useWideViewPort = true
+            loadWithOverviewMode = false
+            textZoom = 100
+            mediaPlaybackRequiresUserGesture = false
+        }
+        addJavascriptInterface(Bridge(), "sii")
+        webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean = intercept(request.url.toString())
+
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean =
+                intercept(url)
+
+            override fun onPageFinished(view: WebView, url: String) {
+                injectCss()
+            }
+        }
+    }
+
+    /** 主页页面内的跳转一律交给标签打开，主页自身不产生历史。 */
+    private fun intercept(url: String): Boolean {
+        if (url.isBlank() || url == "about:blank") return false
+        if (url.startsWith(BASE_URL)) return false
+        // 自定义主页可能是多页的本地文件，同目录跳转留在主页内，外部链接才开新标签。
+        if (url.startsWith("file:")) return false
+        onOpen(url)
+        return true
+    }
+
+    fun render(page: Page) {
+        val signature = page.signature()
+        pendingCss = page.css
+        if (signature == appliedSignature) return
+        appliedSignature = signature
+        setBackgroundColor(if (page.night) 0xFF121417.toInt() else 0xFFF6F7F9.toInt())
+        if (page.template) {
+            val html = templateHtml(page)
+            if (html != null) {
+                templateLoaded = true
+                loadDataWithBaseURL(BASE_URL, html, "text/html", "utf-8", null)
+                return
+            }
+        }
+        templateLoaded = false
+        loadUrl(page.url.ifBlank { "about:blank" })
+    }
+
+    /** 外部修改（自定义 CSS / 主页地址）后强制重载。 */
+    fun reset() {
+        appliedSignature = ""
+    }
+
+    private fun templateHtml(page: Page): String? = runCatching {
+        val raw = context.resources.openRawResource(R.raw.home_template)
+            .bufferedReader()
+            .use { it.readText() }
+        val css = sanitizeCss(page.css)
+        val config = JSONObject().apply {
+            put("title", page.title)
+            put("night", if (page.night) 1 else 0)
+            put("accent", page.accent)
+            put("searchBase", page.searchBase)
+            put("engines", JSONArray().apply {
+                page.engines.forEach { (name, url) ->
+                    put(JSONObject().apply { put("name", name); put("url", url) })
+                }
+            })
+            put("sites", JSONArray().apply {
+                page.sites.forEach { (name, url) ->
+                    put(JSONObject().apply { put("title", name); put("url", url) })
+                }
+            })
+        }.toString().replace("<", "\\u003c")
+        raw.replace("/*__SII_CSS__*/", css).replace("__SII_CONFIG__", config)
+    }.getOrNull()
+
+    /** 自定义地址主页：整页加载后追加用户 CSS，不干扰页面自身样式表。 */
+    private fun injectCss() {
+        if (templateLoaded) return
+        val css = sanitizeCss(pendingCss)
+        if (css.isBlank()) return
+        val quoted = JSONObject.quote(css)
+        evaluateJavascript(
+            "(function(){var s=document.getElementById('sii-home-css');" +
+                "if(!s){s=document.createElement('style');s.id='sii-home-css';" +
+                "document.head.appendChild(s);}s.textContent=$quoted;})();",
+            null
+        )
+    }
+
+    /** 自定义 CSS 会被拼进 <style>：去掉可能提前闭合标签的片段，并限制体积。 */
+    private fun sanitizeCss(css: String): String =
+        css.take(200_000).replace("</style", "<\\/style", ignoreCase = true)
+
+    private inner class Bridge {
+        @JavascriptInterface
+        fun search(query: String) {
+            val value = query.trim()
+            if (value.isEmpty()) return
+            post { onSearch(value) }
+        }
+
+        @JavascriptInterface
+        fun open(url: String) {
+            val value = url.trim()
+            if (value.isEmpty()) return
+            post { onOpen(value) }
+        }
+    }
+
+    companion object {
+        /** 模板的虚拟来源：给页面一个稳定的 https 来源，localStorage 等才可用。 */
+        private const val BASE_URL = "https://sii.home/"
+    }
+}

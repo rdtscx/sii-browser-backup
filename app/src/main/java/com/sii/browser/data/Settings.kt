@@ -334,6 +334,16 @@ interface HomeSearchSettings {
 
     fun setHomeUrl(url: String)
 
+    /** 主页模式：0 原生主页 / 1 内置网页模板 / 2 自定义网址（本地 HTML 也是这种）。 */
+    fun homePageMode(): Int
+
+    fun setHomePageMode(value: Int)
+
+    /** 网页主页的自定义 CSS。 */
+    fun homeCustomCss(): String
+
+    fun setHomeCustomCss(value: String)
+
     /** 主页按键动作（keyhome）。 */
     fun homeKey(): Int
 

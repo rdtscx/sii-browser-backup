@@ -99,6 +99,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var tabStrip: LinearLayout? = null
     private var tabBar: View? = null
     private var homePanel: HomePanel? = null
+    private var homeWeb: com.sii.browser.core.webview.HomeWebView? = null
     private var latestFavorites: List<com.sii.browser.data.db.FavoriteItem> = emptyList()
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
@@ -346,7 +347,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 ).show()
             }
         }
-        homeButton.setOnClickListener { loadUrlFor(AppServices.settings.homeUrl()) }
+        homeButton.setOnClickListener { openHome() }
         tabCountButton.setOnClickListener {
             if (tabsOverlay?.visibility == View.VISIBLE) hideTabsPanel() else showTabsPanel()
         }
@@ -370,6 +371,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             AppServices.favoriteRepository.all().collect { items ->
                 latestFavorites = items
                 homePanel?.bind(items)
+                renderWebHome()
             }
         }
 
@@ -410,7 +412,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     showWeb()
                 }
             } else if (saved.isEmpty()) {
-                val home = if (startupBehavior == 2) ABOUT_BLANK else restoredUrl(savedInstanceState)
+                val home = when {
+                    startupBehavior == 2 -> ABOUT_BLANK
+                    webHomeEnabled() -> ABOUT_HOME
+                    else -> restoredUrl(savedInstanceState)
+                }
                 if (home == ABOUT_HOME) {
                     // 主页态先不创建 WebView，首帧后再建，避免渲染进程初始化拖慢启动。
                     showHome(createTab = false)
@@ -502,6 +508,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return true
         }
         if (homeContainer?.visibility == View.VISIBLE) {
+            if (homeWeb?.canGoBack() == true) {
+                homeWeb?.goBack()
+                return true
+            }
             if (homeOverlayActive) {
                 homeOverlayActive = false
                 homeForwardAvailable = true
@@ -3726,7 +3736,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun performToolbarAction(action: Int) {
         when (action) {
             1 -> toggleRefresh()
-            2 -> loadUrlFor(AppServices.settings.homeUrl())
+            2 -> openHome()
             3 -> openNewTab()
             4 -> showMenuSheet()
             5 -> tabManager.currentWebView?.goBack()
@@ -3739,7 +3749,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (index !in 0 until tabManager.size) return
         closeTabAndHint(index)
         if (tabManager.size == 0) {
-            openNewTab(AppServices.settings.homeUrl())
+            openNewTab()
         }
         renderTabs()
     }
@@ -3802,7 +3812,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun openNewTab(url: String? = null) {
-        val target = url ?: restoredUrl(null)
+        val target = url ?: if (webHomeEnabled()) ABOUT_HOME else restoredUrl(null)
         tabManager.newTab(target)
         applySiteThemeColor(currentThemeColor())
         if (target == ABOUT_HOME) {
@@ -4343,6 +4353,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         resetDockVisibility()
         exitArmed = false
         homePanel?.exitSearchInput()
+        homeWeb?.let { web ->
+            web.clearFocus()
+            (requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(web.windowToken, 0)
+        }
         homeContainer?.visibility = View.GONE
         attachCurrentWebView()
         tabManager.currentWebView?.visibility = View.VISIBLE
@@ -4643,6 +4659,37 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 主页原生视图懒创建（直接加入 home_container）。 */
     private fun ensureHomePanel() {
         val host = view?.findViewById<FrameLayout>(R.id.home_container) ?: return
+        if (webHomeEnabled()) {
+            if (homePanel != null) {
+                homePanel = null
+                host.removeAllViews()
+            }
+            if (homeWeb?.parent !== host) {
+                host.removeAllViews()
+                homeWeb?.destroy()
+                homeWeb = null
+                val home = com.sii.browser.core.webview.HomeWebView(
+                    requireContext(),
+                    onSearch = { navigateFromHome(it) },
+                    onOpen = { loadUrlFor(it) }
+                )
+                host.addView(
+                    home,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+                homeWeb = home
+            }
+            renderWebHome()
+            return
+        }
+        homeWeb?.let { web ->
+            host.removeAllViews()
+            web.destroy()
+        }
+        homeWeb = null
         // Fragment 视图销毁重建后旧 panel 的 parent 仍指向已销毁的旧容器（非 null），
         // 只有 parent 是当前视图的 home_container 才能复用。
         if (homePanel != null && homePanel?.view?.parent === host) return
@@ -4666,6 +4713,60 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
         panel.bind(latestFavorites)
         homePanel = panel
+    }
+
+    /** 网页主页（内置模板或自定义地址）是否启用。 */
+    private fun webHomeEnabled(): Boolean = AppServices.settings.homePageMode() != 0
+
+    /** 主页入口：原生主页走覆盖层，网页主页直接显示主页容器。 */
+    private fun openHome() {
+        if (!webHomeEnabled()) {
+            loadUrlFor(ABOUT_HOME)
+            return
+        }
+        val webView = tabManager.currentWebView
+        val hasPage = webView?.url?.startsWith("http") == true ||
+            tabManager.current?.url?.startsWith("http") == true
+        homeOverlayActive = hasPage
+        homeForwardAvailable = false
+        navFromHome = false
+        showHome(createTab = tabManager.current == null)
+    }
+
+    /** 把当前设置（CSS/常用网站/搜索引擎/夜间/主色）渲染到网页主页。 */
+    private fun renderWebHome() {
+        val home = homeWeb ?: return
+        if (!isAdded) return
+        val settings = AppServices.settings
+        val engines = runCatching {
+            org.json.JSONArray(settings.searchEngines().orEmpty())
+        }.getOrNull()
+        val engineList = mutableListOf<Pair<String, String>>()
+        if (engines != null) {
+            for (i in 0 until engines.length()) {
+                val item = engines.optJSONObject(i) ?: continue
+                val name = item.optString("name")
+                val url = item.optString("url")
+                if (name.isNotBlank() && url.isNotBlank()) engineList.add(name to url)
+            }
+        }
+        if (engineList.isEmpty()) {
+            engineList.addAll(com.sii.browser.data.SearchEngines.DEFAULT)
+        }
+        home.render(
+            com.sii.browser.core.webview.HomeWebView.Page(
+                template = settings.homePageMode() == 1,
+                url = settings.homeUrl(),
+                css = settings.homeCustomCss(),
+                title = settings.homeLogoText().orEmpty(),
+                night = settings.isNightMode(),
+                accent = String.format("#%06X", 0xFFFFFF and ThemeAccent.color(requireContext())),
+                searchBase = settings.searchEngineUrl()
+                    ?: com.sii.browser.data.SearchEngines.DEFAULT.first().second,
+                engines = engineList,
+                sites = latestFavorites.take(30).map { it.title to it.url }
+            )
+        )
     }
 
     // ---- 标签面板（原生底部浮层） ----
@@ -5466,7 +5567,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 菜单项目录：常用项优先，上方可移动区与下方固定栏共用。 */
     private fun menuCatalog(): List<MenuEntry> = listOf(
         MenuEntry("refresh", getString(R.string.menu_refresh), R.drawable.ic_m_refresh, false, { false }, { hasWebPage() }) { toggleRefresh() },
-        MenuEntry("home", getString(R.string.menu_home), R.drawable.ic_m_home, false, { false }, { homeContainer?.visibility != View.VISIBLE }) { loadUrlFor(AppServices.settings.homeUrl()) },
+        MenuEntry("home", getString(R.string.menu_home), R.drawable.ic_m_home, false, { false }, { homeContainer?.visibility != View.VISIBLE }) { openHome() },
         MenuEntry("addbookmark", getString(R.string.menu_add_bookmark), R.drawable.ic_m_bookmark_add, false, { false }, { hasWebPage() }) { addCurrentBookmark() },
         MenuEntry("bookmarks", getString(R.string.menu_bookmarks), R.drawable.ic_m_bmlist, false, { false }) { openBookmarks() },
         MenuEntry("downloads", getString(R.string.menu_downloads), R.drawable.ic_m_download, false, { false }) { openDownloads() },
@@ -7469,9 +7570,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 主页覆盖在网页上时，标签卡显示“主页”而不是被覆盖的网站。 */
     private fun tabDisplayTitle(tab: Tab): String {
-        if (homeOverlayActive && homeContainer?.visibility == View.VISIBLE &&
-            tab === tabManager.current
-        ) {
+        if (homeContainer?.visibility == View.VISIBLE && tab === tabManager.current) {
             return getString(R.string.menu_home)
         }
         return tab.title.ifEmpty { tab.url.ifEmpty { getString(R.string.menu_new_tab) } }
@@ -7567,6 +7666,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun addressDisplayUrl(url: String, title: String = ""): String {
         if (url == ABOUT_HOME) {
+            if (webHomeEnabled()) return ""
             return AppServices.settings.homeUrl().takeIf { it != ABOUT_HOME }.orEmpty()
         }
         if (url.startsWith("about:")) return url
@@ -10360,6 +10460,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onDestroyView() {
         AppServices.onUpdatePromptReady = null
+        homeWeb?.let { web ->
+            (web.parent as? ViewGroup)?.removeView(web)
+            web.destroy()
+        }
+        homeWeb = null
         restoreAutoDismiss?.let { runnable ->
             restorePromptBar?.removeCallbacks(runnable)
             view?.removeCallbacks(runnable)
