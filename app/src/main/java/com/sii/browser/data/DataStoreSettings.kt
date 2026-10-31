@@ -1274,6 +1274,12 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeSitesShadow(value: Boolean) =
         putBool(SettingsKeys.HOME_SITES_SHADOW, value)
 
+    override fun homeSitesFrosted(): Boolean =
+        bool(SettingsKeys.HOME_SITES_FROSTED, SettingsDefaults.HOME_SITES_FROSTED)
+
+    override fun setHomeSitesFrosted(value: Boolean) =
+        putBool(SettingsKeys.HOME_SITES_FROSTED, value)
+
     override fun homeSearchShadow(): Boolean =
         bool(SettingsKeys.HOME_SEARCH_SHADOW, SettingsDefaults.HOME_SEARCH_SHADOW)
 

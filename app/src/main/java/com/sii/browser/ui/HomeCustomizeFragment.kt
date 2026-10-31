@@ -717,7 +717,13 @@ class HomeCustomizeFragment : Fragment() {
         ) {
             settings.setHomeSitesCardBg(it)
             refreshPreview()
+            view?.post { buildControls() }
         },
+        // 卡片背景关闭时站点直接浮在主页上，磨砂无意义，整行变灰。
+        switchRow("磨砂质感", settings.homeSitesFrosted()) {
+            settings.setHomeSitesFrosted(it)
+            refreshPreview()
+        }.let { row -> if (settings.homeSitesCardBg()) row else disabledRow(row) },
         switchRow(
             getString(R.string.settings_home_sites_shadow),
             settings.homeSitesShadow()

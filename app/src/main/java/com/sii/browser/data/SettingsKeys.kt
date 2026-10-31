@@ -273,6 +273,7 @@ object SettingsKeys {
     const val HOME_SEARCH_FROSTED = "home_search_frosted"
     const val DOCK_BACKGROUND = "dock_background"
     const val HOME_SITES_SHADOW = "home_sites_shadow"
+    const val HOME_SITES_FROSTED = "home_sites_frosted"
     const val WEB_TEXT_COLOR = "webtextcolor"
     const val WEBVIEW_DARK = "webviewdark"
     const val ADDRESS_STYLE = "addressstyle"

@@ -92,6 +92,9 @@ object SettingsDefaults {
     /** 常用网站卡片阴影（强度随玻璃强度降低）。 */
     const val HOME_SITES_SHADOW = true
 
+    /** 常用网站卡片磨砂质感。 */
+    const val HOME_SITES_FROSTED = false
+
     /** 主页搜索框阴影（强度随玻璃强度降低）。 */
     const val HOME_SEARCH_SHADOW = true
 

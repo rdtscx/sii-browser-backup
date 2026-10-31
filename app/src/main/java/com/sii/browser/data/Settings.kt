@@ -971,6 +971,11 @@ interface WebPageSettings {
 
     fun setHomeSitesShadow(value: Boolean)
 
+    /** 常用网站卡片磨砂质感。 */
+    fun homeSitesFrosted(): Boolean
+
+    fun setHomeSitesFrosted(value: Boolean)
+
     /** 主页搜索框阴影。 */
     fun homeSearchShadow(): Boolean
 

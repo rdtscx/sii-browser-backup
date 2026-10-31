@@ -77,6 +77,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("Logo", "外观与主页", "显示内容 时间", diyTab = 0),
         SearchEntry("常用网站", "外观与主页", "主页图标", diyTab = 4),
         SearchEntry("常用网站阴影", "外观与主页", "阴影 卡片 shadow", diyTab = 4),
+        SearchEntry("常用网站磨砂质感", "外观与主页", "磨砂 卡片 透明 模糊 frosted", diyTab = 4),
         SearchEntry("搜索框阴影", "外观与主页", "阴影 主页搜索框 shadow", diyTab = 1),
         SearchEntry("搜索框透明度", "外观与主页", "搜索框 透明 背景 opacity alpha", diyTab = 1),
         SearchEntry("磨砂质感", "外观与主页", "磨砂 搜索框 建议 透明 模糊 frosted blur", diyTab = 1),

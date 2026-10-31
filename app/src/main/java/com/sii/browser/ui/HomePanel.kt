@@ -863,6 +863,11 @@ class HomePanel(
         val base = if (dark) 0xFF1B1E23.toInt() else context.getColor(R.color.card)
         card.background = when {
             !on -> null
+            // 磨砂：半透明填充 + 亮描边 + 高光，跟随日夜；开启时不再叠主题色淡底。
+            AppServices.settings.homeSitesFrosted() -> GlassStyle.frosted(
+                context, dark, dp(24).toFloat(),
+                fillOverride = GlassStyle.frostedPanelFill(dark)
+            )
             themeFill != null -> GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
                 setColor(themeFill)
