@@ -154,7 +154,7 @@ class HomeWebView(
                 append("url(\"").append(page.background).append("\");}")
             }
             if (page.logoImage.isNotBlank()) {
-                append(".gradient-title{background:none;-webkit-text-fill-color:initial;}")
+                append(".page > #logo{background:none;-webkit-text-fill-color:initial;}")
             }
         }
         val config = JSONObject().apply {

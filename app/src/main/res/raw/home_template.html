@@ -91,9 +91,7 @@ body{
   flex:none;
   font-size:12px;
   color:var(--sii-sub);
-  padding:2px 8px;
-  border-radius:999px;
-  background:rgba(127,127,127,.12);
+  opacity:.6;
 }
 #search_bar_trigger{position:absolute;inset:0;border-radius:inherit}
 .opSug_wpr{
@@ -115,7 +113,7 @@ body{
   display:block;
   padding:7px 10px;
   border-radius:10px;
-  color:var(--sii-fg);
+  color:inherit;
   font-size:13px;
   text-decoration:none;
   overflow:hidden;
@@ -190,7 +188,7 @@ body{
   z-index:4;
 }
 .opSug_sub{opacity:.6}
-.sii-slot{width:100%;max-width:520px;margin-top:18px}
+.sii-slot{width:100%;max-width:520px;margin-top:18px;text-align:center}
 .sii-slot:empty{display:none}
 #siiSlotHead{margin-top:0}
 #switch_window{
@@ -606,32 +604,40 @@ body{
   function renderSuggest(items) {
     if (!items || !items.length) { hideSuggest(); return; }
     suggestBox.textContent = '';
+    var seen = {};
     items.slice(0, 8).forEach(function (item) {
-      var value = item.value || item.title || '';
-      if (!value) return;
-      var isUrl = /^(https?:|file:|www\.)/i.test(value);
+      var raw = item.value || '';
+      var title = item.title || raw;
+      if (!title || seen[title]) return;
+      seen[title] = 1;
+      // 原生建议里可能有带 %s 的搜索模板地址，不能当链接用，统一按关键词提交
+      var isTemplate = raw.indexOf('%s') >= 0 || raw.indexOf('{q}') >= 0;
+      var value = isTemplate ? title : (raw || title);
+      var isUrl = !isTemplate && /^(https?:|file:|www\.)/i.test(value);
       var entry = document.createElement('a');
       entry.className = 'opSug_item';
-      entry.textContent = item.title || value;
-      if (item.subtitle) {
-        var sub = document.createElement('span');
-        sub.className = 'opSug_sub';
-        sub.textContent = ' · ' + item.subtitle;
-        entry.appendChild(sub);
+      entry.textContent = title;
+      var sub = item.subtitle || '';
+      if (sub && sub.indexOf('http') < 0 && sub.indexOf('%s') < 0) {
+        var subEl = document.createElement('span');
+        subEl.className = 'opSug_sub';
+        subEl.textContent = ' · ' + sub;
+        entry.appendChild(subEl);
       }
-      entry.href = value;
+      entry.href = isUrl ? value : '#';
       entry.addEventListener('click', function (e) {
         e.preventDefault();
         hideSuggest();
         if (isUrl) {
           window.sii.open(value);
         } else {
-          input.value = value;
-          submit(value);
+          input.value = title;
+          submit(title);
         }
       });
       suggestBox.appendChild(entry);
     });
+    if (!suggestBox.childNodes.length) { hideSuggest(); return; }
     suggestBox.classList.add('on');
   }
 
