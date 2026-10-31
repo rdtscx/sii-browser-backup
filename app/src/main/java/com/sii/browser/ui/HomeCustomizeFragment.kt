@@ -662,6 +662,9 @@ class HomeCustomizeFragment : Fragment() {
             settings.homeSitePages().coerceIn(1, 5) - 1
         ) { index ->
             settings.setHomeSitePages(index + 1)
+            viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                AppServices.favoriteRepository.clampToPages(index + 1)
+            }
             refreshPreview()
         },
         choiceRow(

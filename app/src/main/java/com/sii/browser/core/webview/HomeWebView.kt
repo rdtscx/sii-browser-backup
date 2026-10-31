@@ -41,7 +41,8 @@ class HomeWebView(
         val accent: String,
         val searchBase: String,
         val engines: List<Pair<String, String>>,
-        val sites: List<Pair<String, String>>,
+        /** 每页一个列表（index = 页码），每项 名称 to 地址。 */
+        val sitePages: List<List<Pair<String, String>>> = emptyList(),
         /** 是否显示常用网站网格（跟随原生「显示常用网站」开关）。 */
         val showSites: Boolean = true,
         /** 主页背景图（data URI），空 = 纯色底。 */
@@ -60,9 +61,13 @@ class HomeWebView(
             append(background.hashCode()).append('|').append(logoImage.hashCode()).append('|')
             append(customHtml.hashCode()).append('|').append(customHtmlPos).append('|')
             append(showSites).append('|')
+            sitePages.forEachIndexed { page, list ->
+                append(page).append(':')
+                list.forEach { append(it.first).append('→').append(it.second).append(';') }
+                append('|')
+            }
             engines.forEach { append(it.first).append('→').append(it.second).append(';') }
             append('|')
-            sites.forEach { append(it.first).append('→').append(it.second).append(';') }
         }
     }
 
@@ -166,9 +171,13 @@ class HomeWebView(
                     put(JSONObject().apply { put("name", name); put("url", url) })
                 }
             })
-            put("sites", JSONArray().apply {
-                page.sites.forEach { (name, url) ->
-                    put(JSONObject().apply { put("title", name); put("url", url) })
+            put("pages", JSONArray().apply {
+                page.sitePages.forEach { list ->
+                    put(JSONArray().apply {
+                        list.forEach { (name, url) ->
+                            put(JSONObject().apply { put("title", name); put("url", url) })
+                        }
+                    })
                 }
             })
         }.toString().replace("<", "\\u003c")

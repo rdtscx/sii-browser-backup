@@ -44,6 +44,13 @@ object HomePageBuilder {
             }
         }
         if (engineList.isEmpty()) engineList.addAll(SearchEngines.DEFAULT)
+        val pageCount = settings.homeSitePages().coerceIn(1, 5)
+        val sitePages = (0 until pageCount).map { page ->
+            favorites.filter { it.page == page }
+                .sortedBy { it.order }
+                .take(30)
+                .map { it.title to it.url }
+        }
         return HomeWebView.Page(
             template = settings.homePageMode() == 1,
             url = settings.homeUrl(),
@@ -53,7 +60,7 @@ object HomePageBuilder {
             accent = String.format("#%06X", 0xFFFFFF and accentColor),
             searchBase = settings.searchEngineUrl() ?: SearchEngines.DEFAULT.first().second,
             engines = engineList,
-            sites = favorites.take(30).map { it.title to it.url },
+            sitePages = sitePages,
             showSites = settings.showSites(),
             background = background(context, settings),
             logoImage = if (settings.homeLogoMode() == 1) logo(context) else "",

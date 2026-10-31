@@ -13,14 +13,14 @@ object HomeTemplateHooks {
     private val classes = setOf(
         "page", "gradient-title", "logo-img", "clock", "t", "sec", "d",
         "search_bar", "icon", "opSug_wpr", "opSug_item", "opSug_sub",
-        "nav-grid", "nav-card", "nav-icon", "nav-title",
+        "nav-grid", "nav-card", "nav-icon", "nav-title", "nav-pager", "sii-dots", "sii-dot",
         "switch_engine", "engine_item", "engine_tip", "sii-slot"
     )
 
     private val ids = setOf(
         "logo", "vtime", "vsec", "vdate",
         "searchBar", "q", "engineName", "search_bar_trigger", "sugList",
-        "navGrid", "switch_window", "engineList",
+        "switch_window", "engineList",
         "siiSlotTop", "siiSlotBottom", "siiSlotHead"
     )
 

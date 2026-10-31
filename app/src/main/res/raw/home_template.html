@@ -123,14 +123,29 @@ body{
   white-space:nowrap;
 }
 .opSug_item:active{background:rgba(127,127,127,.16)}
-.nav-grid{
+.nav-pager{
   width:100%;
   max-width:520px;
   margin-top:24px;
+  display:flex;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.nav-pager::-webkit-scrollbar{display:none}
+.nav-grid{
+  flex:0 0 100%;
+  width:100%;
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(68px,1fr));
   gap:12px;
+  scroll-snap-align:center;
 }
+.sii-dots{display:flex;justify-content:center;gap:6px;margin-top:12px}
+.sii-dot{width:6px;height:6px;border-radius:50%;background:rgba(127,127,127,.35)}
+.sii-dot.active{background:var(--sii-accent)}
 .nav-card{
   display:flex;
   flex-direction:column;
@@ -241,7 +256,8 @@ body{
     <div class="opSug_wpr" id="sugList"></div>
   </div>
   <div id="siiSlotTop" class="sii-slot"></div>
-  <div class="nav-grid" id="navGrid"></div>
+  <div class="nav-pager" id="navPager"></div>
+  <div class="sii-dots" id="siteDots"></div>
   <div id="siiSlotBottom" class="sii-slot"></div>
 </main>
 <div id="switch_window">
@@ -336,11 +352,14 @@ body{
     return box;
   }
 
-  var grid = $('navGrid');
-  if (!cfg.showSites) {
-    grid.style.display = 'none';
-  }
-  cfg.sites.forEach(function (site) {
+  // 常用网站：每页一个 .nav-grid，横向滑动 + 页码点；长按拖动排序（页内）
+  var pager = $('navPager');
+  var dotBox = $('siteDots');
+  var pageLists = cfg.pages || [];
+  var pageCount = pageLists.length;
+  var suppressClickUntil = 0;
+
+  function buildCard(site) {
     var card = document.createElement('a');
     card.className = 'nav-card';
     card.href = site.url;
@@ -359,95 +378,122 @@ body{
       e.preventDefault();
       window.sii.menuSite(site.url);
     });
-    grid.appendChild(card);
-  });
-
-  // 长按卡片：抬手未移动 = 弹菜单；拖动 = 排序（松手立即保存）
-  var pressTimer = null;
-  var dragIndex = -1;
-  var dragMoved = false;
-  var dragStartY = 0;
-
-  function indexOfNode(node) {
-    return Array.prototype.indexOf.call(grid.children, node);
+    return card;
   }
 
-  // 长按后残留的 click 不能再当普通点击（否则菜单与打开会同时触发）
-  var suppressClickUntil = 0;
+  // 长按卡片：抬手未移动 = 弹菜单；拖动 = 页内排序（松手立即保存）
+  function bindGridDrag(gridEl) {
+    var pressTimer = null;
+    var dragIndex = -1;
+    var dragMoved = false;
+    var dragStartY = 0;
 
-  function endDrag() {
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-    if (dragIndex >= 0) {
-      var node = grid.children[dragIndex];
-      if (node) node.classList.remove('dragging');
-    }
-    grid.removeAttribute('data-dragging');
-    dragIndex = -1;
-    dragMoved = false;
-  }
-
-  grid.addEventListener('touchstart', function (e) {
-    if (dragIndex >= 0) return;
-    var card = e.target && e.target.closest ? e.target.closest('.nav-card') : null;
-    if (!card) return;
-    var startIndex = indexOfNode(card);
-    dragStartY = e.touches[0].clientY;
-    if (pressTimer) clearTimeout(pressTimer);
-    pressTimer = setTimeout(function () {
-      pressTimer = null;
-      dragIndex = startIndex;
-      dragMoved = false;
-      grid.setAttribute('data-dragging', '1');
-      var node = grid.children[dragIndex];
-      if (node) node.classList.add('dragging');
-    }, 460);
-  }, { passive: true });
-
-  grid.addEventListener('touchmove', function (e) {
-    if (pressTimer && Math.abs(e.touches[0].clientY - dragStartY) > 8) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-    }
-    if (dragIndex < 0) return;
-    e.preventDefault();
-    dragMoved = true;
-    var y = e.touches[0].clientY;
-    var nodes = Array.prototype.slice.call(grid.children);
-    var target = nodes.length - 1;
-    for (var i = 0; i < nodes.length; i++) {
-      var rect = nodes[i].getBoundingClientRect();
-      if (y < rect.bottom) { target = i; break; }
-    }
-    if (target !== dragIndex) {
-      var moving = grid.children[dragIndex];
-      var other = grid.children[target];
-      if (moving && other && moving !== other) {
-        grid.insertBefore(moving, target > dragIndex ? other.nextSibling : other);
-        dragIndex = target;
+    function endDrag() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      if (dragIndex >= 0) {
+        var node = gridEl.children[dragIndex];
+        if (node) node.classList.remove('dragging');
       }
+      dragIndex = -1;
+      dragMoved = false;
+      pager.style.overflowX = '';
     }
-  }, { passive: false });
 
-  grid.addEventListener('touchend', function () {
-    var node = dragIndex >= 0 ? grid.children[dragIndex] : null;
-    var url = node ? node.getAttribute('data-url') : '';
-    var moved = dragMoved;
-    var wasDragging = dragIndex >= 0;
-    endDrag();
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-    if (!wasDragging) return;
-    suppressClickUntil = Date.now() + 400;
-    if (!moved) {
-      if (url) window.sii.menuSite(url);
-      return;
-    }
-    var urls = Array.prototype.map.call(grid.children, function (child) {
-      return child.getAttribute('data-url');
+    gridEl.addEventListener('touchstart', function (e) {
+      if (dragIndex >= 0) return;
+      var card = e.target && e.target.closest ? e.target.closest('.nav-card') : null;
+      if (!card) return;
+      var startIndex = Array.prototype.indexOf.call(gridEl.children, card);
+      dragStartY = e.touches[0].clientY;
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = setTimeout(function () {
+        pressTimer = null;
+        dragIndex = startIndex;
+        dragMoved = false;
+        pager.style.overflowX = 'hidden';
+        var node = gridEl.children[dragIndex];
+        if (node) node.classList.add('dragging');
+      }, 460);
+    }, { passive: true });
+
+    gridEl.addEventListener('touchmove', function (e) {
+      if (pressTimer && Math.abs(e.touches[0].clientY - dragStartY) > 8) {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      if (dragIndex < 0) return;
+      e.preventDefault();
+      dragMoved = true;
+      var y = e.touches[0].clientY;
+      var nodes = Array.prototype.slice.call(gridEl.children);
+      var target = nodes.length - 1;
+      for (var i = 0; i < nodes.length; i++) {
+        var rect = nodes[i].getBoundingClientRect();
+        if (y < rect.bottom) { target = i; break; }
+      }
+      if (target !== dragIndex) {
+        var moving = gridEl.children[dragIndex];
+        var other = gridEl.children[target];
+        if (moving && other && moving !== other) {
+          gridEl.insertBefore(moving, target > dragIndex ? other.nextSibling : other);
+          dragIndex = target;
+        }
+      }
+    }, { passive: false });
+
+    gridEl.addEventListener('touchend', function () {
+      var node = dragIndex >= 0 ? gridEl.children[dragIndex] : null;
+      var url = node ? node.getAttribute('data-url') : '';
+      var moved = dragMoved;
+      var wasDragging = dragIndex >= 0;
+      endDrag();
+      if (!wasDragging) return;
+      suppressClickUntil = Date.now() + 400;
+      if (!moved) {
+        if (url) window.sii.menuSite(url);
+        return;
+      }
+      var urls = Array.prototype.map.call(gridEl.children, function (child) {
+        return child.getAttribute('data-url');
+      });
+      window.sii.reorderSites(JSON.stringify(urls));
     });
-    window.sii.reorderSites(JSON.stringify(urls));
+
+    gridEl.addEventListener('touchcancel', endDrag);
+  }
+
+  pageLists.forEach(function (list) {
+    var gridEl = document.createElement('div');
+    gridEl.className = 'nav-grid';
+    list.forEach(function (site) { gridEl.appendChild(buildCard(site)); });
+    pager.appendChild(gridEl);
+    bindGridDrag(gridEl);
   });
 
-  grid.addEventListener('touchcancel', endDrag);
+  if (!cfg.showSites || pageCount === 0) {
+    pager.style.display = 'none';
+    dotBox.style.display = 'none';
+  } else if (pageCount === 1) {
+    dotBox.style.display = 'none';
+  } else {
+    for (var d = 0; d < pageCount; d++) {
+      (function (index) {
+        var dot = document.createElement('span');
+        dot.className = 'sii-dot' + (index === 0 ? ' active' : '');
+        dot.addEventListener('click', function () {
+          pager.scrollTo({ left: index * pager.clientWidth, behavior: 'smooth' });
+        });
+        dotBox.appendChild(dot);
+      })(d);
+    }
+    pager.addEventListener('scroll', function () {
+      var index = Math.round(pager.scrollLeft / Math.max(1, pager.clientWidth));
+      var children = dotBox.children;
+      for (var i = 0; i < children.length; i++) {
+        children[i].className = 'sii-dot' + (i === index ? ' active' : '');
+      }
+    }, { passive: true });
+  }
 
   // 搜索引擎切换（记住上次选择；长按设为浏览器默认引擎）
   var engines = cfg.engines || [];

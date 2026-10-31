@@ -61,4 +61,12 @@ class FavoriteRepository(private val dao: FavoriteDao) {
         if (target == item.page) return
         dao.update(item.copy(page = target, order = dao.nextOrder(target)))
     }
+
+    /** 页数减少时，把超出范围的高页项目归到最后一页，避免“网站消失”。 */
+    suspend fun clampToPages(pages: Int) {
+        val last = (pages - 1).coerceAtLeast(0)
+        dao.allOnce().filter { it.page > last }.forEach { item ->
+            dao.update(item.copy(page = last, order = dao.nextOrder(last)))
+        }
+    }
 }
