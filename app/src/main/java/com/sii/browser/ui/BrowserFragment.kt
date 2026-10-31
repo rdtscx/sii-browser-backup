@@ -9090,6 +9090,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // 切到后台时回收窗口背景；onResume 会按当前页面重新应用。
+        (activity as? ShellActivity)?.applyChromeBackground(null)
+    }
+
     override fun onResume() {
         super.onResume()
         (activity as? ShellActivity)?.refreshDialogTheme()
@@ -10367,6 +10373,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onDestroyView() {
         AppServices.onUpdatePromptReady = null
+        // 离开浏览器（进入设置等页面）时回收窗口背景，否则状态栏会残留主页背景图。
+        (activity as? ShellActivity)?.applyChromeBackground(null)
         restoreAutoDismiss?.let { runnable ->
             restorePromptBar?.removeCallbacks(runnable)
             view?.removeCallbacks(runnable)
