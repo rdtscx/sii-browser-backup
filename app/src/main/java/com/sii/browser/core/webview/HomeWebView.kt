@@ -26,7 +26,8 @@ class HomeWebView(
     private val onSearch: (String) -> Unit,
     private val onOpen: (String) -> Unit,
     private val onSiteMenu: (String) -> Unit,
-    private val onSetDefaultEngine: (String) -> Unit
+    private val onSetDefaultEngine: (String) -> Unit,
+    private val onSuggest: (String) -> Unit
 ) : WebView(context) {
 
     /** 一次渲染所需的全部状态；签名不变时不重新加载页面。 */
@@ -43,13 +44,18 @@ class HomeWebView(
         /** 主页背景图（data URI），空 = 纯色底。 */
         val background: String = "",
         /** 标题图标（data URI），空 = 显示文字。 */
-        val logoImage: String = ""
+        val logoImage: String = "",
+        /** 自定义 HTML 片段，插入位置见 [customHtmlPos]。 */
+        val customHtml: String = "",
+        /** 0 搜索框下方 / 1 页面底部。 */
+        val customHtmlPos: Int = 0
     ) {
         fun signature(): String = buildString {
             append(template).append('|').append(url).append('|').append(css).append('|')
             append(title).append('|').append(night).append('|').append(accent).append('|')
             append(searchBase).append('|')
             append(background.hashCode()).append('|').append(logoImage.hashCode()).append('|')
+            append(customHtml.hashCode()).append('|').append(customHtmlPos).append('|')
             engines.forEach { append(it.first).append('→').append(it.second).append(';') }
             append('|')
             sites.forEach { append(it.first).append('→').append(it.second).append(';') }
@@ -147,6 +153,8 @@ class HomeWebView(
             put("night", if (page.night) 1 else 0)
             put("accent", page.accent)
             put("logoImage", page.logoImage)
+            put("customHtml", page.customHtml)
+            put("customHtmlPos", page.customHtmlPos)
             put("searchBase", page.searchBase)
             put("engines", JSONArray().apply {
                 page.engines.forEach { (name, url) ->
@@ -210,6 +218,20 @@ class HomeWebView(
             if (value.isEmpty()) return
             post { onSetDefaultEngine(value) }
         }
+
+        @JavascriptInterface
+        fun suggest(query: String) {
+            val value = query.trim()
+            if (value.isEmpty()) return
+            post { onSuggest(value) }
+        }
+    }
+
+    /** 把原生建议（历史/书签/联网）回送页面；页面按 query 自行判断是否过期。 */
+    fun deliverSuggestions(query: String, itemsJson: String) {
+        val script = "window.siiOnSuggest&&window.siiOnSuggest(" +
+            JSONObject.quote(query) + "," + JSONObject.quote(itemsJson) + ");"
+        evaluateJavascript(script, null)
     }
 
     companion object {

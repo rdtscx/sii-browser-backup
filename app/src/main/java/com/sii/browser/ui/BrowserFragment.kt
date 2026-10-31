@@ -100,9 +100,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var tabBar: View? = null
     private var homePanel: HomePanel? = null
     private var homeWeb: com.sii.browser.core.webview.HomeWebView? = null
-    private var homeBgCacheKey: String? = null
-    private var homeBgCacheData: String? = null
-    private var homeLogoCacheData: String? = null
     private var latestFavorites: List<com.sii.browser.data.db.FavoriteItem> = emptyList()
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
@@ -4676,7 +4673,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     onSearch = { navigateFromHome(it) },
                     onOpen = { loadUrlFor(it) },
                     onSiteMenu = { showHomeSiteMenu(it) },
-                    onSetDefaultEngine = { setHomeDefaultEngine(it) }
+                    onSetDefaultEngine = { setHomeDefaultEngine(it) },
+                    onSuggest = { query -> loadHomeSuggestions(query) }
                 )
                 host.addView(
                     home,
@@ -4742,95 +4740,27 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun renderWebHome() {
         val home = homeWeb ?: return
         if (!isAdded) return
-        val settings = AppServices.settings
-        val engines = runCatching {
-            org.json.JSONArray(settings.searchEngines().orEmpty())
-        }.getOrNull()
-        val engineList = mutableListOf<Pair<String, String>>()
-        if (engines != null) {
-            for (i in 0 until engines.length()) {
-                val item = engines.optJSONObject(i) ?: continue
-                val name = item.optString("name")
-                val url = item.optString("url")
-                if (name.isNotBlank() && url.isNotBlank()) engineList.add(name to url)
-            }
-        }
-        if (engineList.isEmpty()) {
-            engineList.addAll(com.sii.browser.data.SearchEngines.DEFAULT)
-        }
         home.render(
-            com.sii.browser.core.webview.HomeWebView.Page(
-                template = settings.homePageMode() == 1,
-                url = settings.homeUrl(),
-                css = settings.homeCustomCss(),
-                title = settings.homeLogoText().orEmpty(),
-                night = settings.isNightMode(),
-                accent = String.format("#%06X", 0xFFFFFF and ThemeAccent.color(requireContext())),
-                searchBase = settings.searchEngineUrl()
-                    ?: com.sii.browser.data.SearchEngines.DEFAULT.first().second,
-                engines = engineList,
-                sites = latestFavorites.take(30).map { it.title to it.url },
-                background = homeBackgroundData(),
-                logoImage = if (settings.homeLogoMode() == 1) homeLogoData() else ""
+            com.sii.browser.core.webview.HomePageBuilder.build(
+                requireContext(), AppServices.settings, latestFavorites,
+                ThemeAccent.color(requireContext())
             )
         )
     }
 
-    /** 主页背景图转 data URI（按来源 + 文件修改时间缓存）。 */
-    private fun homeBackgroundData(): String {
-        val raw = AppServices.settings.homeBackground()?.takeIf { it.isNotBlank() } ?: return ""
-        val uri = when {
-            raw.startsWith("content://") || raw.startsWith("file://") -> android.net.Uri.parse(raw)
-            else -> android.net.Uri.fromFile(java.io.File(raw))
-        }
-        val stamp = if (uri.scheme == "content") raw else raw + "|" + java.io.File(uri.path.orEmpty()).lastModified()
-        if (stamp == homeBgCacheKey) return homeBgCacheData.orEmpty()
-        val resolver = requireContext().contentResolver
-        val data = runCatching {
-            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            resolver.openInputStream(uri)?.use { input ->
-                android.graphics.BitmapFactory.decodeStream(input, null, bounds)
+    /** 网页主页的搜索建议：复用地址栏的本地/联网建议，结果回送页面渲染。 */
+    private fun loadHomeSuggestions(query: String) {
+        loadSuggestions(query, onlineDelayMs = 150L) { list ->
+            val array = org.json.JSONArray()
+            list.take(8).forEach { item ->
+                array.put(org.json.JSONObject().apply {
+                    put("title", item.title)
+                    put("value", item.value)
+                    item.subtitle?.let { put("subtitle", it) }
+                })
             }
-            var sample = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
-            val bitmap = resolver.openInputStream(uri)?.use { input ->
-                android.graphics.BitmapFactory.decodeStream(
-                    input, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-                )
-            } ?: return@runCatching ""
-            val out = java.io.ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out)
-            bitmap.recycle()
-            "data:image/jpeg;base64," + android.util.Base64.encodeToString(
-                out.toByteArray(), android.util.Base64.NO_WRAP
-            )
-        }.getOrDefault("")
-        homeBgCacheKey = stamp
-        homeBgCacheData = data
-        return data
-    }
-
-    /** 主页图标 Logo 转 data URI（矢量图光栅化一次后缓存）。 */
-    private fun homeLogoData(): String {
-        homeLogoCacheData?.let { return it }
-        val data = runCatching {
-            val drawable = androidx.core.content.ContextCompat
-                .getDrawable(requireContext(), R.drawable.ic_logo_home) ?: return@runCatching ""
-            val size = 128
-            val bitmap = android.graphics.Bitmap.createBitmap(
-                size, size, android.graphics.Bitmap.Config.ARGB_8888
-            )
-            drawable.setBounds(0, 0, size, size)
-            drawable.draw(android.graphics.Canvas(bitmap))
-            val out = java.io.ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-            bitmap.recycle()
-            "data:image/png;base64," + android.util.Base64.encodeToString(
-                out.toByteArray(), android.util.Base64.NO_WRAP
-            )
-        }.getOrDefault("")
-        homeLogoCacheData = data
-        return data
+            homeWeb?.deliverSuggestions(query, array.toString())
+        }
     }
 
     /** 主页站点卡长按：打开 / 编辑 / 删除。 */

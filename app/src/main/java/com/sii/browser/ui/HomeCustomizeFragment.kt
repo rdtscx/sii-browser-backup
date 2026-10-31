@@ -1358,7 +1358,7 @@ class HomeCustomizeFragment : Fragment() {
                 else -> urlDialog()
             }
         },
-        navRow(getString(R.string.settings_home_css), null) { openHomeSettings() },
+        navRow(getString(R.string.settings_home_web), null) { openHomeSettings() },
         navRow(
             getString(R.string.settings_custom_font),
             if (settings.customFont().isNullOrBlank()) getString(R.string.settings_custom_font_none)

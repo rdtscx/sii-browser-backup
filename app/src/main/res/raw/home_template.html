@@ -167,6 +167,9 @@ body{
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+.opSug_sub{opacity:.6}
+.sii-slot{width:100%;max-width:520px;margin-top:18px}
+.sii-slot:empty{display:none}
 #switch_window{
   position:fixed;
   inset:0;
@@ -228,7 +231,9 @@ body{
     <div id="search_bar_trigger"></div>
     <div class="opSug_wpr" id="sugList"></div>
   </div>
+  <div id="siiSlotTop" class="sii-slot"></div>
   <div class="nav-grid" id="navGrid"></div>
+  <div id="siiSlotBottom" class="sii-slot"></div>
 </main>
 <div id="switch_window">
   <div class="switch_engine" id="engineList"></div>
@@ -404,35 +409,76 @@ body{
     window.sii.open(buildEngineUrl(engine, query));
   }
 
-  // 建议：本地常用网站匹配（不联网）
+  // 自定义 HTML 片段：插到搜索框下方或页面底部，<script> 重建后才会执行
+  function injectCustomHtml() {
+    if (!cfg.customHtml) return;
+    var slot = cfg.customHtmlPos === 1 ? $('siiSlotBottom') : $('siiSlotTop');
+    if (!slot) return;
+    slot.innerHTML = cfg.customHtml;
+    var scripts = slot.querySelectorAll('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var old = scripts[i];
+      var fresh = document.createElement('script');
+      if (old.textContent) fresh.textContent = old.textContent;
+      if (old.src) fresh.src = old.src;
+      old.parentNode.replaceChild(fresh, old);
+    }
+  }
+  injectCustomHtml();
+
+  // 建议：交给浏览器（历史/书签/联网，受设置控制），这里只负责渲染
   var suggestBox = $('sugList');
+  var suggestTimer = null;
   function hideSuggest() { suggestBox.classList.remove('on'); suggestBox.textContent = ''; }
-  function showSuggest(text) {
-    var keyword = (text || '').trim().toLowerCase();
-    if (!keyword) { hideSuggest(); return; }
-    var hits = cfg.sites.filter(function (site) {
-      return (site.title || '').toLowerCase().indexOf(keyword) >= 0 ||
-        (site.url || '').toLowerCase().indexOf(keyword) >= 0;
-    }).slice(0, 6);
-    if (!hits.length) { hideSuggest(); return; }
+
+  function renderSuggest(items) {
+    if (!items || !items.length) { hideSuggest(); return; }
     suggestBox.textContent = '';
-    hits.forEach(function (site) {
-      var item = document.createElement('a');
-      item.className = 'opSug_item';
-      item.href = site.url;
-      item.textContent = site.title || site.url;
-      item.addEventListener('click', function (e) {
+    items.slice(0, 8).forEach(function (item) {
+      var value = item.value || item.title || '';
+      if (!value) return;
+      var isUrl = /^(https?:|file:|www\.)/i.test(value);
+      var entry = document.createElement('a');
+      entry.className = 'opSug_item';
+      entry.textContent = item.title || value;
+      if (item.subtitle) {
+        var sub = document.createElement('span');
+        sub.className = 'opSug_sub';
+        sub.textContent = ' · ' + item.subtitle;
+        entry.appendChild(sub);
+      }
+      entry.href = value;
+      entry.addEventListener('click', function (e) {
         e.preventDefault();
         hideSuggest();
-        window.sii.open(site.url);
+        if (isUrl) {
+          window.sii.open(value);
+        } else {
+          input.value = value;
+          submit(value);
+        }
       });
-      suggestBox.appendChild(item);
+      suggestBox.appendChild(entry);
     });
     suggestBox.classList.add('on');
   }
 
+  window.siiOnSuggest = function (query, payload) {
+    if ((input.value || '').trim() !== (query || '').trim()) return;
+    var items = [];
+    try { items = JSON.parse(payload); } catch (e) { return; }
+    renderSuggest(items);
+  };
+
   var input = $('q');
-  input.addEventListener('input', function () { showSuggest(input.value); });
+  input.addEventListener('input', function () {
+    var value = input.value || '';
+    if (!value.trim()) { hideSuggest(); return; }
+    if (suggestTimer) clearTimeout(suggestTimer);
+    suggestTimer = setTimeout(function () {
+      try { window.sii.suggest(value); } catch (e) { }
+    }, 120);
+  });
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
       e.preventDefault();

@@ -556,6 +556,18 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeCustomCss(value: String) =
         putStr(SettingsKeys.HOME_CUSTOM_CSS, value)
 
+    override fun homeCustomHtml(): String =
+        str(SettingsKeys.HOME_CUSTOM_HTML, null).orEmpty()
+
+    override fun setHomeCustomHtml(value: String) =
+        putStr(SettingsKeys.HOME_CUSTOM_HTML, value)
+
+    override fun homeCustomHtmlPos(): Int =
+        int(SettingsKeys.HOME_CUSTOM_HTML_POS, SettingsDefaults.HOME_CUSTOM_HTML_POS).coerceIn(0, 1)
+
+    override fun setHomeCustomHtmlPos(value: Int) =
+        putInt(SettingsKeys.HOME_CUSTOM_HTML_POS, value.coerceIn(0, 1))
+
     override fun homeKey(): Int = int(SettingsKeys.KEY_HOME, 4)
 
     override fun setHomeKey(value: Int) {

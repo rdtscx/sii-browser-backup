@@ -47,7 +47,11 @@ class SettingsDetailFragment : Fragment() {
         val target = homeFileTarget
         homeFileTarget = 0
         if (uri == null) return@registerForActivityResult
-        if (target == 1) importHomeHtml(uri) else importHomeCss(uri)
+        when (target) {
+            1 -> importHomeHtml(uri)
+            3 -> importHomeSnippet(uri)
+            else -> importHomeCss(uri)
+        }
     }
 
     /** 自定义字体文件选择。 */
@@ -977,6 +981,26 @@ class SettingsDetailFragment : Fragment() {
                     build()
                 })
             }
+            rows.add(navRow(getString(R.string.settings_home_html), homeHtmlSummary()) { editHomeHtml() })
+            rows.add(navRow(getString(R.string.settings_home_html_import)) { pickHomeFile(3) })
+            if (settings.homeCustomHtml().isNotBlank()) {
+                rows.add(
+                    choiceRow(
+                        getString(R.string.settings_home_html_pos),
+                        arrayOf(
+                            getString(R.string.settings_home_html_pos_top),
+                            getString(R.string.settings_home_html_pos_bottom)
+                        ),
+                        settings.homeCustomHtmlPos()
+                    ) { settings.setHomeCustomHtmlPos(it) }
+                )
+                rows.add(navRow(getString(R.string.settings_home_html_clear)) {
+                    settings.setHomeCustomHtml("")
+                    build()
+                })
+            }
+            rows.add(navRow(getString(R.string.settings_home_css_check)) { checkHomeCss() })
+            rows.add(navRow(getString(R.string.settings_home_preview)) { showHomePreview() })
         }
         if (mode == 2) {
             rows.add(
@@ -1035,10 +1059,43 @@ class SettingsDetailFragment : Fragment() {
         else getString(R.string.settings_home_css_chars, css.length)
     }
 
+    private fun homeHtmlSummary(): String {
+        val html = settings.homeCustomHtml()
+        return if (html.isBlank()) getString(R.string.settings_home_html_none)
+        else getString(R.string.settings_home_html_chars, html.length)
+    }
+
     private fun editHomeCss() {
+        showHomeTextEditor(
+            R.string.settings_home_css,
+            settings.homeCustomCss(),
+            getString(R.string.settings_home_css_desc),
+            onSave = { settings.setHomeCustomCss(it) },
+            onPreview = { showHomePreview() }
+        )
+    }
+
+    private fun editHomeHtml() {
+        showHomeTextEditor(
+            R.string.settings_home_html,
+            settings.homeCustomHtml(),
+            getString(R.string.settings_home_css_desc),
+            onSave = { settings.setHomeCustomHtml(it) },
+            onPreview = { showHomePreview() }
+        )
+    }
+
+    /** 多行文本编辑（CSS / HTML 片段共用）；带预览按钮时先保存再开预览。 */
+    private fun showHomeTextEditor(
+        titleRes: Int,
+        initial: String,
+        hintText: String,
+        onSave: (String) -> Unit,
+        onPreview: (() -> Unit)? = null
+    ) {
         val input = EditText(requireContext()).apply {
-            setText(settings.homeCustomCss())
-            hint = getString(R.string.settings_home_css_desc)
+            setText(initial)
+            hint = hintText
             minLines = 8
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
             setTextSize(12.5f)
@@ -1054,14 +1111,69 @@ class SettingsDetailFragment : Fragment() {
             )
             setPadding(dpToPx(16), dpToPx(8), dpToPx(16), 0)
         }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings_home_css)
+        val builder = AlertDialog.Builder(requireContext())
+            .setTitle(titleRes)
             .setView(wrapper)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                settings.setHomeCustomCss(input.text.toString())
+                onSave(input.text.toString())
                 build()
             }
             .setNegativeButton(android.R.string.cancel, null)
+        if (onPreview != null) {
+            builder.setNeutralButton(R.string.settings_home_preview) { _, _ ->
+                onSave(input.text.toString())
+                build()
+                onPreview.invoke()
+            }
+        }
+        builder.show()
+    }
+
+    /** 用模板 + 当前设置现场渲染一份主页，不改主页模式也不影响当前标签。 */
+    private fun showHomePreview() {
+        if (!isAdded) return
+        val context = requireContext()
+        val web = com.sii.browser.core.webview.HomeWebView(context, {}, {}, {}, {}, {})
+        val host = android.widget.FrameLayout(context).apply {
+            minimumWidth = context.resources.displayMetrics.widthPixels - dpToPx(72)
+            addView(
+                web,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dpToPx(420)
+                )
+            )
+        }
+        val dialog = AlertDialog.Builder(context)
+            .setTitle(R.string.settings_home_preview)
+            .setView(host)
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        dialog.setOnDismissListener { web.destroy() }
+        dialog.show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val favorites = runCatching {
+                AppServices.favoriteRepository.all().first()
+            }.getOrDefault(emptyList())
+            val page = com.sii.browser.core.webview.HomePageBuilder.build(
+                context, settings, favorites, ThemeAccent.color(context)
+            ).copy(template = true, url = "")
+            if (dialog.isShowing) web.render(page)
+        }
+    }
+
+    private fun checkHomeCss() {
+        val missing = com.sii.browser.core.webview.HomeTemplateHooks
+            .unmatched(settings.homeCustomCss())
+        val message = if (missing.isEmpty()) {
+            getString(R.string.settings_home_css_check_ok)
+        } else {
+            getString(R.string.settings_home_css_check_missing, missing.joinToString("\n"))
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_home_css_check)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
 
@@ -1078,6 +1190,21 @@ class SettingsDetailFragment : Fragment() {
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (text.isBlank()) error("empty css")
             settings.setHomeCustomCss(text.take(200_000))
+            if (settings.homePageMode() == 0) settings.setHomePageMode(1)
+        }.onFailure {
+            Toast.makeText(
+                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
+            ).show()
+        }
+        build()
+    }
+
+    private fun importHomeSnippet(uri: android.net.Uri) {
+        runCatching {
+            val text = requireContext().contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (text.isBlank()) error("empty html")
+            settings.setHomeCustomHtml(text.take(100_000))
             if (settings.homePageMode() == 0) settings.setHomePageMode(1)
         }.onFailure {
             Toast.makeText(

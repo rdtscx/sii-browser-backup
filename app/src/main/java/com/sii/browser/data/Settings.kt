@@ -344,6 +344,16 @@ interface HomeSearchSettings {
 
     fun setHomeCustomCss(value: String)
 
+    /** 网页主页的自定义 HTML 片段，插入位置见 [homeCustomHtmlPos]。 */
+    fun homeCustomHtml(): String
+
+    fun setHomeCustomHtml(value: String)
+
+    /** 自定义 HTML 位置：0 搜索框下方 / 1 页面底部。 */
+    fun homeCustomHtmlPos(): Int
+
+    fun setHomeCustomHtmlPos(value: Int)
+
     /** 主页按键动作（keyhome）。 */
     fun homeKey(): Int
 
