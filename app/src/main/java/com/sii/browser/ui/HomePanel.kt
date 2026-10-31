@@ -61,9 +61,12 @@ class HomePanel(
     private var editing = false
     private var lastSiteStyle: String? = null
     private var sites: List<FavoriteItem> = emptyList()
+    /** 浏览器窗口已自行绘制背景与遮罩：主页不再重复叠加遮罩。 */
+    var externalOverlay: Boolean = false
     /** 当前显示的主页页（0 开始）。 */
     private var sitePage = 0
     private var siteSwipeInstalled = false
+    private var backgroundOffsetWatched = false
     private var suggestionPopup: SuggestionPopup? = null
     private var topSuggestionPopup: SuggestionPopup? = null
     private var topSuggestJob: Job? = null
@@ -944,7 +947,10 @@ class HomePanel(
             val drawable = withContext(Dispatchers.IO) {
                 decodeBackground(uri, blur, overlay, targetWidth)
             }
-            if (drawable != null && bgKey == key) view.background = drawable
+            if (drawable != null && bgKey == key) {
+                view.background = drawable
+                syncBackgroundOffset()
+            }
         }
     }
 
@@ -971,17 +977,21 @@ class HomePanel(
             }
         }.getOrNull() ?: return null
         val shown = blurBitmap(decoded, blur, targetWidth)
-        val layers = mutableListOf<android.graphics.drawable.Drawable>(
-            android.graphics.drawable.BitmapDrawable(context.resources, shown)
-        )
-        if (overlay > 0) {
-            layers.add(
-                android.graphics.drawable.ColorDrawable(
-                    Color.argb(overlay * 255 / 100, 0, 0, 0)
-                )
-            )
+        // 与窗口背景同尺度绘制（按宽度缩放、顶对齐），否则与底栏之间会出现接缝
+        val overlayColor = if (externalOverlay || overlay <= 0) 0
+        else Color.argb(overlay * 255 / 100, 0, 0, 0)
+        return WidthTopDrawable(shown, overlayColor)
+    }
+
+    /** 与窗口背景对齐：控件顶部相对窗口的偏移（状态栏高度）。 */
+    private fun syncBackgroundOffset() {
+        val drawable = view.background as? WidthTopDrawable ?: return
+        val location = IntArray(2)
+        view.getLocationInWindow(location)
+        if (drawable.topOffsetPx != location[1]) {
+            drawable.topOffsetPx = location[1]
+            view.invalidate()
         }
-        return android.graphics.drawable.LayerDrawable(layers.toTypedArray())
     }
 
     /** 主页底色：开启「主页背景」时用主色淡底，否则用页面底色。 */
@@ -1282,6 +1292,12 @@ class HomePanel(
     fun bind(items: List<FavoriteItem>) {
         sites = items
         sitePage = sitePage.coerceIn(0, pageCount() - 1)
+        if (!backgroundOffsetWatched) {
+            backgroundOffsetWatched = true
+            view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                syncBackgroundOffset()
+            }
+        }
         applyBackground()
         applySitesVisibility()
         render()

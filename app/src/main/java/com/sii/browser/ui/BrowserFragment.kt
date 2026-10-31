@@ -4716,6 +4716,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             )
         )
         panel.bind(latestFavorites)
+        panel.externalOverlay = true
         homePanel = panel
     }
 
@@ -4844,6 +4845,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun showTabsPanel() {
         blurAddressInput()
+        homeWeb?.pauseRendering()
         captureCurrentTabThumbnail {
             if (!isAdded) return@captureCurrentTabThumbnail
             renderTabCards()
@@ -4890,6 +4892,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 overlay.alpha = 1f
                 target.translationY = 0f
                 updateToolbarActiveState()
+                homeWeb?.resumeRendering()
             }
             .start()
     }
@@ -5457,6 +5460,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         menuOverlay?.bringToFront()
         applyHomeChromeTint()
         renderMenuSheet()
+        homeWeb?.pauseRendering()
         menuOverlay?.visibility = View.VISIBLE
         menuOverlay?.alpha = 0f
         menuOverlay?.animate()?.alpha(1f)?.setDuration(160)?.start()
@@ -10531,6 +10535,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onDestroyView() {
         AppServices.onUpdatePromptReady = null
+        // 离开浏览器（进入设置等）时把窗口背景与状态栏恢复，否则会残留主页背景图
+        (activity as? ShellActivity)?.applyChromeBackground(null)
         homeWeb?.let { web ->
             (web.parent as? ViewGroup)?.removeView(web)
             web.destroy()

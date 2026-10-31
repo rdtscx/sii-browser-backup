@@ -103,6 +103,7 @@ class HomeWebView(
 
             override fun onPageFinished(view: WebView, url: String) {
                 injectCss()
+                syncBackgroundOffset()
             }
         }
     }
@@ -151,7 +152,16 @@ class HomeWebView(
                 if (page.night) {
                     append("linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),")
                 }
-                append("url(\"").append(page.background).append("\");}")
+                append("url(\"").append(page.background).append("\");")
+                if (page.night) {
+                    // 第一层是遮罩渐变（铺满），第二层是背景图（按宽度缩放、顶对齐）
+                    append("background-size:100% 100%,100% auto;")
+                    append("background-position:center,center var(--sii-bg-offset, 0px);")
+                } else {
+                    append("background-size:100% auto;")
+                    append("background-position:center var(--sii-bg-offset, 0px);")
+                }
+                append("background-repeat:no-repeat;}")
             }
             if (page.logoImage.isNotBlank()) {
                 append(".page > #logo{background:none;-webkit-text-fill-color:initial;}")
@@ -245,6 +255,30 @@ class HomeWebView(
             if (urlsJson.isBlank()) return
             post { onReorderSites(urlsJson) }
         }
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        syncBackgroundOffset()
+    }
+
+    /** 页面背景图与窗口背景同尺度：把控件顶部相对窗口的偏移告诉网页。 */
+    private fun syncBackgroundOffset() {
+        val location = IntArray(2)
+        getLocationInWindow(location)
+        evaluateJavascript(
+            "document.documentElement.style.setProperty('--sii-bg-offset','-${location[1]}px')",
+            null
+        )
+    }
+
+    /** 覆盖层打开时暂停主页渲染，避免菜单/标签面板下面的 WebView 继续绘制（卡顿主因）。 */
+    fun pauseRendering() {
+        runCatching { onPause() }
+    }
+
+    fun resumeRendering() {
+        runCatching { onResume() }
     }
 
     /** 把原生建议（历史/书签/联网）回送页面；页面按 query 自行判断是否过期。 */

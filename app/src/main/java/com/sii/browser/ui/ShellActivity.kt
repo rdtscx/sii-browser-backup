@@ -77,6 +77,7 @@ class ShellActivity : AppCompatActivity() {
     private var chromeImageLight = false
     private var chromeImageUri: String? = null
     private var chromeImageDrawable: android.graphics.drawable.BitmapDrawable? = null
+    private var chromeImageBitmap: android.graphics.Bitmap? = null
     private var appliedDialogTheme = 0
 
     override fun attachBaseContext(newBase: Context) {
@@ -202,38 +203,31 @@ class ShellActivity : AppCompatActivity() {
             chromeImageActive = false
             chromeImageUri = null
             chromeImageDrawable = null
+            chromeImageBitmap = null
             root.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_bg))
             applyStatusBarColor(null)
             return
         }
-        val drawable = if (uri == chromeImageUri && chromeImageDrawable != null) {
-            chromeImageDrawable
+        val bitmap = if (uri == chromeImageUri && chromeImageBitmap != null) {
+            chromeImageBitmap
         } else {
-            decodeChromeBackground(uri)?.let {
-                android.graphics.drawable.BitmapDrawable(resources, it).apply {
-                    gravity = android.view.Gravity.FILL
-                }
+            decodeChromeBackground(uri)?.also {
+                chromeImageBitmap = it
+                chromeImageUri = uri
             }
         }
-        if (drawable == null) {
+        if (bitmap == null) {
             applyChromeBackground(null)
             return
         }
-        chromeImageActive = true
-        chromeImageUri = uri
-        chromeImageDrawable = drawable
-        chromeImageLight = isLightBitmap(drawable.bitmap)
         val overlay = overlayPercent.coerceIn(0, 100)
-        root.background = if (overlay > 0) {
-            android.graphics.drawable.LayerDrawable(
-                arrayOf(
-                    drawable,
-                    android.graphics.drawable.ColorDrawable(
-                        android.graphics.Color.argb(overlay * 255 / 100, 0, 0, 0)
-                    )
-                )
-            )
-        } else drawable
+        chromeImageActive = true
+        chromeImageLight = isLightBitmap(bitmap)
+        // 按宽度等比缩放、顶部对齐：与主页区域、网页主页保持同一尺度，否则工具栏处会出现接缝
+        root.background = WidthTopDrawable(
+            bitmap,
+            if (overlay > 0) android.graphics.Color.argb(overlay * 255 / 100, 0, 0, 0) else 0
+        )
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, window.decorView)
             .isAppearanceLightStatusBars = chromeImageLight

@@ -27,8 +27,8 @@ body{
   margin:0;
   background-color:var(--sii-bg);
   background-repeat:no-repeat;
-  background-position:center;
-  background-size:cover;
+  background-position:top center;
+  background-size:100% auto;
   color:var(--sii-fg);
   font:14px/1.45 -apple-system,"Noto Sans SC","PingFang SC",sans-serif;
   -webkit-tap-highlight-color:transparent;
@@ -62,6 +62,7 @@ body{
 .clock .d{font-size:12px;opacity:.7;margin-top:4px}
 .search_bar{
   position:relative;
+  z-index:20;
   display:flex;
   align-items:center;
   gap:8px;
@@ -105,7 +106,7 @@ body{
   background:var(--sii-card);
   border:1px solid var(--sii-line);
   box-shadow:0 10px 28px rgba(0,0,0,.16);
-  z-index:6;
+  z-index:30;
   overflow:hidden;
 }
 .opSug_wpr.on{display:block}
@@ -122,6 +123,8 @@ body{
 }
 .opSug_item:active{background:rgba(127,127,127,.16)}
 .nav-pager{
+  position:relative;
+  z-index:1;
   width:100%;
   max-width:520px;
   margin-top:24px;
