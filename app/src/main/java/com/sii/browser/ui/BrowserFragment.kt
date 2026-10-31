@@ -84,6 +84,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var progressBar: ProgressBar? = null
     /** 悬浮模式的进度填充层：胶囊背景里的主色 ClipDrawable，level = 进度×100。 */
     private var dockProgressClip: android.graphics.drawable.ClipDrawable? = null
+    /** 胶囊背景层与其中的进度层下标：快捷引擎行在顶部时靠它把进度层下移。 */
+    private var dockGlassLayer: android.graphics.drawable.LayerDrawable? = null
+    private var dockProgressLayerIndex = -1
     /** 进度条平滑动画：新进度到来时取消旧动画、从当前值继续追，避免瞬跳。 */
     private var progressAnimator: ValueAnimator? = null
     private var progressFinishPending: Runnable? = null
@@ -294,6 +297,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
                 val webView = tabManager.currentWebView
                 if (webView != null && webView.canGoBack()) {
+                    revealToolbarOnNavigate()
                     webView.goBack()
                     showWeb()
                 }
@@ -301,6 +305,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             tabManager.currentWebView?.let { webView ->
                 if (webView.canGoBack()) {
+                    revealToolbarOnNavigate()
                     webView.goBack()
                     updateNavigationState()
                 } else {
@@ -524,6 +529,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         val webView = tabManager.currentWebView
         if (webView?.canGoBack() == true) {
+            revealToolbarOnNavigate()
             webView.goBack()
             return true
         }
@@ -3819,6 +3825,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
     private fun loadUrlFor(rawUrl: String) {
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
+        revealToolbarOnNavigate()
         homePanel?.dismissSuggestions()
         blurAddressInput()
         // 任何主动导航都收起搜索建议，防止结果页上残留。
@@ -6790,6 +6797,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             scroll.layoutParams = scroll.layoutParams.apply { height = quickEngineFullHeight }
         }
         scroll.visibility = if (visible) View.VISIBLE else View.GONE
+        view?.post { syncDockProgressInset() }
     }
 
     /**
@@ -7265,7 +7273,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                             kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f
                         ) {
                             val view = this@BrowserFragment.tabManager.currentWebView
-                            if (dx > 0) view?.goBack() else view?.goForward()
+                            if (dx > 0) {
+                                revealToolbarOnNavigate()
+                                view?.goBack()
+                            } else view?.goForward()
                         }
                     }
                 }
@@ -7672,6 +7683,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         override fun onPageStarted(webView: SiiWebView?, url: String, favicon: Bitmap?) {
             if (webView === tabManager.currentWebView) {
                 com.sii.browser.core.mcp.DiagLog.record("start", url)
+                revealToolbarOnNavigate()
             }
             homeForwardAvailable = false
             webView?.let {
@@ -10164,6 +10176,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 scroll.visibility = View.GONE
                 scroll.alpha = 0f
             }
+            view?.post { syncDockProgressInset() }
             return
         }
         if (show) {
@@ -10174,12 +10187,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             scroll.translationY = -dp(8).toFloat()
             scroll.animate().alpha(1f).translationY(0f).setDuration(160)
                 .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+            view?.post { syncDockProgressInset() }
         } else {
             scroll.animate().alpha(0f).translationY(-dp(8).toFloat()).setDuration(140)
                 .withEndAction {
                     scroll.visibility = View.GONE
                     scroll.alpha = 0f
                     scroll.translationY = 0f
+                    syncDockProgressInset()
                 }.start()
         }
     }
@@ -10215,6 +10230,28 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             // 关背景色：只留图标与进度填充。
             fillOverride = if (showBackground) null else android.graphics.Color.TRANSPARENT
         )
+        val layer = dock.background as? android.graphics.drawable.LayerDrawable
+        dockGlassLayer = layer
+        dockProgressLayerIndex = layer?.let { bg ->
+            (0 until bg.numberOfLayers).firstOrNull { bg.getDrawable(it) === clip } ?: -1
+        } ?: -1
+        syncDockProgressInset()
+    }
+
+    /** 快捷引擎（搜索引擎芯片行）在胶囊顶部时，进度只画在地址行区域，不能扫过芯片。 */
+    private fun syncDockProgressInset() {
+        val layer = dockGlassLayer ?: return
+        val index = dockProgressLayerIndex
+        if (index < 0) return
+        val scroll = view?.findViewById<View>(R.id.search_toolbar_scroll)
+        val visible = scroll?.visibility == View.VISIBLE &&
+            AppServices.settings.searchToolbar()
+        val top = if (visible) {
+            (scroll?.height?.takeIf { it > 0 }
+                ?: quickEngineFullHeight.takeIf { it > 0 }
+                ?: dp(40)) + dp(2)
+        } else 0
+        layer.setLayerInset(index, 0, top, 0, 0)
     }
 
     /** 把当前加载进度同步到胶囊的填充层。 */
@@ -10530,6 +10567,25 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .setDuration(140L)
             .setInterpolator(android.view.animation.DecelerateInterpolator())
             .start()
+    }
+
+    /** 导航/后退时把滚动收起的工具栏调出来，避免新页面或返回后底栏停在屏幕外。 */
+    private fun revealToolbarOnNavigate() {
+        if (!toolbarHidden) return
+        toolbarHidden = false
+        if (AppServices.settings.uiStyle() == 1) {
+            val dock = view?.findViewById<View>(R.id.modern_chrome) ?: return
+            dock.animate().cancel()
+            dock.animate()
+                .translationY(0f)
+                .setDuration(160L)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+            progressBar?.animate()?.translationY(0f)?.setDuration(160L)?.start()
+            return
+        }
+        if (AppServices.settings.toolbarPosition() != 0) return
+        restoreToolbarScrollHidden()
     }
 
     /** 回主页 / 切网页时把自动收起的工具栏复位，避免它停在屏幕外。 */

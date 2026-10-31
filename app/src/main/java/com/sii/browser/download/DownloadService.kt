@@ -102,7 +102,6 @@ class DownloadService : Service() {
             val anyActive = AppServices.downloadRepository.allTasks().first()
                 .any { it.state == DownloadState.DOWNLOADING || it.state == DownloadState.PENDING }
             if (anyActive || hlsActive) return@launch
-            activeProgress = -1
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -436,7 +435,6 @@ class DownloadService : Service() {
         val shownProgress = if (multi > 1 && sumTotal > 0) {
             (sumDownloaded * 100 / sumTotal).toInt()
         } else progress
-        activeProgress = if (taskId > 0 || multi > 0) shownProgress else -1
         val contentText = when {
             multi > 1 -> getString(
                 R.string.download_notification_multi, multi, sumDownloaded, sumTotal
@@ -455,10 +453,6 @@ class DownloadService : Service() {
     }
 
     companion object {
-        /** 当前下载进度（0–100，-1 = 无任务），供主页背景填充样式读取。 */
-        @Volatile
-        var activeProgress: Int = -1
-
         private const val CHANNEL_ID = "downloads"
         private const val NOTIFICATION_ID = 1
 
