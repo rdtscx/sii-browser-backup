@@ -48,7 +48,7 @@ class HomeWebView(
         val logoImage: String = "",
         /** 自定义 HTML 片段，插入位置见 [customHtmlPos]。 */
         val customHtml: String = "",
-        /** 0 搜索框下方 / 1 页面底部。 */
+        /** 0 搜索框下方 / 1 页面底部 / 2 页面顶部。 */
         val customHtmlPos: Int = 0
     ) {
         fun signature(): String = buildString {

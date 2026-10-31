@@ -995,7 +995,8 @@ class SettingsDetailFragment : Fragment() {
                         getString(R.string.settings_home_html_pos),
                         arrayOf(
                             getString(R.string.settings_home_html_pos_top),
-                            getString(R.string.settings_home_html_pos_bottom)
+                            getString(R.string.settings_home_html_pos_bottom),
+                            getString(R.string.settings_home_html_pos_head)
                         ),
                         settings.homeCustomHtmlPos()
                     ) { settings.setHomeCustomHtmlPos(it) }

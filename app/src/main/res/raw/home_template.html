@@ -177,6 +177,7 @@ body{
 .opSug_sub{opacity:.6}
 .sii-slot{width:100%;max-width:520px;margin-top:18px}
 .sii-slot:empty{display:none}
+#siiSlotHead{margin-top:0}
 #switch_window{
   position:fixed;
   inset:0;
@@ -221,6 +222,7 @@ body{
 </head>
 <body>
 <main class="page">
+  <div id="siiSlotHead" class="sii-slot"></div>
   <h1 class="gradient-title" id="logo">Sii</h1>
   <div class="clock">
     <div class="t"><span id="vtime">00:00</span><span class="sec" id="vsec">:00</span></div>
@@ -266,12 +268,19 @@ body{
     $('logo').textContent = cfg.title;
   }
 
+  var hasBuiltinClock = true;
   function tick() {
+    if (!hasBuiltinClock) return;
+    var time = $('vtime');
+    if (!time) { hasBuiltinClock = false; return; }
     var d = new Date();
-    $('vtime').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
-    $('vsec').textContent = ':' + pad(d.getSeconds());
-    $('vdate').textContent =
-      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    var sec = $('vsec');
+    if (sec) sec.textContent = ':' + pad(d.getSeconds());
+    var date = $('vdate');
+    if (date) {
+      date.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
   }
   tick();
   setInterval(tick, 1000);
@@ -508,12 +517,24 @@ body{
     window.sii.open(buildEngineUrl(engine, query));
   }
 
-  // 自定义 HTML 片段：插到搜索框下方或页面底部，<script> 重建后才会执行
+  // 自定义 HTML 片段：可插到顶部 / 搜索框下方 / 页面底部；<script> 重建后才会执行
   function injectCustomHtml() {
     if (!cfg.customHtml) return;
-    var slot = cfg.customHtmlPos === 1 ? $('siiSlotBottom') : $('siiSlotTop');
+    var slot = cfg.customHtmlPos === 1 ? $('siiSlotBottom')
+      : (cfg.customHtmlPos === 2 ? $('siiSlotHead') : $('siiSlotTop'));
     if (!slot) return;
     slot.innerHTML = cfg.customHtml;
+    // 片段自带标题/时钟时移除模板内置的那份，否则会出现两份、且脚本取错元素
+    var html = cfg.customHtml;
+    if (/id\s*=\s*["']?vtime|id\s*=\s*["']?vdate|class\s*=\s*["'][^"']*\bclock\b/.test(html)) {
+      var builtinClock = document.querySelector('.page > .clock');
+      if (builtinClock) builtinClock.remove();
+      hasBuiltinClock = false;
+    }
+    if (/gradient-title/.test(html)) {
+      var builtinLogo = document.querySelector('.page > #logo');
+      if (builtinLogo) builtinLogo.remove();
+    }
     var scripts = slot.querySelectorAll('script');
     for (var i = 0; i < scripts.length; i++) {
       var old = scripts[i];

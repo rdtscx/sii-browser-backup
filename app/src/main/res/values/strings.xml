@@ -1085,6 +1085,7 @@
     <string name="settings_home_html_chars">已设置 · %1$d 字符</string>
     <string name="settings_home_html_pos">片段插入位置</string>
     <string name="settings_home_html_pos_top">搜索框下方</string>
+    <string name="settings_home_html_pos_head">页面顶部</string>
     <string name="settings_home_html_pos_bottom">页面底部</string>
     <string name="settings_home_html_import">导入 HTML 片段</string>
     <string name="settings_home_html_clear">清空自定义 HTML</string>

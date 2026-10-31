@@ -21,7 +21,7 @@ object HomeTemplateHooks {
         "logo", "vtime", "vsec", "vdate",
         "searchBar", "q", "engineName", "search_bar_trigger", "sugList",
         "navGrid", "switch_window", "engineList",
-        "siiSlotTop", "siiSlotBottom"
+        "siiSlotTop", "siiSlotBottom", "siiSlotHead"
     )
 
     /** 返回 CSS 里用到、但模板中没有对应元素的 class / id（带 . 或 # 前缀，最多 20 条）。 */
