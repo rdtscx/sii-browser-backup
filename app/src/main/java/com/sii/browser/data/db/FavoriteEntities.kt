@@ -15,7 +15,7 @@ data class FavoriteItem(
     @ColumnInfo(name = "f_url") val url: String,
     @ColumnInfo(name = "f_title") val title: String,
     @ColumnInfo(name = "f_order") val order: Int,
-    /** 所在主页页（0 开始）；旧数据升级后全为 0。 */
+    /** 保留字段：测试版已升到 12 并写入此列，回退到 1.3.1 代码时不能降版，否则旧安装会闪退。 */
     @ColumnInfo(name = "f_page") val page: Int = 0,
     @ColumnInfo(name = "created_at") val createdAt: Long
 )

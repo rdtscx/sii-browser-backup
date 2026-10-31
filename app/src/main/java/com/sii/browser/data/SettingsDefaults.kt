@@ -9,18 +9,6 @@ object SettingsDefaults {
     /** 默认主页。 */
     const val HOME = "about:home"
 
-    /** 主页模式：-1 未设置（按旧 homeUrl 推断）/ 0 原生主页 / 1 内置网页模板 / 2 自定义网址。 */
-    const val HOME_PAGE_MODE = -1
-
-    /** 网页主页的自定义 CSS（追加到内置模板之后）。 */
-    const val HOME_CUSTOM_CSS = ""
-
-    /** 网页主页的自定义 HTML 片段插入位置：0 搜索框下方 / 1 页面底部 / 2 页面顶部。 */
-    const val HOME_CUSTOM_HTML_POS = 0
-
-    /** 常用网站主页页数（1–5，默认 1）。 */
-    const val HOME_SITE_PAGES = 1
-
     /** 默认搜索引擎（百度，国内可用）。 */
     const val SEARCH_ENGINE = "https://www.baidu.com/s?wd="
 

@@ -77,8 +77,6 @@ class SettingsFragment : Fragment() {
         SearchEntry("Logo", "外观与主页", "显示内容 时间", diyTab = 0),
         SearchEntry("常用网站", "外观与主页", "主页图标", diyTab = 4),
         SearchEntry("常用网站阴影", "外观与主页", "阴影 卡片 shadow", diyTab = 4),
-        SearchEntry("常用网站管理", "外观与主页", "管理 排序 分页 移到", diyTab = 4),
-        SearchEntry("主页页数", "外观与主页", "分页 页面 常用网站", diyTab = 4),
         SearchEntry("搜索框阴影", "外观与主页", "阴影 主页搜索框 shadow", diyTab = 1),
         SearchEntry("地址栏", "外观与主页", "address", diyTab = 2),
         SearchEntry("工具栏", "外观与主页", "toolbar", diyTab = 5),
@@ -93,10 +91,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("夜间", "外观与主页", "night 夜间模式 暗色 夜间 CSS", diyTab = 8),
         SearchEntry("网页主题色识别", "外观与主页", "识别 网站 theme-color", diyTab = 8),
         SearchEntry("网页应用主题色", "外观与主页", "主题色 网页 scope", diyTab = 8),
-        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8),
-        SearchEntry("主页模式", "主页", "Sii 主页 内置网页主页 自定义网址 html css"),
-        SearchEntry("自定义主页 CSS", "主页", "css 样式 主页美化 玻璃 渐变"),
-        SearchEntry("导入本地主页", "主页", "html 文件 导入 css")
+        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8)
     )
 
     /** 诊断接口只在测试包出现，正式包的搜索索引里也不留。 */
@@ -226,7 +221,6 @@ class SettingsFragment : Fragment() {
         "隐私与安全" -> SettingsDetailFragment.VIEW_PRIVACY
         "高级" -> SettingsDetailFragment.VIEW_ADVANCED
         "关于" -> SettingsDetailFragment.VIEW_ABOUT
-        "主页" -> SettingsDetailFragment.VIEW_V2_HOME
         else -> SettingsDetailFragment.VIEW_GENERAL
     }
 

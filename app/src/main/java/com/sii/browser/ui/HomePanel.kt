@@ -61,12 +61,6 @@ class HomePanel(
     private var editing = false
     private var lastSiteStyle: String? = null
     private var sites: List<FavoriteItem> = emptyList()
-    /** 浏览器窗口已自行绘制背景图：主页不再重复绘制，避免两层错位。 */
-    var externalBackground: Boolean = false
-    /** 当前显示的主页页（0 开始）。 */
-    private var sitePage = 0
-    private var siteSwipeInstalled = false
-    private var backgroundOffsetWatched = false
     private var suggestionPopup: SuggestionPopup? = null
     private var topSuggestionPopup: SuggestionPopup? = null
     private var topSuggestJob: Job? = null
@@ -927,12 +921,12 @@ class HomePanel(
     /** 应用主页背景：有图时异步采样解码并缓存，避免每次回主页阻塞主线程。 */
     private fun applyBackground() {
         val uri = runCatching { AppServices.settings.homeBackground() }.getOrNull()
-        if (uri.isNullOrBlank() || externalBackground) {
+        if (uri.isNullOrBlank()) {
             bgJob?.cancel()
             bgJob = null
             bgKey = null
             view.background = null
-            if (uri.isNullOrBlank()) applyBgColor()
+            applyBgColor()
             return
         }
         val blur = blurPercent()
@@ -947,10 +941,7 @@ class HomePanel(
             val drawable = withContext(Dispatchers.IO) {
                 decodeBackground(uri, blur, overlay, targetWidth)
             }
-            if (drawable != null && bgKey == key) {
-                view.background = drawable
-                syncBackgroundOffset()
-            }
+            if (drawable != null && bgKey == key) view.background = drawable
         }
     }
 
@@ -977,27 +968,17 @@ class HomePanel(
             }
         }.getOrNull() ?: return null
         val shown = blurBitmap(decoded, blur, targetWidth)
-        val overlayColor = if (overlay <= 0) 0
-        else Color.argb(overlay * 255 / 100, 0, 0, 0)
-        return WidthTopDrawable(shown, overlayColor)
-    }
-
-    /** 与窗口背景对齐：控件顶部偏移与窗口高度（背景图竖向拉伸到整个窗口）。 */
-    private fun syncBackgroundOffset() {
-        val drawable = view.background as? WidthTopDrawable ?: return
-        val location = IntArray(2)
-        view.getLocationInWindow(location)
-        val windowHeight = view.rootView.height
-        var changed = false
-        if (drawable.topOffsetPx != location[1]) {
-            drawable.topOffsetPx = location[1]
-            changed = true
+        val layers = mutableListOf<android.graphics.drawable.Drawable>(
+            android.graphics.drawable.BitmapDrawable(context.resources, shown)
+        )
+        if (overlay > 0) {
+            layers.add(
+                android.graphics.drawable.ColorDrawable(
+                    Color.argb(overlay * 255 / 100, 0, 0, 0)
+                )
+            )
         }
-        if (windowHeight > 0 && drawable.targetHeightPx != windowHeight) {
-            drawable.targetHeightPx = windowHeight
-            changed = true
-        }
-        if (changed) view.invalidate()
+        return android.graphics.drawable.LayerDrawable(layers.toTypedArray())
     }
 
     /** 主页底色：开启「主页背景」时用主色淡底，否则用页面底色。 */
@@ -1297,94 +1278,9 @@ class HomePanel(
 
     fun bind(items: List<FavoriteItem>) {
         sites = items
-        sitePage = sitePage.coerceIn(0, pageCount() - 1)
-        if (!backgroundOffsetWatched) {
-            backgroundOffsetWatched = true
-            view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                syncBackgroundOffset()
-            }
-        }
         applyBackground()
         applySitesVisibility()
         render()
-        installSiteSwipe()
-    }
-
-    /** 常用网站主页页数（1–5）。 */
-    private fun pageCount(): Int =
-        AppServices.settings.homeSitePages().coerceIn(1, 5)
-
-    /** 当前页的站点（按 order 排序）。 */
-    private fun pageSites(): List<FavoriteItem> =
-        sites.filter { it.page == sitePage }.sortedBy { it.order }
-
-    /** 页码点：页数 > 1 且开启「显示常用网站」时显示。 */
-    private fun renderDots() {
-        val dots = view.findViewById<LinearLayout>(R.id.home_site_dots) ?: return
-        val pages = pageCount()
-        val show = pages > 1 && AppServices.settings.showSites()
-        dots.visibility = if (show) View.VISIBLE else View.GONE
-        dots.removeAllViews()
-        if (!show) return
-        for (i in 0 until pages) {
-            val dot = View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(6), dp(6)).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
-                }
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(
-                        if (i == sitePage) ThemeAccent.color(context)
-                        else androidx.core.graphics.ColorUtils.setAlphaComponent(
-                            context.getColor(R.color.text_secondary), 90
-                        )
-                    )
-                }
-                setOnClickListener { switchSitePage(i) }
-            }
-            dots.addView(dot)
-        }
-    }
-
-    private fun switchSitePage(target: Int) {
-        val next = target.coerceIn(0, pageCount() - 1)
-        if (next == sitePage) return
-        sitePage = next
-        render()
-        if (!previewMode && view.isAttachedToWindow) {
-            grid.alpha = 0.35f
-            grid.animate().alpha(1f).setDuration(150L).start()
-        }
-    }
-
-    /** 站点区左右滑动切页；编辑拖拽时不切。 */
-    private fun installSiteSwipe() {
-        if (siteSwipeInstalled) return
-        val card = view.findViewById<View>(R.id.home_sites_card) ?: return
-        siteSwipeInstalled = true
-        var startX = 0f
-        var startY = 0f
-        card.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    startX = event.x
-                    startY = event.y
-                }
-                android.view.MotionEvent.ACTION_UP -> {
-                    val dx = event.x - startX
-                    val dy = event.y - startY
-                    if (pageCount() > 1 && !siteDragMode && !editing &&
-                        kotlin.math.abs(dx) > dp(48) &&
-                        kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f
-                    ) {
-                        switchSitePage(if (dx < 0) sitePage + 1 else sitePage - 1)
-                        return@setOnTouchListener true
-                    }
-                }
-            }
-            false
-        }
     }
 
     /** 主页入场动画：Logo、搜索框、站点卡逐个出现，站点错峰上浮。 */
@@ -1449,9 +1345,8 @@ class HomePanel(
 
     private fun render() {
         grid.removeAllViews()
-        pageSites().forEach { grid.addView(siteView(it)) }
+        sites.forEach { grid.addView(siteView(it)) }
         if (!previewMode) grid.addView(addView())
-        renderDots()
     }
 
     private fun handleFavoriteDrag(event: android.view.DragEvent): Boolean {
@@ -1471,22 +1366,16 @@ class HomePanel(
             android.view.DragEvent.ACTION_DROP -> {
                 val id = event.clipData?.getItemAt(0)?.text?.toString()?.toLongOrNull()
                     ?: return false
-                val pageList = pageSites().toMutableList()
-                val from = pageList.indexOfFirst { it.id == id }
+                val from = sites.indexOfFirst { it.id == id }
                 if (from < 0) return false
                 val target = favoriteTargetIndex(event.x, event.y)
-                    .coerceIn(0, pageList.lastIndex.coerceAtLeast(0))
                 if (target != from) {
-                    pageList.add(target, pageList.removeAt(from))
-                    val ids = pageList.map { it.id }
+                    val list = sites.toMutableList()
+                    list.add(target, list.removeAt(from))
+                    sites = list
                     AppServices.favoriteRepository.let { repo ->
-                        scope.launch(Dispatchers.IO) { repo.reorder(ids) }
+                        scope.launch(Dispatchers.IO) { repo.reorder(list.map { it.id }) }
                     }
-                    // 本地同步顺序，不等 Room 回推才刷新
-                    val ordered = pageList.mapIndexed { index, item -> item.copy(order = index + 1) }
-                    val byId = ordered.associateBy { it.id }
-                    sites = sites.map { byId[it.id] ?: it }
-                        .sortedWith(compareBy({ it.page }, { it.order }))
                     render()
                     showSiteDeleteBadges()
                 }
@@ -1692,9 +1581,7 @@ class HomePanel(
                 val url = urlInput.text.toString().trim()
                 if (url.isNotEmpty()) {
                     CoroutineScope(Dispatchers.IO).launch {
-                        AppServices.favoriteRepository.add(
-                            url, nameInput.text.toString().trim(), sitePage
-                        )
+                        AppServices.favoriteRepository.add(url, nameInput.text.toString().trim())
                     }
                 }
             }

@@ -21,7 +21,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
-import com.sii.browser.core.webview.HomeBackground
 import kotlinx.coroutines.launch
 import com.sii.browser.R
 import com.sii.browser.data.ExitCleanup
@@ -78,7 +77,6 @@ class ShellActivity : AppCompatActivity() {
     private var chromeImageLight = false
     private var chromeImageUri: String? = null
     private var chromeImageDrawable: android.graphics.drawable.BitmapDrawable? = null
-    private var chromeImageBitmap: android.graphics.Bitmap? = null
     private var appliedDialogTheme = 0
 
     override fun attachBaseContext(newBase: Context) {
@@ -204,30 +202,38 @@ class ShellActivity : AppCompatActivity() {
             chromeImageActive = false
             chromeImageUri = null
             chromeImageDrawable = null
-            chromeImageBitmap = null
             root.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_bg))
             applyStatusBarColor(null)
             return
         }
-        val overlay = overlayPercent.coerceIn(0, 100)
-        val blur = if (settings.homeBgBlurPercent() >= 0) {
-            settings.homeBgBlurPercent()
-        } else when (settings.homeBgBlur()) {
-            1 -> 33
-            2 -> 66
-            3 -> 100
-            else -> 0
+        val drawable = if (uri == chromeImageUri && chromeImageDrawable != null) {
+            chromeImageDrawable
+        } else {
+            decodeChromeBackground(uri)?.let {
+                android.graphics.drawable.BitmapDrawable(resources, it).apply {
+                    gravity = android.view.Gravity.FILL
+                }
+            }
         }
-        // 与主页/网页主页共用同一张处理图（裁成窗口比例 + 模糊 + 遮罩），三处像素才能重合
-        val bitmap = HomeBackground.load(this, uri, overlay, blur) ?: run {
+        if (drawable == null) {
             applyChromeBackground(null)
             return
         }
         chromeImageActive = true
         chromeImageUri = uri
-        chromeImageBitmap = bitmap
-        chromeImageLight = isLightBitmap(bitmap)
-        root.background = WidthTopDrawable(bitmap, 0)
+        chromeImageDrawable = drawable
+        chromeImageLight = isLightBitmap(drawable.bitmap)
+        val overlay = overlayPercent.coerceIn(0, 100)
+        root.background = if (overlay > 0) {
+            android.graphics.drawable.LayerDrawable(
+                arrayOf(
+                    drawable,
+                    android.graphics.drawable.ColorDrawable(
+                        android.graphics.Color.argb(overlay * 255 / 100, 0, 0, 0)
+                    )
+                )
+            )
+        } else drawable
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, window.decorView)
             .isAppearanceLightStatusBars = chromeImageLight
@@ -238,6 +244,20 @@ class ShellActivity : AppCompatActivity() {
 
     /** 背景图是否为浅色；未启用图片时返回 null。 */
     fun chromeImageIsLight(): Boolean? = if (chromeImageActive) chromeImageLight else null
+
+    private fun decodeChromeBackground(uri: String): android.graphics.Bitmap? = runCatching {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, bounds)
+        }
+        var sample = 1
+        val maxW = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+        while (bounds.outWidth / sample > maxW * 2 && sample < 8) sample *= 2
+        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, options)
+        }
+    }.getOrNull()
 
     private fun isLightBitmap(bitmap: android.graphics.Bitmap): Boolean {
         val stepX = (bitmap.width / 24).coerceAtLeast(1)

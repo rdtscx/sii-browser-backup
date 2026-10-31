@@ -39,27 +39,6 @@ class SettingsDetailFragment : Fragment() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) applyImport(uri) }
 
-    /** 导入本地主页 HTML / CSS / 片段 / 配置（1 = HTML，2 = CSS，3 = 片段，4 = 配置）。 */
-    private var homeFileTarget = 0
-    private val homeFileLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        val target = homeFileTarget
-        homeFileTarget = 0
-        if (uri == null) return@registerForActivityResult
-        when (target) {
-            1 -> importHomeHtml(uri)
-            3 -> importHomeSnippet(uri)
-            4 -> importHomeConfig(uri)
-            else -> importHomeCss(uri)
-        }
-    }
-
-    /** 导出网页主页配置（JSON）。 */
-    private val homeExportLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
-    ) { uri -> if (uri != null) exportHomeConfig(uri) }
-
     /** 自定义字体文件选择。 */
     private val fontLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -977,353 +956,44 @@ class SettingsDetailFragment : Fragment() {
     private fun buildV2Home() {
         val rows = mutableListOf<View>()
         rows.add(homeChoiceRow())
-        val mode = settings.homePageMode()
-        if (mode != 0) {
-            rows.add(navRow(getString(R.string.settings_home_css), homeCssSummary()) { editHomeCss() })
-            rows.add(navRow(getString(R.string.settings_home_css_import)) { pickHomeFile(2) })
-            if (settings.homeCustomCss().isNotBlank()) {
-                rows.add(navRow(getString(R.string.settings_home_css_clear)) {
-                    settings.setHomeCustomCss("")
-                    build()
-                })
-            }
-            rows.add(navRow(getString(R.string.settings_home_html), homeHtmlSummary()) { editHomeHtml() })
-            rows.add(navRow(getString(R.string.settings_home_html_import)) { pickHomeFile(3) })
-            if (settings.homeCustomHtml().isNotBlank()) {
-                rows.add(
-                    choiceRow(
-                        getString(R.string.settings_home_html_pos),
-                        arrayOf(
-                            getString(R.string.settings_home_html_pos_top),
-                            getString(R.string.settings_home_html_pos_bottom),
-                            getString(R.string.settings_home_html_pos_head)
-                        ),
-                        settings.homeCustomHtmlPos()
-                    ) { settings.setHomeCustomHtmlPos(it) }
-                )
-                rows.add(navRow(getString(R.string.settings_home_html_clear)) {
-                    settings.setHomeCustomHtml("")
-                    build()
-                })
-            }
-            rows.add(navRow(getString(R.string.settings_home_css_check)) { checkHomeCss() })
-            rows.add(navRow(getString(R.string.settings_home_preview)) { showHomePreview() })
-            rows.add(navRow(getString(R.string.settings_home_export)) {
-                homeExportLauncher.launch("sii-home.json")
-            })
-            rows.add(navRow(getString(R.string.settings_home_import_config)) { pickHomeFile(4) })
-            rows.add(navRow(getString(R.string.settings_home_reset)) { restoreNativeHome() })
-        }
-        if (mode == 2) {
+        if (settings.homeUrl() != "about:home") {
             rows.add(
                 textRow(getString(R.string.settings_home_url), settings.homeUrl()) {
                     settings.setHomeUrl(it.ifBlank { "about:home" })
                     build()
                 }
             )
-            rows.add(navRow(getString(R.string.settings_home_import)) { pickHomeFile(1) })
         }
         rows.add(navRow(getString(R.string.settings_home_logo)) { open(VIEW_V2_HOME_LOGO) })
-        // 分页与管理不随主页模式失效：网页主页下 DIY 的常用网站分类会被禁用，入口放这里
-        rows.add(
-            choiceRow(
-                getString(R.string.settings_home_site_pages),
-                arrayOf("1", "2", "3", "4", "5"),
-                settings.homeSitePages().coerceIn(1, 5) - 1
-            ) { index ->
-                settings.setHomeSitePages(index + 1)
-                viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    AppServices.favoriteRepository.clampToPages(index + 1)
-                }
-                build()
-            }
-        )
-        rows.add(navRow(getString(R.string.settings_home_sites_manage)) { openSitesManage() })
         rows.add(navRow(getString(R.string.settings_home_sites)) { open(VIEW_V2_HOME_SITES) })
         rows.add(navRow(getString(R.string.settings_home_search)) { open(VIEW_V2_HOME_SEARCH) })
         rows.add(navRow(getString(R.string.settings_home_background)) { open(VIEW_V2_HOME_BG) })
         card(*rows.toTypedArray())
     }
 
-    /** 常用网站管理页（分页后才有意义，不随主页模式禁用）。 */
-    private fun openSitesManage() {
-        NavAnim.apply(parentFragmentManager.beginTransaction())
-            .replace(R.id.shell_root, HomeSitesManageFragment())
-            .addToBackStack(null)
-            .commit()
-    }
-
     private fun homeChoiceRow(): View = choiceRow(
         getString(R.string.settings_home),
-        arrayOf(
-            getString(R.string.settings_home_sii),
-            getString(R.string.settings_home_template),
-            getString(R.string.settings_home_custom)
-        ),
-        settings.homePageMode().coerceIn(0, 2)
+        arrayOf(getString(R.string.settings_home_sii), getString(R.string.settings_home_custom)),
+        if (settings.homeUrl() == "about:home") 0 else 1
     ) { index ->
-        when (index) {
-            0, 1 -> {
-                settings.setHomePageMode(index)
-                build()
-            }
-            else -> homeUrlDialog()
-        }
-    }
-
-    private fun homeUrlDialog() {
-        val input = EditText(requireContext()).apply {
-            setText(settings.homeUrl().takeIf { it != "about:home" }.orEmpty())
-            hint = "https://example.com"
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings_home_url)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
-                settings.setHomePageMode(2)
-                build()
-            }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> build() }
-            .show()
-    }
-
-    private fun homeCssSummary(): String {
-        val css = settings.homeCustomCss()
-        return if (css.isBlank()) getString(R.string.settings_home_css_none)
-        else getString(R.string.settings_home_css_chars, css.length)
-    }
-
-    private fun homeHtmlSummary(): String {
-        val html = settings.homeCustomHtml()
-        return if (html.isBlank()) getString(R.string.settings_home_html_none)
-        else getString(R.string.settings_home_html_chars, html.length)
-    }
-
-    private fun editHomeCss() {
-        showHomeTextEditor(
-            R.string.settings_home_css,
-            settings.homeCustomCss(),
-            getString(R.string.settings_home_css_desc),
-            onSave = { settings.setHomeCustomCss(it) },
-            onPreview = { showHomePreview() }
-        )
-    }
-
-    private fun editHomeHtml() {
-        showHomeTextEditor(
-            R.string.settings_home_html,
-            settings.homeCustomHtml(),
-            getString(R.string.settings_home_css_desc),
-            onSave = { settings.setHomeCustomHtml(it) },
-            onPreview = { showHomePreview() }
-        )
-    }
-
-    /** 多行文本编辑（CSS / HTML 片段共用）；带预览按钮时先保存再开预览。 */
-    private fun showHomeTextEditor(
-        titleRes: Int,
-        initial: String,
-        hintText: String,
-        onSave: (String) -> Unit,
-        onPreview: (() -> Unit)? = null
-    ) {
-        val input = EditText(requireContext()).apply {
-            setText(initial)
-            hint = hintText
-            minLines = 8
-            gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            setTextSize(12.5f)
-            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
-        }
-        val wrapper = android.widget.ScrollView(requireContext()).apply {
-            addView(
-                input,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), 0)
-        }
-        val builder = AlertDialog.Builder(requireContext())
-            .setTitle(titleRes)
-            .setView(wrapper)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                onSave(input.text.toString())
-                build()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-        if (onPreview != null) {
-            builder.setNeutralButton(R.string.settings_home_preview) { _, _ ->
-                onSave(input.text.toString())
-                build()
-                onPreview.invoke()
-            }
-        }
-        builder.show()
-    }
-
-    /** 用模板 + 当前设置现场渲染一份主页，不改主页模式也不影响当前标签。 */
-    private fun showHomePreview() {
-        if (!isAdded) return
-        val context = requireContext()
-        val web = com.sii.browser.core.webview.HomeWebView(context, {}, {}, {}, {}, {}, {})
-        val host = android.widget.FrameLayout(context).apply {
-            minimumWidth = context.resources.displayMetrics.widthPixels - dpToPx(72)
-            addView(
-                web,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dpToPx(420)
-                )
-            )
-        }
-        val dialog = AlertDialog.Builder(context)
-            .setTitle(R.string.settings_home_preview)
-            .setView(host)
-            .setPositiveButton(android.R.string.ok, null)
-            .create()
-        dialog.setOnDismissListener { web.destroy() }
-        dialog.show()
-        viewLifecycleOwner.lifecycleScope.launch {
-            val favorites = runCatching {
-                AppServices.favoriteRepository.all().first()
-            }.getOrDefault(emptyList())
-            val page = com.sii.browser.core.webview.HomePageBuilder.build(
-                context, settings, favorites, ThemeAccent.color(context)
-            ).copy(template = true, url = "")
-            if (dialog.isShowing) web.render(page)
-        }
-    }
-
-    /** 一键回到原生主页：CSS 写坏了或不想用时用。 */
-    private fun restoreNativeHome() {
-        settings.setHomePageMode(0)
-        Toast.makeText(
-            requireContext(), R.string.settings_home_reset_done, Toast.LENGTH_SHORT
-        ).show()
-        build()
-    }
-
-    /** 导出模式 / 地址 / CSS / HTML 片段 / 插入位置，方便备份与分享。 */
-    private fun exportHomeConfig(uri: android.net.Uri) {
-        val json = org.json.JSONObject().apply {
-            put("mode", settings.homePageMode())
-            put("url", settings.homeUrl())
-            put("css", settings.homeCustomCss())
-            put("html", settings.homeCustomHtml())
-            put("htmlPos", settings.homeCustomHtmlPos())
-        }
-        runCatching {
-            requireContext().contentResolver.openOutputStream(uri)?.use { output ->
-                output.write(json.toString().toByteArray())
-            } ?: error("open failed")
-        }.onFailure {
-            Toast.makeText(
-                requireContext(), R.string.settings_home_export_failed, Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-
-    private fun importHomeConfig(uri: android.net.Uri) {
-        runCatching {
-            val text = requireContext().contentResolver.openInputStream(uri)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            val json = org.json.JSONObject(text)
-            if (json.has("css")) settings.setHomeCustomCss(json.optString("css"))
-            if (json.has("html")) settings.setHomeCustomHtml(json.optString("html"))
-            if (json.has("htmlPos")) settings.setHomeCustomHtmlPos(json.optInt("htmlPos"))
-            if (json.has("url")) {
-                settings.setHomeUrl(json.optString("url").ifBlank { "about:home" })
-            }
-            if (json.has("mode")) settings.setHomePageMode(json.optInt("mode"))
-        }.onFailure {
-            Toast.makeText(
-                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
-            ).show()
-        }
-        build()
-    }
-
-    private fun checkHomeCss() {
-        val missing = com.sii.browser.core.webview.HomeTemplateHooks
-            .unmatched(settings.homeCustomCss())
-        val message = if (missing.isEmpty()) {
-            getString(R.string.settings_home_css_check_ok)
+        if (index == 0) {
+            settings.setHomeUrl("about:home")
+            build()
         } else {
-            getString(R.string.settings_home_css_check_missing, missing.joinToString("\n"))
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings_home_css_check)
-            .setMessage(message)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
-    }
-
-    private fun pickHomeFile(target: Int) {
-        homeFileTarget = target
-        homeFileLauncher.launch(
-            arrayOf("text/html", "text/plain", "text/css", "application/octet-stream")
-        )
-    }
-
-    private fun importHomeCss(uri: android.net.Uri) {
-        runCatching {
-            val text = requireContext().contentResolver.openInputStream(uri)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (text.isBlank()) error("empty css")
-            settings.setHomeCustomCss(text.take(200_000))
-            if (settings.homePageMode() == 0) settings.setHomePageMode(1)
-        }.onFailure {
-            Toast.makeText(
-                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
-            ).show()
-        }
-        build()
-    }
-
-    private fun importHomeSnippet(uri: android.net.Uri) {
-        runCatching {
-            val text = requireContext().contentResolver.openInputStream(uri)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (text.isBlank()) error("empty html")
-            settings.setHomeCustomHtml(text.take(100_000))
-            if (settings.homePageMode() == 0) settings.setHomePageMode(1)
-        }.onFailure {
-            Toast.makeText(
-                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
-            ).show()
-        }
-        build()
-    }
-
-    private fun importHomeHtml(uri: android.net.Uri) {
-        runCatching {
-            val dir = java.io.File(requireContext().filesDir, "home").apply { mkdirs() }
-            val target = java.io.File(dir, "homepage.html")
-            requireContext().contentResolver.openInputStream(uri)?.use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
-            } ?: error("open failed")
-            val text = target.readText()
-            // 片段文件没有文档骨架与 viewport，直接加载会缩放错位，这里补一层。
-            if (!Regex("(?i)^\\s*(<!doctype|<html)").containsMatchIn(text)) {
-                target.writeText(
-                    "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n" +
-                        "<meta charset=\"utf-8\">\n" +
-                        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" +
-                        "<title>主页</title>\n</head>\n<body>\n" + text +
-                        "\n</body>\n</html>\n"
-                )
+            val input = EditText(requireContext()).apply {
+                setText(settings.homeUrl().takeIf { it != "about:home" }.orEmpty())
+                hint = "https://example.com"
             }
-            settings.setHomeUrl("file://" + target.absolutePath)
-            settings.setHomePageMode(2)
-        }.onFailure {
-            Toast.makeText(
-                requireContext(), R.string.settings_home_import_failed, Toast.LENGTH_SHORT
-            ).show()
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.settings_home_url)
+                .setView(input)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
+                    build()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
-        build()
     }
 
     // ---- 浏览（新结构） ----

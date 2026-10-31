@@ -156,6 +156,7 @@ abstract class SiiDatabase : RoomDatabase() {
             }
         }
 
+        /** 分页改为保留字段后仍保留此迁移：旧安装已经升到 12，降版会闪退。 */
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

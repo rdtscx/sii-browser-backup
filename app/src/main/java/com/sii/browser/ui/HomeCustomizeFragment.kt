@@ -294,13 +294,6 @@ class HomeCustomizeFragment : Fragment() {
         }
         val card = CardList.styledCard(requireContext(), page = true)
         CardList.addRows(card, rows)
-        // 网页主页模式下这些原生项不生效：顶部亮色提示 + 整张卡真正禁用
-        val homeTabs = activeTab == 0 || activeTab == 1 || activeTab == 3 || activeTab == 4
-        if (settings.homePageMode() != 0 && homeTabs) {
-            controls.addView(hintRow(getString(R.string.settings_home_web_hint)))
-            disableTree(card)
-            card.alpha = 0.55f
-        }
         controls.addView(card)
     }
 
@@ -646,27 +639,7 @@ class HomeCustomizeFragment : Fragment() {
         return rows
     }
 
-    /** 常用网站管理页（按页分组、跨页移动）。 */
-    private fun openSitesManage() {
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.shell_root, HomeSitesManageFragment())
-            .addToBackStack(null)
-            .commit()
-    }
-
     private fun favoriteRows(): List<View> = listOf(
-        navRow(getString(R.string.settings_home_sites_manage), null) { openSitesManage() },
-        choiceRow(
-            getString(R.string.settings_home_site_pages),
-            arrayOf("1", "2", "3", "4", "5"),
-            settings.homeSitePages().coerceIn(1, 5) - 1
-        ) { index ->
-            settings.setHomeSitePages(index + 1)
-            viewLifecycleOwner.lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                AppServices.favoriteRepository.clampToPages(index + 1)
-            }
-            refreshPreview()
-        },
         choiceRow(
             getString(R.string.settings_home_grid_columns),
             arrayOf("4 列", "5 列", "6 列"),
@@ -1342,22 +1315,6 @@ class HomeCustomizeFragment : Fragment() {
             .commit()
     }
 
-    /** 主页设置页（主页模式、自定义 CSS、导入本地主页）。 */
-    private fun openHomeSettings() {
-        val fragment = SettingsDetailFragment().apply {
-            arguments = android.os.Bundle().apply {
-                putString(
-                    SettingsDetailFragment.ARG_VIEW,
-                    SettingsDetailFragment.VIEW_V2_HOME
-                )
-            }
-        }
-        parentFragmentManager.beginTransaction()
-            .replace(R.id.shell_root, fragment)
-            .addToBackStack(null)
-            .commit()
-    }
-
     private fun advancedRows(): List<View> = listOf(
         choiceRow(
             "预览界面",
@@ -1370,22 +1327,16 @@ class HomeCustomizeFragment : Fragment() {
         },
         choiceRow(
             getString(R.string.settings_home),
-            arrayOf(
-                getString(R.string.settings_home_sii),
-                getString(R.string.settings_home_template),
-                getString(R.string.settings_home_custom)
-            ),
-            settings.homePageMode().coerceIn(0, 2)
+            arrayOf(getString(R.string.settings_home_sii), getString(R.string.settings_home_custom)),
+            if (settings.homeUrl() == "about:home") 0 else 1
         ) { index ->
-            when (index) {
-                0, 1 -> {
-                    settings.setHomePageMode(index)
-                    buildControls()
-                }
-                else -> urlDialog()
+            if (index == 0) {
+                settings.setHomeUrl("about:home")
+                buildControls()
+            } else {
+                urlDialog()
             }
         },
-        navRow(getString(R.string.settings_home_web), null) { openHomeSettings() },
         navRow(
             getString(R.string.settings_custom_font),
             if (settings.customFont().isNullOrBlank()) getString(R.string.settings_custom_font_none)
@@ -1412,10 +1363,9 @@ class HomeCustomizeFragment : Fragment() {
             .setView(input)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 settings.setHomeUrl(input.text.toString().trim().ifBlank { "about:home" })
-                settings.setHomePageMode(2)
                 buildControls()
             }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> buildControls() }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -1588,22 +1538,6 @@ class HomeCustomizeFragment : Fragment() {
                 LinearLayout.LayoutParams(dp(120), dp(32))
             )
             addView(value)
-        }
-    }
-
-    /** 当前为网页主页时，在对应分类顶部提示并禁用原生项。 */
-    private fun hintRow(text: String): View = TextView(requireContext()).apply {
-        this.text = text
-        setTextSize(12f)
-        setTextColor(ThemeAccent.color(requireContext()))
-        setPadding(dp(16), dp(12), dp(16), dp(4))
-    }
-
-    /** 递归禁用（含开关与文字行），禁用后点击不会再触发。 */
-    private fun disableTree(view: View) {
-        view.isEnabled = false
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) disableTree(view.getChildAt(i))
         }
     }
 

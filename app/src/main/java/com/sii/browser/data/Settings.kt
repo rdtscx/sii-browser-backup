@@ -334,31 +334,6 @@ interface HomeSearchSettings {
 
     fun setHomeUrl(url: String)
 
-    /** 主页模式：0 原生主页 / 1 内置网页模板 / 2 自定义网址（本地 HTML 也是这种）。 */
-    fun homePageMode(): Int
-
-    fun setHomePageMode(value: Int)
-
-    /** 网页主页的自定义 CSS。 */
-    fun homeCustomCss(): String
-
-    fun setHomeCustomCss(value: String)
-
-    /** 网页主页的自定义 HTML 片段，插入位置见 [homeCustomHtmlPos]。 */
-    fun homeCustomHtml(): String
-
-    fun setHomeCustomHtml(value: String)
-
-    /** 自定义 HTML 位置：0 搜索框下方 / 1 页面底部。 */
-    fun homeCustomHtmlPos(): Int
-
-    fun setHomeCustomHtmlPos(value: Int)
-
-    /** 常用网站主页页数（1–5）。 */
-    fun homeSitePages(): Int
-
-    fun setHomeSitePages(value: Int)
-
     /** 主页按键动作（keyhome）。 */
     fun homeKey(): Int
 
