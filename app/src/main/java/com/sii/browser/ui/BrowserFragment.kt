@@ -2335,6 +2335,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var pendingAddressClipboard = false
     /** 每个标签的网页自绘全屏状态。 */
     private val pageFullscreenStates = java.util.WeakHashMap<SiiWebView, Boolean>()
+    /** 网页自绘图片查看器是否铺满视口（看大图时隐藏悬浮工具栏）。 */
+    private val imageViewerStates = java.util.WeakHashMap<SiiWebView, Boolean>()
     private var translatePolling: kotlinx.coroutines.Job? = null
     private var translateStatus: android.widget.TextView? = null
     private var translateStatusFade: Runnable? = null
@@ -2387,8 +2389,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (AppServices.settings.uiStyle() != 1) return
         if (fullscreenContainer?.visibility == View.VISIBLE) return
         val dock = view?.findViewById<View>(R.id.modern_chrome) ?: return
-        val active = pageFullscreenStates[tabManager.currentWebView] == true
-        dock.visibility = if (active) View.GONE else View.VISIBLE
+        val current = tabManager.currentWebView
+        val fullscreen = pageFullscreenStates[current] == true
+        val viewer = AppServices.settings.hideChromeOnImageView() &&
+            imageViewerStates[current] == true
+        dock.visibility = if (fullscreen || viewer) View.GONE else View.VISIBLE
     }
 
     /** 网页全屏时收起浏览器控件，退出时恢复。 */
@@ -2848,7 +2853,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!url.startsWith("http")) return
         val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.lowercase()
         if (siteTranslateButtonMode(host) == 2) {
-            translateTool?.visibility = View.GONE
+            translateTool?.visibility =
+                if (AppServices.settings.uiStyle() == 1) View.INVISIBLE else View.GONE
             return
         }
         if (translateFabState == 1) {
@@ -3520,7 +3526,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         when (translateFabState) {
             0 -> {
                 cancelTranslateFabAutoHide()
-                tool.visibility = View.GONE
+                // 悬浮样式保留槽位，避免翻译状态变化时工具行宽度跳动、刷新按钮抖动。
+                tool.visibility =
+                    if (AppServices.settings.uiStyle() == 1) View.INVISIBLE else View.GONE
             }
             1 -> {
                 tool.visibility = View.VISIBLE
@@ -4375,6 +4383,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         updateToolbarActiveState()
         updateNavigationState()
         pageFullscreenStates.remove(tabManager.currentWebView)
+        imageViewerStates.remove(tabManager.currentWebView)
         applyPageFullscreenChrome()
         if (AppServices.settings.uiStyle() != 1) renderTabs()
         // 同步启动，避免先画出一帧完整内容再重置透明导致的闪一下。
@@ -7411,6 +7420,31 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     }
                 }
             }.also { registerJsBridge("SiiFullscreen", it) }
+            val viewerWebView = this
+            com.sii.browser.core.webview.ImageViewerJsBridge { active ->
+                view?.post {
+                    if (imageViewerStates[viewerWebView] == active) return@post
+                    imageViewerStates[viewerWebView] = active
+                    if (viewerWebView === tabManager.currentWebView) {
+                        applyPageFullscreenChrome()
+                    }
+                }
+            }.also { registerJsBridge("SiiViewer", it) }
+            val titleWebView = this
+            com.sii.browser.core.webview.TitleJsBridge { title ->
+                view?.post {
+                    if (title.isBlank()) return@post
+                    val tab = tabManager.tabs.firstOrNull { it.webView === titleWebView }
+                        ?: return@post
+                    if (tab.title == title) return@post
+                    tab.title = title
+                    if (titleWebView === tabManager.currentWebView) {
+                        activity?.title = title
+                        renderTabs()
+                        updateAddressBarForCurrent()
+                    }
+                }
+            }.also { registerJsBridge("SiiTitle", it) }
             val scrollWebView = this
             com.sii.browser.core.webview.ScrollWatchJsBridge { dy ->
                 view?.post {
@@ -7853,6 +7887,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 webView?.injectJavaScript(com.sii.browser.core.webview.ThemeColorJsBridge.SCRIPT)
             }
             webView?.injectJavaScript(com.sii.browser.core.webview.FullscreenJsBridge.SCRIPT)
+            // 网页自绘图片查看器：看大图时由原生侧隐藏悬浮工具栏。
+            webView?.injectJavaScript(com.sii.browser.core.webview.ImageViewerJsBridge.SCRIPT)
+            // 新页导航：上一页的看图状态不再适用。
+            if (webView != null && imageViewerStates.remove(webView) != null) {
+                applyPageFullscreenChrome()
+            }
             // 内层滚动容器不会触发原生 scroll 回调，尽早挂上页内滚动监听。
             webView?.injectJavaScript(com.sii.browser.core.webview.ScrollWatchJsBridge.SCRIPT)
             // 暗色样式尽早注入；原生暗色开启时不再叠加 CSS。
@@ -7927,6 +7967,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
             }
             webView?.injectJavaScript(com.sii.browser.core.webview.FullscreenJsBridge.SCRIPT)
+            // SPA 换页不会触发 onReceivedTitle，靠页面标题桥让标签与地址栏跟随。
+            webView?.injectJavaScript(com.sii.browser.core.webview.TitleJsBridge.SCRIPT)
+            webView?.injectJavaScript(com.sii.browser.core.webview.ImageViewerJsBridge.SCRIPT)
             // 电脑模式：去掉页面 viewport 的缩放锁（user-scalable=no / maximum-scale），恢复双指缩放。
             if (isDesktopForUrl(url)) {
                 webView?.injectJavaScript(VIEWPORT_DESKTOP_JS)
@@ -9986,7 +10029,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         applyModernTabBadge(root, modern)
     }
 
-    /** 新版工具行：返回 / 前进（有历史时显示）/ 首页 / 标签 / 菜单。 */
+    /** 新版工具行：返回 / 前进（占位保宽度）/ 首页 / 标签 / 翻译（占位）/ 菜单。 */
     private fun applyModernToolVisibility() {
         if (AppServices.settings.uiStyle() != 1) return
         val hidden = AppServices.settings.toolbarHidden().orEmpty()
@@ -9995,29 +10038,44 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             tabManager.currentWebView?.canGoForward() == true || homeForwardAvailable ||
                 (homeContainer?.visibility == View.VISIBLE && homeOverlayActive)
         } else false
-        fun apply(id: Int, key: String, on: Boolean) {
-            view?.findViewById<View>(id)?.visibility =
-                if (on && key !in hidden) View.VISIBLE else View.GONE
+        fun apply(id: Int, key: String, on: Boolean, reserve: Boolean) {
+            val target = view?.findViewById<View>(id) ?: return
+            target.visibility = when {
+                key in hidden -> View.GONE
+                on -> View.VISIBLE
+                reserve -> View.INVISIBLE // 保留槽位，工具行宽度不随图标显隐变化
+                else -> View.GONE
+            }
         }
-        apply(R.id.back_button, "back", true)
+        apply(R.id.back_button, "back", true, reserve = false)
         // 地址胶囊至少留 120dp：放不下时按 首页 → 前进 → 翻译 的顺序让位。
-        val translateShown = translateTool?.visibility == View.VISIBLE
-        val forwardShown = canForward && "forward" !in hidden
+        // 前进与翻译默认占位（INVISIBLE）：否则历史变化/翻译状态会让工具行忽宽忽窄，刷新按钮随之左右移动。
+        val translateSlot = AppServices.settings.translateMode() != 0
+        val forwardSlot = "forward" !in hidden
+        val forwardShown = canForward && forwardSlot
         val room = minOf(resources.displayMetrics.widthPixels - dp(20), dp(560)) -
             dp(16) - dp(120)
         fun fits(home: Boolean, forward: Boolean, translate: Boolean, width: Int) =
             width * (3 + (if (home) 1 else 0) + (if (forward) 1 else 0) +
                 (if (translate) 1 else 0)) <= room
         var iconWidth = dp(40)
-        if (!fits(true, forwardShown, translateShown, iconWidth)) iconWidth = dp(38)
-        val trimHome = !fits(true, forwardShown, translateShown, iconWidth)
-        val trimForward = !fits(false, forwardShown, translateShown, iconWidth)
-        val trimTranslate = !fits(false, false, translateShown, iconWidth)
-        apply(R.id.forward_button, "forward", forwardShown && !trimForward)
-        apply(R.id.home_button, "home", !trimHome)
-        apply(R.id.tab_count_button, "tabs", true)
-        apply(R.id.menu_button, "menu", true)
-        if (trimTranslate) translateTool?.visibility = View.GONE
+        if (!fits(true, forwardSlot, translateSlot, iconWidth)) iconWidth = dp(38)
+        val trimHome = !fits(true, forwardSlot, translateSlot, iconWidth)
+        val trimForward = !fits(trimHome, forwardSlot, translateSlot, iconWidth)
+        apply(R.id.forward_button, "forward", forwardShown, reserve = forwardSlot && !trimForward)
+        apply(R.id.home_button, "home", !trimHome, reserve = false)
+        apply(R.id.tab_count_button, "tabs", true, reserve = false)
+        apply(R.id.menu_button, "menu", true, reserve = false)
+        val tool = translateTool
+        if (tool != null) {
+            when {
+                !translateSlot -> tool.visibility = View.GONE
+                !fits(false, false, translateSlot, iconWidth) -> tool.visibility = View.GONE
+                // 之前因空间不足被收起：按当前翻译状态恢复（未就绪用占位保住宽度）。
+                tool.visibility == View.GONE -> tool.visibility =
+                    if (translateFabState == 0) View.INVISIBLE else View.VISIBLE
+            }
+        }
         val bar = view?.findViewById<LinearLayout>(R.id.bottom_bar) ?: return
         for (i in 0 until bar.childCount) {
             val child = bar.getChildAt(i)

@@ -82,6 +82,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("地址栏", "外观与主页", "address", diyTab = 2),
         SearchEntry("工具栏", "外观与主页", "toolbar", diyTab = 5),
         SearchEntry("悬浮工具栏背景色", "外观与主页", "工具栏 悬浮 胶囊 玻璃 背景 透明 dock", diyTab = 5),
+        SearchEntry("看图时隐藏工具栏", "外观与主页", "看大图 图片 查看器 隐藏工具栏 沉浸 image viewer", diyTab = 5),
         SearchEntry("菜单", "外观与主页", "menu 固定菜单位置", diyTab = 6),
         SearchEntry("标签页", "外观与主页", "tabs 标签卡 网格", diyTab = 7),
         SearchEntry("主题", "外观与主页", "夜间 深色 玻璃", diyTab = 8),

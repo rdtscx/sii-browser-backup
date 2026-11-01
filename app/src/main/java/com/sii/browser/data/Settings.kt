@@ -986,6 +986,11 @@ interface WebPageSettings {
 
     fun setDockBackground(value: Boolean)
 
+    /** 看大图（网页自绘图片查看器）时自动隐藏悬浮工具栏。 */
+    fun hideChromeOnImageView(): Boolean
+
+    fun setHideChromeOnImageView(value: Boolean)
+
     /** 网页调试（WebView 远程调试）。 */
     fun webDebug(): Boolean
 

@@ -212,6 +212,9 @@ object SettingsDefaults {
     /** 悬浮工具栏背景色（关闭后胶囊只剩图标与进度）。 */
     const val DOCK_BACKGROUND = true
 
+    /** 看大图（网页自绘图片查看器）时自动隐藏悬浮工具栏。 */
+    const val HIDE_CHROME_ON_IMAGE_VIEW = true
+
 
     /** 主页风格：0 玻璃 / 1 极简 / 2 杂志。 */
     const val HOME_SEARCH_SHOW = true

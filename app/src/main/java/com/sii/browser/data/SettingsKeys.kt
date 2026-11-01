@@ -272,6 +272,7 @@ object SettingsKeys {
     const val HOME_FROSTED = "home_frosted"
     const val HOME_SHADOW = "home_shadow"
     const val DOCK_BACKGROUND = "dock_background"
+    const val HIDE_CHROME_ON_IMAGE_VIEW = "hide_chrome_image_view"
     const val WEB_TEXT_COLOR = "webtextcolor"
     const val WEBVIEW_DARK = "webviewdark"
     const val ADDRESS_STYLE = "addressstyle"

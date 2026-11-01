@@ -1295,6 +1295,15 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setDockBackground(value: Boolean) =
         putBool(SettingsKeys.DOCK_BACKGROUND, value)
 
+    override fun hideChromeOnImageView(): Boolean =
+        bool(
+            SettingsKeys.HIDE_CHROME_ON_IMAGE_VIEW,
+            SettingsDefaults.HIDE_CHROME_ON_IMAGE_VIEW
+        )
+
+    override fun setHideChromeOnImageView(value: Boolean) =
+        putBool(SettingsKeys.HIDE_CHROME_ON_IMAGE_VIEW, value)
+
     override fun webDebug(): Boolean = bool(SettingsKeys.WEB_DEBUG, false)
 
     override fun setWebDebug(value: Boolean) = putBool(SettingsKeys.WEB_DEBUG, value)

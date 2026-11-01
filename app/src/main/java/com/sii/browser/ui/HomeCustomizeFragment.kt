@@ -794,6 +794,15 @@ class HomeCustomizeFragment : Fragment() {
         }
         rows.add(dockBackgroundRow)
         if (!modern) disableRow(dockBackgroundRow, true)
+        val hideOnImageRow = switchRow(
+            "看图时隐藏工具栏",
+            settings.hideChromeOnImageView()
+        ) { on ->
+            settings.setHideChromeOnImageView(on)
+            refreshPreview()
+        }
+        rows.add(hideOnImageRow)
+        if (!modern) disableRow(hideOnImageRow, true)
         val tabBarRow = choiceRow(
             "标签栏位置",
             arrayOf("地址栏上方", "工具栏上方", "隐藏"),
