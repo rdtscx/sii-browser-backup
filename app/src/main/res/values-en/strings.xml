@@ -185,7 +185,6 @@
     <string name="translate_in_progress">Translating</string>
     <string name="translate_show_translated">Show translation</string>
     <string name="translate_partial">Some content failed to translate</string>
-    <string name="translate_restored">Original text restored</string>
     <string name="settings_translate_service">Translation service</string>
     <string name="settings_translate_endpoint">Translation endpoint</string>
     <string name="settings_translate_endpoint_hint">Custom URL template, supports {text}, {from}, {to}</string>

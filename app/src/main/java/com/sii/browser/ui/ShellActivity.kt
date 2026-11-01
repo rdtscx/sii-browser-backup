@@ -162,9 +162,16 @@ class ShellActivity : AppCompatActivity() {
             lifecycle.addObserver(observer)
         }
         if (savedInstanceState == null) {
-            window.decorView.post {
-                supportFragmentManager.executePendingTransactions()
-                notifyFragments<IntentAware>().forEach { it.handleNewIntent(intent) }
+            val startLink = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString
+            if (isWebLink(startLink)) {
+                // 冷启动带链接：交给 BrowserFragment 初始化流程统一打开，
+                // 直接派发会与「恢复标签/主页」抢先后，链接被主页盖掉。
+                AppServices.pendingOpenUrl = startLink
+            } else {
+                window.decorView.post {
+                    supportFragmentManager.executePendingTransactions()
+                    notifyFragments<IntentAware>().forEach { it.handleNewIntent(intent) }
+                }
             }
         }
     }
@@ -370,9 +377,48 @@ class ShellActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        notifyFragments<IntentAware>().forEach {
-            if (it.handleNewIntent(intent)) return
+        setIntent(intent)
+        val link = intent.takeIf { it.action == Intent.ACTION_VIEW }?.dataString
+        if (isWebLink(link)) {
+            // 外部链接统一走 pendingOpenUrl：无论当前在哪个页面，先回浏览器再打开。
+            AppServices.pendingOpenUrl = link
+            if (supportFragmentManager.backStackEntryCount > 0) {
+                supportFragmentManager.popBackStackImmediate(
+                    null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE
+                )
+            }
+            window.decorView.post { consumePendingOpenUrl() }
+            return
         }
+        if (dispatchIntent(intent)) return
+        if (supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStackImmediate(
+                null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE
+            )
+            window.decorView.post { dispatchIntent(intent) }
+        }
+    }
+
+    /** 只交给当前真正可见的浏览器页，避免派发给回退栈里视图已销毁的 Fragment。 */
+    private fun dispatchIntent(intent: Intent): Boolean {
+        val fragment = supportFragmentManager.findFragmentById(R.id.shell_root)
+        if (fragment !is IntentAware || !fragment.isAdded || fragment.view == null) return false
+        return fragment.handleNewIntent(intent)
+    }
+
+    /** 浏览器回到前台后立即打开挂起的链接；未就绪时留给它的初始化/onResume 消费。 */
+    private fun consumePendingOpenUrl() {
+        val url = AppServices.pendingOpenUrl ?: return
+        val fragment = supportFragmentManager.findFragmentById(R.id.shell_root)
+        if (fragment !is IntentAware || !fragment.isAdded || fragment.view == null) return
+        AppServices.pendingOpenUrl = null
+        fragment.handleNewIntent(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+    }
+
+    private fun isWebLink(url: String?): Boolean {
+        if (url.isNullOrBlank() || url.length > 100_000) return false
+        val scheme = runCatching { android.net.Uri.parse(url).scheme }.getOrNull()
+        return scheme.equals("http", true) || scheme.equals("https", true)
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {

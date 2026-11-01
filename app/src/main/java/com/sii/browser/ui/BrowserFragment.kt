@@ -232,7 +232,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             insets
         }
         view.findViewById<View>(R.id.modern_chrome)?.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-            if (bottom - top != oldBottom - oldTop) applyFloatingBarLift()
+            if (bottom - top != oldBottom - oldTop) {
+                applyFloatingBarLift()
+                syncDockProgressInset()
+            }
+        }
+        view.findViewById<View>(R.id.modern_quick_host)?.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top != oldBottom - oldTop) syncDockProgressInset()
         }
         webViewContainer = view.findViewById(R.id.webview_container)
         homeContainer = view.findViewById(R.id.home_container)
@@ -2920,6 +2926,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         if (translateFabState == 2) return
         if (translateJob?.isActive == true) return
+        // 已翻译时再点「翻译页面」= 还原原文（原/译按钮只负责切换对照）。
+        if (translateFabState == 3) {
+            cancelTranslate()
+            return
+        }
         // 离线模式且语言包未下载：不跑收集与翻译，直接引导去下载。
         if (AppServices.settings.translateMode() == 2) {
             viewLifecycleOwner.lifecycleScope.launch {
@@ -2964,17 +2975,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 return@evaluateJavascript
             }
             if (obj.optBoolean("done")) {
-                com.sii.browser.core.webview.TranslationTrace.log(requireContext(), "page translate restore")
-                translatePolling?.cancel()
-                translateJob?.cancel()
-                wv.evaluateJavascript(TRANSLATE_RESTORE_JS, null)
-                translateFabState = 0
+                // 页面已经是译文状态（例如返回缓存页）：对齐按钮与轮询，不还原原文。
+                com.sii.browser.core.webview.TranslationTrace.log(requireContext(), "page translate adopt")
+                translateFabState = 3
+                translateShowOriginal = false
                 autoTranslatePaused = false
                 autoEmptyRounds = 0
-                translatedTotal = 0
-                uiLabelCache.clear()
                 updateTranslateFab()
-                showTranslateStatus(getString(R.string.translate_restored), autoHide = true)
+                updateAutoTranslateStatus()
+                saveTranslateTabState(wv)
+                translatedPageUrl = wv.url?.takeIf { it.startsWith("http") }
+                if (translatePolling?.isActive != true) startTranslatePolling(wv)
                 return@evaluateJavascript
             }
             val texts = obj.optJSONArray("texts") ?: return@evaluateJavascript
@@ -3391,6 +3402,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         autoTranslatePaused = false
         autoEmptyRounds = 0
         translatedTotal = 0
+        translatedPageUrl = null
         uiLabelCache.clear()
         updateTranslateFab()
         hideTranslateStatus()
@@ -3437,6 +3449,35 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (!state.paused && wv != null) startTranslatePolling(wv)
         } else {
             hideTranslateStatus()
+        }
+    }
+
+    /**
+     * 页面加载完成后对齐翻译状态：
+     * 返回缓存页/前进后退时页面可能仍是译文，但 Kotlin 侧已被导航重置，要恢复「原/译」按钮。
+     */
+    private fun syncTranslateStateFromPage(wv: SiiWebView?) {
+        if (wv == null || wv !== tabManager.currentWebView) return
+        if (AppServices.settings.translateMode() == 0) return
+        if (homeContainer?.visibility == View.VISIBLE) return
+        if (translateFabState == 2 || translateFabState == 3) return
+        wv.evaluateJavascript(
+            "(function(){var t=window.__siiTranslate;" +
+                "return JSON.stringify(t?{on:1,mode:(window.__siiMode||'translated')}:{on:0});})()"
+        ) { raw ->
+            val obj = parseJsonObject(raw) ?: return@evaluateJavascript
+            if (obj.optInt("on") != 1) return@evaluateJavascript
+            if (!isAdded || wv !== tabManager.currentWebView) return@evaluateJavascript
+            if (translateFabState == 2 || translateFabState == 3) return@evaluateJavascript
+            translateFabState = 3
+            translateShowOriginal = obj.optString("mode") == "original"
+            autoTranslatePaused = false
+            autoEmptyRounds = 0
+            updateTranslateFab()
+            updateAutoTranslateStatus()
+            saveTranslateTabState(wv)
+            translatedPageUrl = wv.url?.takeIf { it.startsWith("http") }
+            if (translatePolling?.isActive != true) startTranslatePolling(wv)
         }
     }
 
@@ -6797,6 +6838,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             scroll.layoutParams = scroll.layoutParams.apply { height = quickEngineFullHeight }
         }
         scroll.visibility = if (visible) View.VISIBLE else View.GONE
+        // 立即同步一次（芯片行显隐已定），布局完成后再补一次（高度才可靠）。
+        syncDockProgressInset()
         view?.post { syncDockProgressInset() }
     }
 
@@ -7655,6 +7698,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (webView === tabManager.currentWebView) {
                 updateSiteInfoIcon()
                 updateAddressBarForCurrent()
+                // 重定向/SPA 历史变化后重新判断是否还是搜索结果页。
+                updateQuickEngineVisibility()
             }
         }
 
@@ -7728,21 +7773,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 autoTranslatePaused = false
                 autoEmptyRounds = 0
                 translatedTotal = 0
-                translatedPageUrl = null
                 activeTranslateSource = ""
                 sourceLangCache.remove(startedUrl)
                 uiLabelCache.clear()
                 updateTranslateFab()
-            }
-            // 刷新/重开时先用 sessionStorage 译文缓存回填，避免闪回原文。
-            if (startedUrl.startsWith("http")) {
-                val restoreHost = runCatching { android.net.Uri.parse(startedUrl).host }
-                    .getOrNull()?.lowercase()
-                webView?.injectJavaScript(
-                    TRANSLATE_CACHE_RESTORE_JS.replace(
-                        "__DUAL__", if (effectiveTranslateDual(restoreHost)) "true" else "false"
-                    )
-                )
             }
             // 已翻译过的页面刷新/重开：标记待重译，等 onPageFinished 再执行。
             if (autoRetranslate) pendingAutoRetranslate[webView] = true
@@ -7773,6 +7807,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     hideFindBar()
                 }
             }
+            // URL 已经更新：快捷引擎行要按新页面立刻收起/展开，否则进度会扫过芯片行。
+            if (isCurrentTab) updateQuickEngineVisibility()
             // 新页面开始：清掉上一页的网站主题色。
             webView?.let { themeColors[it] = null }
             if (webView === tabManager.currentWebView) applySiteThemeColor(null)
@@ -7908,6 +7944,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             // document-idle：延迟注入，等页面脚本初始化完成
             view?.postDelayed({ injectUserScripts(webView, url, "document-idle") }, 800L)
             view?.postDelayed({ maybeShowTranslateFab(webView, url) }, 900L)
+            view?.postDelayed({ syncTranslateStateFromPage(webView) }, 350L)
             // 仅夜间模式才给网页注入暗色 CSS；原生暗色开启时不再叠加。
             applyNightCss(webView)
             injectWebTextAccent(webView)
@@ -10265,16 +10302,18 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val scroll = view?.findViewById<View>(R.id.search_toolbar_scroll)
         val visible = scroll?.visibility == View.VISIBLE &&
             AppServices.settings.searchToolbar()
+        // 以宿主实测高度为准（隐藏后为 0，不能继续沿用芯片行高度，否则只剩底部一截填充）。
         val top = if (visible) {
-            (scroll?.height?.takeIf { it > 0 }
-                ?: quickEngineFullHeight.takeIf { it > 0 }
-                ?: dp(40)) + dp(2)
+            val host = view?.findViewById<View>(R.id.modern_quick_host)
+            host?.height?.takeIf { it > 0 }
+                ?: (quickEngineFullHeight.takeIf { it > 0 } ?: dp(40)) + dp(2)
         } else 0
         layer.setLayerInset(index, 0, top, 0, 0)
     }
 
     /** 把当前加载进度同步到胶囊的填充层。 */
     private fun syncDockProgress() {
+        syncDockProgressInset()
         dockProgressClip?.level = (progressBar?.progress ?: 0).coerceIn(0, 100) * 100
     }
 
@@ -10648,6 +10687,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     override fun handleNewIntent(intent: android.content.Intent): Boolean {
+        com.sii.browser.core.mcp.DiagLog.record(
+            "intent",
+            intent.action + " " + (intent.dataString ?: "") +
+                " home=" + (homeContainer?.visibility == View.VISIBLE)
+        )
         when (intent.action) {
             android.content.Intent.ACTION_VIEW -> {
                 val data = intent.dataString ?: return false
@@ -10845,52 +10889,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             })();
         """.trimIndent()
 
-        /** 刷新/重开时按 sessionStorage 译文缓存先回填，避免闪回原文。 */
-        val TRANSLATE_CACHE_RESTORE_JS = """
-            (function(){
-              try{
-                var key='__siiT:'+location.origin+location.pathname+location.search;
-                var cache=JSON.parse(sessionStorage.getItem(key)||'{}');
-                if(!cache||!Object.keys(cache).length) return;
-                var DUAL=__DUAL__;
-                function fill(){
-                  if(!document.body) return;
-                  var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);
-                  var n;
-                  while(n=w.nextNode()){
-                    if(n.__siiTranslated) continue;
-                    var v=cache[n.nodeValue];
-                    if(v===undefined) continue;
-                    n.__siiOrig=n.nodeValue;
-                    n.__siiTrans=v;
-                    if(DUAL){
-                      var p=n.parentNode;
-                      if(!p) continue;
-                      var span=document.createElement('span');
-                      span.setAttribute('data-sii-tr','1');
-                      span.style.cssText='display:inline;background:rgba(127,127,127,.16);border-radius:4px;padding:0 3px;margin:0 2px;color:inherit;font:inherit;';
-                      span.textContent=' '+v;
-                      p.insertBefore(span,n.nextSibling);
-                      n.__siiSpan=span;
-                    }else{
-                      n.nodeValue=v;
-                    }
-                    n.__siiTranslated=true;
-                    window.__siiAll=window.__siiAll||[];
-                    window.__siiAll.push(n);
-                  }
-                }
-                function start(){
-                  fill();
-                  if(window.__siiRestoreObs) window.__siiRestoreObs.disconnect();
-                  window.__siiRestoreObs=new MutationObserver(fill);
-                  window.__siiRestoreObs.observe(document.body,{childList:true,subtree:true});
-                }
-                if(document.body) start(); else document.addEventListener('DOMContentLoaded',start);
-              }catch(e){}
-            })();
-        """.trimIndent()
-
         /** 整页翻译：按文档顺序遍历文本节点，保留内联标签结构。 */
         val TRANSLATE_COLLECT_JS = """
             (function(){
@@ -11085,6 +11083,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
               };
               var fillPending=false;
               var first=JSON.parse(window.__siiScan(__COLLECT_LIMIT__,true));
+              // 全部命中译文缓存时没有新增文本，但页面已经是译文：按已翻译处理。
+              if(first.length===0 && window.__siiTranslate.count>0) return JSON.stringify({done:true});
               window.__siiTranslate.els=window.__siiTranslate.pending.slice();
               window.__siiTranslate.texts=first;
               window.__siiTranslate.pending=[];
@@ -11105,12 +11105,24 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         /** 恢复原文并清理扫描函数。 */
         val TRANSLATE_RESTORE_JS = """
             (function(){
+              function clear(e){
+                if(!e) return;
+                if(e.__siiSpan&&e.__siiSpan.parentNode)e.__siiSpan.parentNode.removeChild(e.__siiSpan);
+                e.__siiSpan=null;
+                if(e.__siiOrig!==undefined)e.nodeValue=e.__siiOrig;
+                // 必须清掉节点标记，否则下次收集会把所有节点当成已翻译而跳过。
+                e.__siiTranslated=false;
+                e.__siiOrig=undefined;
+                e.__siiTrans=undefined;
+              }
               var t=window.__siiTranslate;
               if(t){
-                (window.__siiAll||[]).forEach(function(e){if(e.__siiSpan&&e.__siiSpan.parentNode)e.__siiSpan.parentNode.removeChild(e.__siiSpan);e.__siiSpan=null;if(e.__siiOrig!==undefined)e.nodeValue=e.__siiOrig;});
-                t.els.forEach(function(e){if(e.__siiSpan&&e.__siiSpan.parentNode)e.__siiSpan.parentNode.removeChild(e.__siiSpan);e.__siiSpan=null;if(e.__siiOrig!==undefined)e.nodeValue=e.__siiOrig;});
-                (t.pending||[]).forEach(function(e){if(e.__siiSpan&&e.__siiSpan.parentNode)e.__siiSpan.parentNode.removeChild(e.__siiSpan);e.__siiSpan=null;if(e.__siiOrig!==undefined)e.nodeValue=e.__siiOrig;});
+                (window.__siiAll||[]).forEach(clear);
+                (t.els||[]).forEach(clear);
+                (t.pending||[]).forEach(clear);
               }
+              // 兜底：缓存回填等路径插的译文 span 也一并移除。
+              try{var spans=document.querySelectorAll('[data-sii-tr]');for(var i=0;i<spans.length;i++){if(spans[i].parentNode)spans[i].parentNode.removeChild(spans[i]);}}catch(e){}
               if(window.__siiObserver){window.__siiObserver.disconnect();window.__siiObserver=null;}
               if(window.__siiRestoreObs){window.__siiRestoreObs.disconnect();window.__siiRestoreObs=null;}
               try{sessionStorage.removeItem('__siiT:'+location.origin+location.pathname+location.search);}catch(e){}

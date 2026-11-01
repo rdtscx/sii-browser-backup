@@ -208,7 +208,6 @@
     <string name="translate_in_progress">翻译中</string>
     <string name="translate_show_translated">显示译文</string>
     <string name="translate_partial">部分内容翻译失败</string>
-    <string name="translate_restored">已恢复原文</string>
     <string name="settings_translate_service">翻译服务</string>
     <string name="settings_translate_endpoint">翻译接口地址</string>
     <string name="settings_translate_endpoint_hint">自定义 URL 模板，可用 {text}、{from}、{to}</string>
