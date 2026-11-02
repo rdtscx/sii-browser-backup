@@ -440,14 +440,22 @@ class AdBlockEngine {
     fun cosmeticSelectorsFor(host: String?): List<String> {
         rebuildIndexIfNeeded()
         if (cosmeticRules.isEmpty()) return emptyList()
+        val privacyActive = privacyActiveForSite(host)
         val exceptions = cosmeticRules
-            .filter { (it.privacyCategory == null || privacyEnabled) && it.isException && it.appliesTo(host) }
+            .filter { (it.privacyCategory == null || privacyActive) && it.isException && it.appliesTo(host) }
             .map { it.selector }
             .toSet()
         return cosmeticRules
-            .filter { (it.privacyCategory == null || privacyEnabled) && !it.isException && it.appliesTo(host) }
+            .filter { (it.privacyCategory == null || privacyActive) && !it.isException && it.appliesTo(host) }
             .map { it.selector }
             .filter { it !in exceptions }
             .distinct()
+    }
+
+    /** 隐私规则在当前站点是否生效：全局开启且未被站点暂停。 */
+    private fun privacyActiveForSite(host: String?): Boolean {
+        if (!privacyEnabled) return false
+        val target = host.orEmpty().lowercase()
+        return privacyDisabledSites.none { matchesSite(target, it) }
     }
 }
