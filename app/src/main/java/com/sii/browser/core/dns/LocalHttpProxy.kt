@@ -109,11 +109,15 @@ class LocalHttpProxy(private val provider: () -> String) {
                 true
             }.getOrDefault(false)
             if (!ok) return
-            val pumpUp = Thread { pump(clientIn, server.getOutputStream()) }
+            val pumpUp = Thread {
+                pump(clientIn, server.getOutputStream())
+                runCatching { server.shutdownOutput() }
+            }
             pumpUp.isDaemon = true
             pumpUp.start()
             pump(server.getInputStream(), clientOut)
-            runCatching { pumpUp.join(1000) }
+            runCatching { client.shutdownOutput() }
+            runCatching { pumpUp.join(500) }
         }
     }
 
@@ -168,8 +172,10 @@ class LocalHttpProxy(private val provider: () -> String) {
             val pumpDown = Thread { pump(server.getInputStream(), clientOut) }
             pumpDown.isDaemon = true
             pumpDown.start()
-            if (hasBody) pump(clientIn, out)
-            runCatching { pumpDown.join(1000) }
+            if (hasBody) {
+                pump(clientIn, out)
+            }
+            runCatching { pumpDown.join() }
         }
     }
 
