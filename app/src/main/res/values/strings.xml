@@ -935,6 +935,17 @@
     <string name="settings_video_player">外置播放器</string>
     <string name="settings_video_player_system">系统默认</string>
     <string name="settings_netlog">网络日志</string>
+    <string name="settings_private_dns">私人 DNS（加密 DNS）</string>
+    <string name="settings_private_dns_open">打开私人 DNS 设置</string>
+    <string name="settings_private_dns_desc">运营商 DNS 污染导致网址打不开时，改用加密 DNS 可解决一部分</string>
+    <string name="settings_private_dns_copy">复制</string>
+    <string name="settings_private_dns_copied">已复制 %1$s</string>
+    <string name="settings_private_dns_provider_ali">阿里 DNS</string>
+    <string name="settings_private_dns_provider_tencent">腾讯 DNS</string>
+    <string name="settings_private_dns_provider_cloudflare">Cloudflare</string>
+    <string name="settings_private_dns_provider_google">Google</string>
+    <string name="settings_private_dns_manual">Android 9 及以上：设置 → 网络和互联网 → 私人 DNS → 选择「主机名」并填入下方的地址。Android 8 请在 Wi-Fi 高级设置里把 DNS 改为 223.5.5.5。</string>
+    <string name="settings_private_dns_note">加密 DNS 只改变域名解析，不代理流量；如果网站被运营商按 SNI/IP 拦截，换 DNS 也无法打开。请填主机名（如 dns.alidns.com），不要填 IP。</string>
     <string name="netlog_empty">暂无记录</string>
     <string name="netlog_clear">清空日志</string>
     <string name="netlog_blocked">已拦截</string>

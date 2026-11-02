@@ -934,6 +934,17 @@
     <string name="settings_video_player">External player</string>
     <string name="settings_video_player_system">System default</string>
     <string name="settings_netlog">Network log</string>
+    <string name="settings_private_dns">Private DNS (encrypted DNS)</string>
+    <string name="settings_private_dns_open">Open private DNS settings</string>
+    <string name="settings_private_dns_desc">When carrier DNS poisoning blocks sites, encrypted DNS can help</string>
+    <string name="settings_private_dns_copy">Copy</string>
+    <string name="settings_private_dns_copied">Copied %1$s</string>
+    <string name="settings_private_dns_provider_ali">AliDNS</string>
+    <string name="settings_private_dns_provider_tencent">DNSPod</string>
+    <string name="settings_private_dns_provider_cloudflare">Cloudflare</string>
+    <string name="settings_private_dns_provider_google">Google</string>
+    <string name="settings_private_dns_manual">Android 9+: Settings → Network &amp; internet → Private DNS → choose Hostname and enter an address below. On Android 8, set the Wi-Fi DNS to 223.5.5.5 in advanced settings.</string>
+    <string name="settings_private_dns_note">Encrypted DNS only changes name resolution; it does not proxy traffic. If a site is blocked by SNI/IP, DNS changes will not help. Enter a hostname (e.g. dns.alidns.com), not an IP.</string>
     <string name="netlog_empty">No entries</string>
     <string name="netlog_clear">Clear log</string>
     <string name="netlog_blocked">Blocked</string>

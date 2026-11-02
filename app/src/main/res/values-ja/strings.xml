@@ -935,6 +935,17 @@
     <string name="settings_video_player">外部プレーヤー</string>
     <string name="settings_video_player_system">システム既定</string>
     <string name="settings_netlog">ネットワークログ</string>
+    <string name="settings_private_dns">プライベート DNS（暗号化 DNS）</string>
+    <string name="settings_private_dns_open">プライベート DNS 設定を開く</string>
+    <string name="settings_private_dns_desc">キャリアの DNS 汚染でサイトが開けない場合、暗号化 DNS で改善できることがあります</string>
+    <string name="settings_private_dns_copy">コピー</string>
+    <string name="settings_private_dns_copied">%1$s をコピーしました</string>
+    <string name="settings_private_dns_provider_ali">AliDNS</string>
+    <string name="settings_private_dns_provider_tencent">DNSPod</string>
+    <string name="settings_private_dns_provider_cloudflare">Cloudflare</string>
+    <string name="settings_private_dns_provider_google">Google</string>
+    <string name="settings_private_dns_manual">Android 9 以降：設定 → ネットワークとインターネット → プライベート DNS → 「ホスト名」を選び、下のアドレスを入力。Android 8 では Wi-Fi の詳細設定で DNS を 223.5.5.5 に変更してください。</string>
+    <string name="settings_private_dns_note">暗号化 DNS は名前解決だけを変え、通信を中継しません。サイトが SNI/IP で遮断されている場合は DNS を変えても開けません。IP ではなくホスト名（例：dns.alidns.com）を入力してください。</string>
     <string name="netlog_empty">記録はありません</string>
     <string name="netlog_clear">ログを消去</string>
     <string name="netlog_blocked">ブロック済み</string>

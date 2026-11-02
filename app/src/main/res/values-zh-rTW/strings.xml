@@ -935,6 +935,17 @@
     <string name="settings_video_player">外接播放器</string>
     <string name="settings_video_player_system">系統預設</string>
     <string name="settings_netlog">網路日誌</string>
+    <string name="settings_private_dns">私人 DNS（加密 DNS）</string>
+    <string name="settings_private_dns_open">開啟私人 DNS 設定</string>
+    <string name="settings_private_dns_desc">電信商 DNS 污染導致網址打不開時，改用加密 DNS 可改善一部分</string>
+    <string name="settings_private_dns_copy">複製</string>
+    <string name="settings_private_dns_copied">已複製 %1$s</string>
+    <string name="settings_private_dns_provider_ali">阿里 DNS</string>
+    <string name="settings_private_dns_provider_tencent">騰訊 DNS</string>
+    <string name="settings_private_dns_provider_cloudflare">Cloudflare</string>
+    <string name="settings_private_dns_provider_google">Google</string>
+    <string name="settings_private_dns_manual">Android 9 以上：設定 → 網路和網際網路 → 私人 DNS → 選擇「主機名稱」並填入下方位址。Android 8 請在 Wi-Fi 進階設定把 DNS 改為 223.5.5.5。</string>
+    <string name="settings_private_dns_note">加密 DNS 只改變網域名稱解析，不代理流量；若網站被電信商以 SNI/IP 封鎖，換 DNS 也無法開啟。請填主機名稱（如 dns.alidns.com），不要填 IP。</string>
     <string name="netlog_empty">暫無記錄</string>
     <string name="netlog_clear">清空日誌</string>
     <string name="netlog_blocked">已攔截</string>

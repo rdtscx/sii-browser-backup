@@ -2093,6 +2093,83 @@ class SettingsDetailFragment : Fragment() {
             ) { settings.setJsConsoleLog(it) },
             navRow(getString(R.string.settings_netlog)) { open(VIEW_V2_NETLOG) }
         )
+        sectionTitle(R.string.settings_private_dns)
+        card(
+            navRow(
+                getString(R.string.settings_private_dns_open),
+                getString(R.string.settings_private_dns_desc)
+            ) { openPrivateDnsSettings() }
+        )
+        card(*buildPrivateDnsRows())
+        aboutText(R.string.settings_private_dns_note)
+    }
+
+    private fun buildPrivateDnsRows(): Array<View> {
+        val context = requireContext()
+        val hosts = listOf(
+            "dns.alidns.com" to R.string.settings_private_dns_provider_ali,
+            "doh.pub" to R.string.settings_private_dns_provider_tencent,
+            "1dot1dot1dot1.cloudflare-dns.com" to R.string.settings_private_dns_provider_cloudflare,
+            "dns.google" to R.string.settings_private_dns_provider_google
+        )
+        return hosts.map { (host, providerRes) ->
+            CardList.row(context).apply {
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(context).apply {
+                        text = getString(providerRes)
+                        setTextSize(14f)
+                        setTextColor(context.getColor(R.color.text_primary))
+                    })
+                    addView(TextView(context).apply {
+                        text = host
+                        setTextSize(12f)
+                        setTextColor(context.getColor(R.color.text_secondary))
+                        setPadding(0, dpToPx(2), 0, 0)
+                    })
+                }, weightParams())
+                addView(TextView(context).apply {
+                    text = getString(R.string.settings_private_dns_copy)
+                    setTextSize(13f)
+                    setTextColor(ThemeAccent.color(context))
+                })
+                setOnClickListener { copyDnsHost(host) }
+            }
+        }.toTypedArray()
+    }
+
+    private fun openPrivateDnsSettings() {
+        if (android.os.Build.VERSION.SDK_INT < 28) {
+            showPrivateDnsManual()
+            return
+        }
+        val opened = runCatching {
+            startActivity(
+                android.content.Intent("android.settings.PRIVATE_DNS_SETTINGS")
+            )
+            true
+        }.getOrDefault(false)
+        if (!opened) showPrivateDnsManual()
+    }
+
+    private fun showPrivateDnsManual() {
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_private_dns_open)
+            .setMessage(R.string.settings_private_dns_manual)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun copyDnsHost(host: String) {
+        val clipboard = requireContext()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+            as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dns", host))
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.settings_private_dns_copied, host),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun buildV2Netlog() {
