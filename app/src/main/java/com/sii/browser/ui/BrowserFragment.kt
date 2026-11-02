@@ -8485,19 +8485,35 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "host=${host.orEmpty()} rules=${counts[0]}/privacy=${counts[1]} selectors=${selectors.size}"
         )
         if (css.isEmpty() || webView == null) return
-        val escaped = css.replace("\\", "\\\\").replace("'", "\\'")
-            .replace("\n", "\\n").replace("\r", "")
-        // documentElement 可能还没建立（提交早期）：短间隔重试，最迟 5 秒后放弃。
+        // CSS 可能接近几百 KB：转 Base64 分块追加，避开引号/换行转义与单次超大脚本。
+        val b64 = android.util.Base64.encodeToString(
+            css.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP
+        )
+        val chunks = b64.chunked(12000)
         webView.evaluateJavascript(
-            "(function(){var css='$escaped';" +
-                "function apply(){var root=document.documentElement;if(!root)return false;" +
-                "var s=document.getElementById('sii_cosmetic');" +
+            "(function(){var s=document.getElementById('sii_cosmetic');" +
                 "if(!s){s=document.createElement('style');s.id='sii_cosmetic';" +
-                "root.appendChild(s);}s.textContent=css;return true;}" +
-                "if(!apply()){var t=setInterval(function(){if(apply())clearInterval(t);},20);" +
-                "setTimeout(function(){clearInterval(t);},5000);}})();",
+                "(document.documentElement||document.head||document).appendChild(s);}" +
+                "s.textContent='';})();",
             null
         )
+        chunks.forEachIndexed { index, chunk ->
+            val stream = if (index == chunks.lastIndex) "false" else "true"
+            webView.evaluateJavascript(
+                "(function(){var s=document.getElementById('sii_cosmetic');" +
+                    "if(!s)return 'no-style';try{var b=atob('$chunk');" +
+                    "var u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);" +
+                    "s.textContent+=new TextDecoder('utf-8').decode(u,{stream:$stream});return 'ok';}" +
+                    "catch(e){return 'err:'+e;}})();"
+            ) { raw ->
+                if (index == chunks.lastIndex) {
+                    com.sii.browser.core.mcp.DiagLog.record(
+                        "cosmetic-apply",
+                        "host=${host.orEmpty()} len=${css.length} result=${raw?.take(40)}"
+                    )
+                }
+            }
+        }
         if (!countStats || selectors.isEmpty()) return
         webView.evaluateJavascript(
             "(function(){var s=" + org.json.JSONArray(selectors) + ";var n=0;" +
