@@ -9070,8 +9070,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         intent: android.content.Intent?,
         uri: android.net.Uri
     ): String? {
-        val fallback = intent?.getStringExtra("browser_fallback_url")
-            ?: uri.getQueryParameter("browser_fallback_url")
+        val fromIntent = intent?.getStringExtra("browser_fallback_url")
+        // intent:/mailto: 等非分层 URI 调 getQueryParameter 会抛 UnsupportedOperationException。
+        val fromQuery = if (uri.isHierarchical) {
+            runCatching { uri.getQueryParameter("browser_fallback_url") }.getOrNull()
+        } else null
+        val fallback = fromIntent ?: fromQuery
         return fallback?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
     }
 
