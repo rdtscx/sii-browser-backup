@@ -604,9 +604,6 @@ class DownloadFragment : Fragment() {
     }
 
     private fun sizeText(task: com.sii.browser.data.db.DownloadTask): String {
-        if (task.state == DownloadState.FAILED && !task.errorMessage.isNullOrBlank()) {
-            return getString(R.string.download_fail_reason, task.errorMessage)
-        }
         val speed = speedFor(task)
         return when {
             task.state == DownloadState.COMPLETED ->

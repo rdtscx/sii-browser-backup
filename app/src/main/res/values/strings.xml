@@ -392,7 +392,6 @@
     <string name="download_state_paused">已暂停</string>
     <string name="download_state_completed">已完成</string>
     <string name="download_state_failed">失败</string>
-    <string name="download_fail_reason">失败原因：%1$s</string>
     <string name="menu_bookmarks">书签</string>
     <string name="menu_history">历史</string>
     <string name="menu_add_bookmark">添加书签</string>

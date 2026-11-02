@@ -299,7 +299,6 @@ class DownloadService : Service() {
             val task = AppServices.downloadRepository.taskById(id) ?: return@launch
             // 先停止旧任务，再重置分块进度重新下载
             AppServices.downloadEngine.cancelAndWait(id)
-            AppServices.downloadEngine.forgetEtag(task.url)
             AppServices.downloadRepository.deleteTask(id)
             val probe = runCatching {
                 AppServices.downloadEngine.probe(task.url)
