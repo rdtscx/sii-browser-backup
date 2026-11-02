@@ -1331,6 +1331,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 文本翻译页。 */
     private fun openTextTranslate() {
+        if (parentFragmentManager.findFragmentById(R.id.shell_root) is TextTranslateFragment) return
         NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, TextTranslateFragment())
             .addToBackStack(null)
@@ -11030,10 +11031,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
         when (intent.action) {
             android.content.Intent.ACTION_VIEW -> {
-                val data = intent.dataString ?: return false
-                if (!isSafeExternalUrl(data)) return false
-                loadUrlFor(data)
-                return true
+                val data = intent.dataString
+                if (data != null) {
+                    if (!isSafeExternalUrl(data)) return false
+                    loadUrlFor(data)
+                    return true
+                }
             }
             android.content.Intent.ACTION_SEND -> {
                 val text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: return false
