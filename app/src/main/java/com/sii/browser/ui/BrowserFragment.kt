@@ -11060,18 +11060,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         when (intent.getStringExtra("sii_action")) {
             "new_tab" -> {
+                intent.removeExtra("sii_action")
                 openNewTab()
                 return true
             }
             "search" -> {
+                intent.removeExtra("sii_action")
                 openNewTab()
                 return true
             }
             "downloads" -> {
+                intent.removeExtra("sii_action")
                 openDownloads()
                 return true
             }
             "text_translate" -> {
+                intent.removeExtra("sii_action")
                 openTextTranslate()
                 return true
             }
