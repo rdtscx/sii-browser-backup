@@ -343,6 +343,8 @@
     <string name="reverse_engine_saucenao">SauceNAO</string>
     <string name="reverse_engine_iqdb">IQDB</string>
     <string name="sniff_all">全部</string>
+    <string name="sniff_current_page">当前页</string>
+    <string name="sniff_all_pages">全部页面</string>
     <string name="sniff_video">视频</string>
     <string name="sniff_hls">流媒体</string>
     <string name="sniff_audio">音频</string>

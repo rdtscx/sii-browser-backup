@@ -40,7 +40,8 @@ class SniffJsBridge(private val webView: SiiWebView, private val key: Any) {
                     url = url,
                     type = SniffStore.typeOf(url, mime),
                     mime = mime,
-                    size = obj.optLong("size", 0L)
+                    size = obj.optLong("size", 0L),
+                    pageUrl = webView.url
                 )
             }
         }.getOrDefault(emptyList())

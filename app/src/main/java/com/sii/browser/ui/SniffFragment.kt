@@ -34,6 +34,12 @@ class SniffFragment : Fragment() {
     private lateinit var chips: LinearLayout
     private var sniffHint: View? = null
     private var filter: SniffType? = null
+    private var showAllPages = false
+    private val storeListener: (Any) -> Unit = { key ->
+        if (key === AppServices.sniffTarget) {
+            view?.post { render() }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -91,11 +97,7 @@ class SniffFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        SniffStore.onChange = { key ->
-            if (key === AppServices.sniffTarget) {
-                view.post { render() }
-            }
-        }
+        SniffStore.addListener(storeListener)
         render()
     }
 
@@ -105,7 +107,7 @@ class SniffFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        SniffStore.onChange = null
+        SniffStore.removeListener(storeListener)
         sniffHint = null
         super.onDestroyView()
     }
@@ -119,7 +121,13 @@ class SniffFragment : Fragment() {
         container.removeAllViews()
         val target = key()
         val all = target?.let { SniffStore.list(it) }.orEmpty()
-        val items = if (filter == null) all else all.filter { it.type == filter }
+        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
+        val visible = if (showAllPages || current.isNullOrEmpty()) {
+            all
+        } else {
+            all.filter { it.pageUrl == null || it.pageUrl == current }
+        }
+        val items = if (filter == null) visible else visible.filter { it.type == filter }
         if (items.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
                 text = getString(if (all.isEmpty()) R.string.sniff_empty else R.string.search_no_match)
@@ -136,6 +144,22 @@ class SniffFragment : Fragment() {
 
     private fun renderChips() {
         chips.removeAllViews()
+        chips.addView(TextView(requireContext()).apply {
+            text = if (showAllPages) getString(R.string.sniff_all_pages)
+            else getString(R.string.sniff_current_page)
+            setTextSize(12.5f)
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setTextColor(ThemeAccent.color(requireContext()))
+            setBackgroundResource(R.drawable.bg_accent_soft)
+            isClickable = true
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(8) }
+            setOnClickListener {
+                showAllPages = !showAllPages
+                render()
+            }
+        })
         val options = listOf<SniffType?>(
             null, SniffType.VIDEO, SniffType.HLS, SniffType.AUDIO,
             SniffType.IMAGE, SniffType.DOC, SniffType.MSE, SniffType.OTHER

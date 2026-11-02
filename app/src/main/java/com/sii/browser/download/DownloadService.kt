@@ -255,7 +255,7 @@ class DownloadService : Service() {
                 if (taskId > 0L) {
                     AppServices.downloadRepository.markFailed(taskId, e.message)
                 }
-                notifyHlsFailed()
+                notifyHlsFailed(e.message)
             } finally {
                 hlsActive = false
                 maybeStopIdle()
@@ -403,12 +403,13 @@ class DownloadService : Service() {
         stopForeground(STOP_FOREGROUND_DETACH)
     }
 
-    private fun notifyHlsFailed() {
+    private fun notifyHlsFailed(reason: String? = null) {
         val nm = getSystemService(NotificationManager::class.java)
+        val text = reason?.takeIf { it.isNotBlank() } ?: getString(R.string.download_hls_failed)
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle(getString(R.string.download_notification_title))
-            .setContentText(getString(R.string.download_hls_failed))
+            .setContentText(text)
             .setOngoing(false)
             .build()
         nm.notify(NOTIFICATION_ID, notification)

@@ -343,6 +343,8 @@
     <string name="sniff_prompt_close">Close</string>
     <string name="player_play_failed">This player cannot play the video; download it instead</string>
     <string name="sniff_all">All</string>
+    <string name="sniff_current_page">Current page</string>
+    <string name="sniff_all_pages">All pages</string>
     <string name="sniff_video">Video</string>
     <string name="sniff_hls">Streaming</string>
     <string name="sniff_audio">Audio</string>
