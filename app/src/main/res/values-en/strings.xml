@@ -392,6 +392,7 @@
     <string name="download_state_paused">Paused</string>
     <string name="download_state_completed">Completed</string>
     <string name="download_state_failed">Failed</string>
+    <string name="download_fail_reason">Failed: %1$s</string>
     <string name="menu_bookmarks">Bookmarks</string>
     <string name="menu_history">History</string>
     <string name="menu_add_bookmark">Add bookmark</string>

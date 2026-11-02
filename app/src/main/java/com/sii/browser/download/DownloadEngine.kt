@@ -193,6 +193,11 @@ class DownloadEngine(
     /** 仅取总大小（下载前的确认弹窗用）。 */
     suspend fun probeSize(url: String): Long = probe(url).total
 
+    /** 重新下载前清掉旧的 ETag 缓存，避免用旧值做完整性校验。 */
+    fun forgetEtag(url: String) {
+        etags.remove(url)
+    }
+
     fun start(taskId: Long) {
         desiredRunning[taskId] = true
         scope.launch {

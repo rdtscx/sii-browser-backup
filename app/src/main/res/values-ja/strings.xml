@@ -392,6 +392,7 @@
     <string name="download_state_paused">一時停止</string>
     <string name="download_state_completed">完了</string>
     <string name="download_state_failed">失敗</string>
+    <string name="download_fail_reason">失敗理由：%1$s</string>
     <string name="menu_bookmarks">ブックマーク</string>
     <string name="menu_history">履歴</string>
     <string name="menu_add_bookmark">ブックマークを追加</string>
