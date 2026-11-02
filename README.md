@@ -1,6 +1,8 @@
 <h1 align="center">Sii Browser</h1>
 
-<p align="center">用 Kotlin 写的 Android 浏览器（个人项目）<br/>原生 XML + View 界面 · 不收集用户信息</p>
+<p align="center">An Android browser written in Kotlin (personal project)<br/>Native XML + View UI · No user data collection</p>
+
+<p align="center"><b>English</b> | <a href="README_zh.md">中文</a></p>
 
 <p align="center">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-NonCommercial-blue.svg" alt="License" /></a>
@@ -10,145 +12,145 @@
   <img src="https://img.shields.io/badge/minSdk-26-orange.svg" alt="minSdk" />
 </p>
 
-## 简介
+## Overview
 
-Sii 是一款从零实现的 Android 浏览器，使用 Kotlin 与原生 XML 布局开发，不依赖 Compose。
+Sii is an Android browser built from scratch with Kotlin and native XML layouts. It does not use Compose.
 
-目标是把「浏览」这件事做完整：多标签与标签面板、广告拦截与隐私保护、网页翻译、下载管理，以及本地 MCP 服务与页面抓包这类可被外部工具调用的能力。应用不含统计与崩溃上报 SDK，不收集用户信息。
+The goal is to make browsing complete: multiple tabs and a tab panel, ad blocking and privacy protection, page translation, a download manager, plus a local MCP service and page capture that external tools can call. The app contains no analytics or crash-reporting SDKs and does not collect user data.
 
-## 功能特性
+## Features
 
-### 浏览与界面
+### Browsing & UI
 
-- 多标签：新建、切换、关闭、恢复；标签面板支持网格与缩略图
-- 地址栏直访与搜索、搜索建议、页内查找、电脑模式
-- 主页：玻璃 / 极简 / 杂志三种风格；常用网站收藏；Logo 支持文字、图标、时间
-- 界面风格预设与界面DIY：工具栏、标签页、菜单、主题、玻璃强度
-- 悬浮胶囊工具栏、菜单上下 / 左右滑动、固定菜单位置
-- 自定义标签页、外部链接承接
+- Multiple tabs: new, switch, close, restore; tab panel with grid and thumbnails
+- Address bar for direct navigation and search, search suggestions, find in page, desktop mode
+- Home: glass / minimal / magazine styles; quick site shortcuts; logo as text, icon, or clock
+- UI presets and UI DIY: toolbar, tabs, menu, theme, glass intensity
+- Floating capsule toolbar, vertical / horizontal menu scrolling, fixed menu position
+- Custom new tab page, external link handling
 
-### 隐私与拦截
+### Privacy & blocking
 
-- 广告拦截：内建规则、自定义规则、规则订阅、单站开关
-- 隐私保护：标准 / 严格 / 自定义；追踪、社交、挖矿、指纹、内容规则包
-- GPC / DNT / Save-Data 请求头、URL 追踪参数清理、HTTPS 强制
-- 无痕模式：不记历史、限制权限、退出可选清除
-- 站点级设置：脚本、图片、存储、弹窗、权限、请求头逐站覆盖
+- Ad blocking: built-in rules, custom rules, rule subscriptions, per-site toggle
+- Privacy protection: standard / strict / custom; tracking, social, mining, fingerprint, and content rule lists
+- GPC / DNT / Save-Data request headers, URL tracking parameter cleanup, HTTPS upgrade
+- Incognito mode: no history, restricted permissions, optional cleanup on exit
+- Per-site settings: scripts, images, storage, popups, permissions, request headers
 
-### 翻译与阅读
+### Translation & reading
 
-- 网页翻译：在线 / 离线 / 双语对照，站点级翻译设置
-- 阅读模式、网页朗读、正文提取
+- Page translation: online / offline / bilingual, per-site settings
+- Reader mode, read aloud, article extraction
 
-### 扩展与工具
+### Extensions & tools
 
-- 用户脚本：UserScript metadata 解析 + GM_* API 子集
-- 下载管理：分块并行、断点续传、暂停恢复、HLS、系统下载器
-- 书签（文件夹树）、浏览历史、稍后读
-- 扫码与二维码生成
-- 本地 MCP 服务：工具按权限组下发，令牌鉴权，可对接外部 AI 客户端
-- 页面抓包：资源请求元数据与 fetch/XHR 状态、耗时、响应体
-- 更新检测：读取 GitHub Releases，可静默提示
+- User scripts: UserScript metadata parsing + a subset of GM_* APIs
+- Downloads: chunked parallel download, resume, pause/resume, HLS, system downloader
+- Bookmarks (folder tree), history, read later
+- QR code scanning and generation
+- Local MCP service: permission-scoped tools, token authentication, for external AI clients
+- Page capture: request metadata plus fetch/XHR status, timing, and response bodies
+- Update check: reads GitHub Releases, with an optional silent prompt
 
-## 截图
-
-<p align="center">
-  <img src="docs/screenshots/home-day.jpg" width="270" alt="主页" />
-  <img src="docs/screenshots/tabs.jpg" width="270" alt="标签面板" />
-</p>
-<p align="center"><sub>主页 · 标签面板</sub></p>
+## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/menu.jpg" width="270" alt="菜单" />
-  <img src="docs/screenshots/browse.jpg" width="270" alt="网页浏览" />
+  <img src="docs/screenshots/home-day.jpg" width="270" alt="Home" />
+  <img src="docs/screenshots/tabs.jpg" width="270" alt="Tab panel" />
 </p>
-<p align="center"><sub>菜单 · 网页浏览</sub></p>
+<p align="center"><sub>Home · Tab panel</sub></p>
 
 <p align="center">
-  <img src="docs/screenshots/diy.jpg" width="270" alt="界面DIY" />
-  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP 服务" />
+  <img src="docs/screenshots/menu.jpg" width="270" alt="Menu" />
+  <img src="docs/screenshots/browse.jpg" width="270" alt="Browsing" />
 </p>
-<p align="center"><sub>界面DIY · MCP 服务</sub></p>
+<p align="center"><sub>Menu · Browsing</sub></p>
 
 <p align="center">
-  <img src="docs/screenshots/home-night.jpg" width="270" alt="夜间模式" />
+  <img src="docs/screenshots/diy.jpg" width="270" alt="UI DIY" />
+  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP service" />
 </p>
-<p align="center"><sub>夜间模式</sub></p>
+<p align="center"><sub>UI DIY · MCP service</sub></p>
 
-## 快速开始
+<p align="center">
+  <img src="docs/screenshots/home-night.jpg" width="270" alt="Night mode" />
+</p>
+<p align="center"><sub>Night mode</sub></p>
 
-### 下载安装
+## Quick start
 
-前往 [Releases](https://github.com/wanwuwww/Sii/releases) 下载 `Sii-x.y.z.apk`。
+### Install
 
-- 仅支持 arm64-v8a，Android 8.0（API 26）及以上
-- Release 版为正式签名，可直接覆盖升级；与测试包签名不同，不能相互覆盖
+Download `Sii-x.y.z.apk` from [Releases](https://github.com/wanwuwww/Sii/releases).
 
-### 本地构建
+- arm64-v8a only, Android 8.0 (API 26) or newer
+- Release builds use the release signing key and can upgrade over earlier releases; test builds use a different signature and cannot be installed over them
 
-要求：JDK 17、Android SDK 36、（可选）`local.properties` 指定 sdk.dir。
+### Build locally
+
+Requires JDK 17, Android SDK 36, and optionally `local.properties` with `sdk.dir`.
 
 ```bash
 ./gradlew assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
+# output: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-正式包（R8 混淆 + 资源收缩，仅 arm64-v8a，需在 `local.properties` 配置签名）：
+Release build (R8 shrinking + resource shrinking, arm64-v8a only, signing configured in `local.properties`):
 
 ```bash
 ./gradlew assembleRelease
-# 产物：app/build/outputs/apk/release/app-release.apk
+# output: app/build/outputs/apk/release/app-release.apk
 ```
 
-## 技术架构
+## Architecture
 
-- Kotlin 2.0、AndroidX（AppCompat / Room / DataStore / Lifecycle / Media3 / CameraX）
-- UI：原生 XML 布局 + View（无 Compose）
-- 架构：单 Activity + Fragment，`AppServices` 服务定位器
-- 注解处理：KSP（Room）
+- Kotlin 2.0, AndroidX (AppCompat / Room / DataStore / Lifecycle / Media3 / CameraX)
+- UI: native XML layouts + Views (no Compose)
+- Architecture: single Activity + Fragments, `AppServices` service locator
+- Annotation processing: KSP (Room)
 
-## 模块结构
+## Module layout
 
 ```
 com.sii.browser/
-├── ui/            原生界面（Shell、浏览器、标签、设置、书签、历史、下载、规则、脚本）
-├── core/webview/  WebView 容器（Client/ChromeClient 桥、拦截链、JS 桥、文本提取接口）
-├── core/adblock/  广告拦截引擎
-├── core/rules/    内建规则与订阅
-├── core/privacy/  隐私管理（清除数据/无痕）
-├── core/mcp/      本地 MCP 服务（JSON-RPC、工具表）
-├── script/        用户脚本（解析 + GM 桥）
-├── download/      下载引擎/服务/广播/JS 桥
-├── data/          DataStore 设置 + Room（书签/历史/下载/收藏/规则/脚本）
-└── di/            AppServices 门面
+├── ui/            Native UI (shell, browser, tabs, settings, bookmarks, history, downloads, rules, scripts)
+├── core/webview/  WebView container (client/chrome-client bridges, request interception chain, JS bridges, text extraction)
+├── core/adblock/  Ad blocking engine
+├── core/rules/    Built-in rules and subscriptions
+├── core/privacy/  Privacy management (data clearing / incognito)
+├── core/mcp/      Local MCP service (JSON-RPC, tool registry)
+├── script/        User scripts (parser + GM bridge)
+├── download/      Download engine/service/broadcast/JS bridge
+├── data/          DataStore settings + Room (bookmarks/history/downloads/favorites/rules/scripts)
+└── di/            AppServices facade
 ```
 
-## 第三方组件
+## Third-party components
 
-| 组件 | 许可 |
+| Component | License |
 |---|---|
-| AndroidX（core/appcompat/fragment/lifecycle） | Apache License 2.0 |
+| AndroidX (core/appcompat/fragment/lifecycle) | Apache License 2.0 |
 | Room / DataStore | Apache License 2.0 |
 | OkHttp | Apache License 2.0 |
 | Google ML Kit Translate / Language ID | Google ML Kit Terms of Service |
-| Kotlin 标准库 / 协程 | Apache License 2.0 |
+| Kotlin standard library / coroutines | Apache License 2.0 |
 
-完整清单与版权声明见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
+See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the full list and copyright notices.
 
-## 反馈
+## Feedback
 
-遇到问题或有建议，请提交 [Issue](https://github.com/wanwuwww/Sii/issues)，附上复现步骤与设备信息。
+If you run into a problem or have a suggestion, please open an [Issue](https://github.com/wanwuwww/Sii/issues) with reproduction steps and device information.
 
-## 免责声明
+## Disclaimer
 
-本项目为个人独立开发，按「现状」提供，不附带任何明示或暗示的担保。使用本软件产生的任何风险由使用者自行承担。
+This project is independently developed and provided "as is", without any express or implied warranty. You are responsible for any risk arising from its use.
 
-## 许可
+## License
 
-源码公开，采用非商业许可（不属于 OSI 定义的开源许可）：
+The source code is public under a non-commercial license (not an OSI-approved open source license):
 
-- 允许个人学习、研究、非商业使用与修改；
-- 禁止商业使用、应用商店分发、冒用名称与图标；
-- 分发需保留本许可与署名，并以相同许可共享。
+- Personal learning, research, non-commercial use, and modification are permitted;
+- Commercial use, app store distribution, and impersonating the name or icon are not permitted;
+- Redistribution must retain this license and attribution, and be shared under the same license.
 
-详见 [LICENSE.md](LICENSE.md)。
+See [LICENSE.md](LICENSE.md) for details.
