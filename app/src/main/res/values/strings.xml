@@ -939,6 +939,8 @@
     <string name="settings_private_dns_open">打开私人 DNS 设置</string>
     <string name="settings_private_dns_desc">运营商 DNS 污染导致网址打不开时，改用加密 DNS 可解决一部分</string>
     <string name="settings_private_dns_copy">复制</string>
+    <string name="settings_private_dns_manual_row">手动开启步骤</string>
+    <string name="settings_private_dns_find_hint">已打开系统设置，请在「网络和互联网」中找到「私人 DNS」</string>
     <string name="settings_private_dns_copied">已复制 %1$s</string>
     <string name="settings_private_dns_provider_ali">阿里 DNS</string>
     <string name="settings_private_dns_provider_tencent">腾讯 DNS</string>

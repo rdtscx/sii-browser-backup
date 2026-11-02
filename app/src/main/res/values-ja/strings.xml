@@ -939,6 +939,8 @@
     <string name="settings_private_dns_open">プライベート DNS 設定を開く</string>
     <string name="settings_private_dns_desc">キャリアの DNS 汚染でサイトが開けない場合、暗号化 DNS で改善できることがあります</string>
     <string name="settings_private_dns_copy">コピー</string>
+    <string name="settings_private_dns_manual_row">手動設定の手順</string>
+    <string name="settings_private_dns_find_hint">システム設定を開きました。「ネットワークとインターネット」で「プライベート DNS」を探してください</string>
     <string name="settings_private_dns_copied">%1$s をコピーしました</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

@@ -938,6 +938,8 @@
     <string name="settings_private_dns_open">Open private DNS settings</string>
     <string name="settings_private_dns_desc">When carrier DNS poisoning blocks sites, encrypted DNS can help</string>
     <string name="settings_private_dns_copy">Copy</string>
+    <string name="settings_private_dns_manual_row">Manual setup steps</string>
+    <string name="settings_private_dns_find_hint">System settings opened; find Private DNS under Network &amp; internet</string>
     <string name="settings_private_dns_copied">Copied %1$s</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

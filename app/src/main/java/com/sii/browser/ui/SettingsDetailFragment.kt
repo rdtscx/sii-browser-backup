@@ -2098,7 +2098,10 @@ class SettingsDetailFragment : Fragment() {
             navRow(
                 getString(R.string.settings_private_dns_open),
                 getString(R.string.settings_private_dns_desc)
-            ) { openPrivateDnsSettings() }
+            ) { openPrivateDnsSettings() },
+            navRow(getString(R.string.settings_private_dns_manual_row)) {
+                showPrivateDnsManual()
+            }
         )
         card(*buildPrivateDnsRows())
         aboutText(R.string.settings_private_dns_note)
@@ -2143,13 +2146,34 @@ class SettingsDetailFragment : Fragment() {
             showPrivateDnsManual()
             return
         }
-        val opened = runCatching {
-            startActivity(
-                android.content.Intent("android.settings.PRIVATE_DNS_SETTINGS")
+        val direct = listOf(
+            android.content.Intent("android.settings.PRIVATE_DNS_SETTINGS"),
+            android.content.Intent().setComponent(
+                android.content.ComponentName(
+                    "com.android.settings",
+                    "com.android.settings.Settings\$PrivateDnsSettingsActivity"
+                )
+            ),
+            android.content.Intent().setComponent(
+                android.content.ComponentName(
+                    "com.android.settings",
+                    "com.android.settings.wifi.PrivateDnsSettingsActivity"
+                )
             )
-            true
-        }.getOrDefault(false)
-        if (!opened) showPrivateDnsManual()
+        )
+        for (intent in direct) {
+            if (runCatching { startActivity(intent); true }.getOrDefault(false)) return
+        }
+        val fallback = android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+        if (runCatching { startActivity(fallback); true }.getOrDefault(false)) {
+            Toast.makeText(
+                requireContext(),
+                R.string.settings_private_dns_find_hint,
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        showPrivateDnsManual()
     }
 
     private fun showPrivateDnsManual() {
