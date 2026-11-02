@@ -588,6 +588,11 @@
     <string name="menu_no_img">No images</string>
     <string name="menu_incognito">Incognito</string>
     <string name="menu_privacy_protection">Privacy protection</string>
+    <string name="menu_doh">DoH</string>
+    <string name="doh_toast_on">In-app DoH enabled</string>
+    <string name="doh_toast_off">In-app DoH disabled</string>
+    <string name="doh_toast_unsupported">This WebView does not support the DoH proxy</string>
+    <string name="doh_toast_failed">DoH failed to start: %1$s</string>
     <string name="menu_privacy_on">Privacy protection on</string>
     <string name="menu_privacy_off">Privacy protection off</string>
     <string name="menu_font_size">Font size</string>

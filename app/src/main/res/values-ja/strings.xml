@@ -588,6 +588,11 @@
     <string name="menu_no_img">画像なし</string>
     <string name="menu_incognito">シークレット</string>
     <string name="menu_privacy_protection">プライバシー保護</string>
+    <string name="menu_doh">DoH</string>
+    <string name="doh_toast_on">アプリ内 DoH を有効にしました</string>
+    <string name="doh_toast_off">アプリ内 DoH を無効にしました</string>
+    <string name="doh_toast_unsupported">この WebView は DoH プロキシ非対応です</string>
+    <string name="doh_toast_failed">DoH の起動に失敗：%1$s</string>
     <string name="menu_privacy_on">プライバシー保護を有効にしました</string>
     <string name="menu_privacy_off">プライバシー保護を無効にしました</string>
     <string name="menu_font_size">文字サイズ</string>

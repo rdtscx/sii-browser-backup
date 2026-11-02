@@ -5615,6 +5615,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             true,
             { AppServices.settings.privacyLevel() > 0 }
         ) { togglePrivacyProtection() },
+        MenuEntry(
+            "doh",
+            getString(R.string.menu_doh),
+            R.drawable.ic_m_doh,
+            true,
+            { AppServices.settings.dohProxyEnabled() }
+        ) { toggleDoh() },
         MenuEntry("desktop", getString(R.string.menu_desktop), R.drawable.ic_m_desktop, true, {
             // 全局开关开着时菜单也应为开（主页等非网页页面 URL 为空，否则会误显示为关）。
             AppServices.settings.desktopMode() || isDesktopMode()
@@ -5813,6 +5820,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         "cleardata" -> SettingsDetailFragment.VIEW_V2_CLEAR
         "adblock", "adpick" -> "rules"
         "privacy" -> SettingsDetailFragment.VIEW_V2_PRIVACY_PROTECTION
+        "doh" -> SettingsDetailFragment.VIEW_V2_NETWORK
         "dark", "nightauto" -> SettingsDetailFragment.VIEW_V2_NIGHT
         "incog" -> SettingsDetailFragment.VIEW_V2_INCOG
         "newtab" -> SettingsDetailFragment.VIEW_V2_OPERATE
@@ -5820,6 +5828,32 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 菜单隐私保护快捷开关：开 = 恢复上次等级（默认标准），关 = 等级 0。 */
+    /** 菜单 DoH 快捷开关：切换应用内 DoH，并按需刷新当前页。 */
+    private fun toggleDoh() {
+        val enable = !AppServices.settings.dohProxyEnabled()
+        AppServices.settings.setDohProxyEnabled(enable)
+        if (enable) {
+            com.sii.browser.core.dns.DohProxy.sync(requireContext())
+        } else {
+            com.sii.browser.core.dns.DohProxy.stop()
+        }
+        val proxy = com.sii.browser.core.dns.DohProxy
+        val message = when {
+            !enable -> getString(R.string.doh_toast_off)
+            proxy.status == com.sii.browser.core.dns.DohProxy.Status.RUNNING ->
+                getString(R.string.doh_toast_on)
+            proxy.status == com.sii.browser.core.dns.DohProxy.Status.UNSUPPORTED ->
+                getString(R.string.doh_toast_unsupported)
+            proxy.status == com.sii.browser.core.dns.DohProxy.Status.FAILED ->
+                getString(R.string.doh_toast_failed, proxy.lastError.orEmpty())
+            else -> getString(R.string.doh_toast_on)
+        }
+        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        if (homeContainer?.visibility != View.VISIBLE) {
+            tabManager.currentWebView?.reload()
+        }
+    }
+
     private fun togglePrivacyProtection() {
         val s = AppServices.settings
         val on = s.privacyLevel() > 0
