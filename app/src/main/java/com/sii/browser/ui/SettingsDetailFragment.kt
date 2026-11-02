@@ -1778,6 +1778,26 @@ class SettingsDetailFragment : Fragment() {
 
 
 
+    private fun confirmAllowPrivacyHost(blockedHost: String) {
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.privacy_allow_host_title)
+            .setMessage(getString(R.string.privacy_allow_host_message, blockedHost))
+            .setPositiveButton(R.string.privacy_allow_host_confirm) { _, _ ->
+                settings.setPrivacyAllowedHosts(
+                    settings.privacyAllowedHosts() + blockedHost
+                )
+                AppServices.adBlock.setPrivacyAllowedHosts(settings.privacyAllowedHosts())
+                build()
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.privacy_allow_host_toast, blockedHost),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun buildV2PrivacyProtection() {
         val level = settings.privacyLevel().coerceIn(0, 3)
         val levelNames = arrayOf("关闭", "标准", "严格", "自定义")
@@ -1802,6 +1822,20 @@ class SettingsDetailFragment : Fragment() {
             rows.add(privacyStatRow(getString(R.string.privacy_stats_empty), ""))
         }
         card(*rows.toTypedArray())
+
+        val blockedHosts = AppServices.adBlock.privacyBlockedHostStats()
+        if (blockedHosts.isNotEmpty()) {
+            sectionTitle(R.string.privacy_blocked_hosts)
+            val hostRows = mutableListOf<View>()
+            blockedHosts.forEach { (blockedHost, count) ->
+                hostRows.add(
+                    navRow(blockedHost, getString(R.string.privacy_blocked_times, count)) {
+                        confirmAllowPrivacyHost(blockedHost)
+                    }
+                )
+            }
+            card(*hostRows.toTypedArray())
+        }
 
         sectionTitle(R.string.privacy_custom)
         card(

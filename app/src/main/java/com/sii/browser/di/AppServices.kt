@@ -161,7 +161,10 @@ object AppServices {
     fun init(application: Application) {
         if (::settings.isInitialized) return
         settings = DataStoreSettings(application)
-        adBlock = AdBlockEngine().apply { enabled = settings.adBlockEnabled() }
+        adBlock = AdBlockEngine().apply {
+            enabled = settings.adBlockEnabled()
+            setPrivacyAllowedHosts(settings.privacyAllowedHosts())
+        }
         privacyManager = PrivacyManager(application)
         privacyManager.isIncognito = settings.incognitoActive()
         privacyManager.incognitoSessionStartedAt = settings.incognitoSessionStartedAt()
@@ -339,6 +342,7 @@ object AppServices {
     fun refreshAdBlockWhitelist() {
         val enabledHosts = mutableSetOf<String>()
         val disabledHosts = mutableSetOf<String>()
+        val privacyPausedHosts = mutableSetOf<String>()
         siteConfigRepository.cachedAll().forEach { (host, config) ->
             val json = com.sii.browser.data.SiteConfig.parse(config)
             if (!com.sii.browser.data.SiteConfig.enabled(json)) return@forEach
@@ -346,7 +350,11 @@ object AppServices {
                 1 -> enabledHosts.add(host)
                 2 -> disabledHosts.add(host)
             }
+            if (com.sii.browser.data.SiteConfig.tri(json, "pv") == 2) {
+                privacyPausedHosts.add(host)
+            }
         }
         adBlock.setSiteOverrides(enabledHosts, disabledHosts)
+        adBlock.setPrivacySiteOverrides(privacyPausedHosts)
     }
 }

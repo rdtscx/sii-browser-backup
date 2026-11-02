@@ -6772,6 +6772,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             entries.add(getString(R.string.site_menu_cookies) to { showCookies(url) })
             entries.add(
+                getString(if (sitePrivacyPaused(host)) R.string.site_privacy_resume
+                else R.string.site_privacy_pause) to { toggleSitePrivacyPause(host) }
+            )
+            entries.add(
                 getString(
                     if (siteSettingsEnabled(host)) R.string.site_menu_settings_enabled
                     else R.string.site_menu_settings
@@ -6794,6 +6798,38 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun siteSettingsEnabled(host: String): Boolean {
         val raw = AppServices.siteConfigRepository.cachedConfig(host) ?: return false
         return runCatching { org.json.JSONObject(raw).optBoolean("on", true) }.getOrDefault(false)
+    }
+
+    /** 站点级暂停隐私规则（不影响广告拦截）。 */
+    private fun sitePrivacyPaused(host: String): Boolean =
+        com.sii.browser.data.SiteConfig.tri(
+            com.sii.browser.data.SiteConfig.parse(
+                AppServices.siteConfigRepository.cachedConfig(host)
+            ),
+            "pv"
+        ) == 2
+
+    private fun toggleSitePrivacyPause(host: String) {
+        val repo = AppServices.siteConfigRepository
+        val json = runCatching {
+            org.json.JSONObject(repo.cachedConfig(host) ?: "{}")
+        }.getOrDefault(org.json.JSONObject())
+        val paused = json.optInt("pv", 0) == 2
+        if (paused) json.remove("pv") else json.put("pv", 2)
+        json.put("on", true)
+        val raw = json.toString()
+        // 先更新内存缓存与引擎，主线程立即生效；入库放到 IO。
+        repo.cachePut(host, raw)
+        AppServices.refreshAdBlockWhitelist()
+        tabManager.currentWebView?.reload()
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { repo.put(host, raw) }
+        }
+        Toast.makeText(
+            requireContext(),
+            if (paused) R.string.site_privacy_resumed else R.string.site_privacy_paused,
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun showSiteInfoPopup(

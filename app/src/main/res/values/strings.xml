@@ -527,6 +527,16 @@
     <string name="privacy_stats">拦截统计</string>
     <string name="privacy_stats_empty">暂无拦截记录</string>
     <string name="privacy_tracking">跟踪器</string>
+    <string name="site_privacy_pause">本站暂停隐私拦截</string>
+    <string name="site_privacy_resume">本站恢复隐私拦截</string>
+    <string name="site_privacy_paused">已暂停本站隐私拦截</string>
+    <string name="site_privacy_resumed">已恢复本站隐私拦截</string>
+    <string name="privacy_blocked_hosts">最近被拦域名</string>
+    <string name="privacy_blocked_times">%1$d 次</string>
+    <string name="privacy_allow_host_title">放行被拦域名</string>
+    <string name="privacy_allow_host_message">将 %1$s 加入隐私放行名单？该域名的隐私规则不再生效，广告规则仍然保留。</string>
+    <string name="privacy_allow_host_confirm">放行</string>
+    <string name="privacy_allow_host_toast">已放行 %1$s</string>
     <string name="privacy_social">社交跟踪器</string>
     <string name="privacy_miners">挖矿脚本</string>
     <string name="privacy_fingerprint">已知指纹脚本</string>

@@ -527,6 +527,16 @@
     <string name="privacy_stats">Blocked</string>
     <string name="privacy_stats_empty">No blocked requests yet</string>
     <string name="privacy_tracking">Trackers</string>
+    <string name="site_privacy_pause">Pause privacy blocking on this site</string>
+    <string name="site_privacy_resume">Resume privacy blocking on this site</string>
+    <string name="site_privacy_paused">Privacy blocking paused for this site</string>
+    <string name="site_privacy_resumed">Privacy blocking resumed for this site</string>
+    <string name="privacy_blocked_hosts">Recently blocked hosts</string>
+    <string name="privacy_blocked_times">%1$d times</string>
+    <string name="privacy_allow_host_title">Allow blocked host</string>
+    <string name="privacy_allow_host_message">Add %1$s to the privacy allowlist? Privacy rules no longer apply to this host; ad rules still do.</string>
+    <string name="privacy_allow_host_confirm">Allow</string>
+    <string name="privacy_allow_host_toast">Allowed %1$s</string>
     <string name="privacy_social">Social trackers</string>
     <string name="privacy_miners">Crypto miners</string>
     <string name="privacy_fingerprint">Known fingerprinters</string>

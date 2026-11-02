@@ -527,6 +527,16 @@
     <string name="privacy_stats">ブロック統計</string>
     <string name="privacy_stats_empty">ブロックの記録はありません</string>
     <string name="privacy_tracking">トラッカー</string>
+    <string name="site_privacy_pause">このサイトでプライバシー保護を一時停止</string>
+    <string name="site_privacy_resume">このサイトでプライバシー保護を再開</string>
+    <string name="site_privacy_paused">このサイトのプライバシー保護を一時停止しました</string>
+    <string name="site_privacy_resumed">このサイトのプライバシー保護を再開しました</string>
+    <string name="privacy_blocked_hosts">最近ブロックされたホスト</string>
+    <string name="privacy_blocked_times">%1$d 回</string>
+    <string name="privacy_allow_host_title">ブロックされたホストを許可</string>
+    <string name="privacy_allow_host_message">%1$s をプライバシー許可リストに追加しますか？このホストにはプライバシールールを適用しません（広告ルールは有効のまま）。</string>
+    <string name="privacy_allow_host_confirm">許可</string>
+    <string name="privacy_allow_host_toast">%1$s を許可しました</string>
     <string name="privacy_social">ソーシャルトラッカー</string>
     <string name="privacy_miners">マイニングスクリプト</string>
     <string name="privacy_fingerprint">既知のフィンガープリントスクリプト</string>

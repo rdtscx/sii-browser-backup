@@ -527,6 +527,16 @@
     <string name="privacy_stats">攔截統計</string>
     <string name="privacy_stats_empty">暫無攔截記錄</string>
     <string name="privacy_tracking">跟蹤器</string>
+    <string name="site_privacy_pause">本站暫停隱私攔截</string>
+    <string name="site_privacy_resume">本站恢復隱私攔截</string>
+    <string name="site_privacy_paused">已暫停本站隱私攔截</string>
+    <string name="site_privacy_resumed">已恢復本站隱私攔截</string>
+    <string name="privacy_blocked_hosts">最近被封鎖網域</string>
+    <string name="privacy_blocked_times">%1$d 次</string>
+    <string name="privacy_allow_host_title">放行被封鎖網域</string>
+    <string name="privacy_allow_host_message">將 %1$s 加入隱私放行名單？該網域的隱私規則不再生效，廣告規則仍保留。</string>
+    <string name="privacy_allow_host_confirm">放行</string>
+    <string name="privacy_allow_host_toast">已放行 %1$s</string>
     <string name="privacy_social">社交跟蹤器</string>
     <string name="privacy_miners">挖礦指令碼</string>
     <string name="privacy_fingerprint">已知指紋指令碼</string>
