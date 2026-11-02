@@ -241,6 +241,12 @@
     <string name="menu_passwords">密码库</string>
     <string name="settings_password_enabled">保存密码</string>
     <string name="settings_password_autofill">自动填充密码</string>
+    <string name="settings_password_fill_mode">填充方式</string>
+    <string name="pwd_fill_mode_prompt">询问后填充</string>
+    <string name="pwd_fill_mode_off">不填充</string>
+    <string name="pwd_fill_bar_title">填充此页密码？</string>
+    <string name="pwd_fill_action">填充</string>
+    <string name="pwd_fill_choose">选择账号</string>
     <string name="pwd_empty">还没有保存的密码</string>
     <string name="pwd_failed">无法解密（密钥可能已失效）</string>
     <string name="pwd_filled">已填充到当前页面</string>

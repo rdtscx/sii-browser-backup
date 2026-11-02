@@ -141,6 +141,12 @@ object AppServices {
     /** 密码库列表点击 → 填充到当前页面（由 BrowserFragment 注册）。 */
     var fillPassword: ((String, String) -> Unit)? = null
 
+    /** 当前标签页域名（密码库判断能否填充到本页）。 */
+    var currentPageHost: (() -> String?)? = null
+
+    /** 书签页上次停留的文件夹；进程内记忆，重新打开书签时直接进入。 */
+    var bookmarkFolderId: String? = null
+
     /** 当前激活的 WebView（资源嗅探列表据此读取对应标签的资源）。 */
     var sniffTarget: com.sii.browser.core.webview.SiiWebView? = null
 

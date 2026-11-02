@@ -1305,6 +1305,11 @@ interface WebPageSettings {
 
     fun setPasswordBiometric(value: Boolean)
 
+    /** 密码填充方式：0=询问后填充，1=自动填充，2=不填充。 */
+    fun passwordFillMode(): Int
+
+    fun setPasswordFillMode(value: Int)
+
     /** 工具栏位置：0=底部，1=顶部，2=隐藏。 */
     fun toolbarPosition(): Int
 

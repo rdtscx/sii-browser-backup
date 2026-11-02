@@ -159,6 +159,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressEditing = false
     private val passwordBridges =
         java.util.WeakHashMap<SiiWebView, com.sii.browser.core.webview.PasswordJsBridge>()
+    /** 询问填充浮条：当前标签页每个 URL 只提示一次。 */
+    private var fillBar: View? = null
+    private var fillBarDismiss: Runnable? = null
+    private val fillPromptedUrl = java.util.WeakHashMap<SiiWebView, String>()
     private val gmBridges =
         java.util.WeakHashMap<SiiWebView, GmApiBridge>()
     /** 每个标签最近一次识别到的网站主题色（空值 = 无主题色）。 */
@@ -1577,9 +1581,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun openBookmarks() {
+        val remembered = AppServices.bookmarkFolderId
         NavAnim.apply(parentFragmentManager.beginTransaction())
-            .replace(R.id.shell_root, BookmarkFragment())
-            .addToBackStack(null)
+            .replace(
+                R.id.shell_root,
+                BookmarkFragment().apply { arguments = BookmarkFragment.args(remembered) }
+            )
+            .addToBackStack(BookmarkFragment.BACK_STACK)
             .commit()
     }
 
@@ -7391,8 +7399,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 adPickBridges[this] = bridge
             }
             com.sii.browser.core.webview.PasswordJsBridge().also { bridge ->
+                val pwdWebView = this
                 bridge.onOfferSave = { host, username, password ->
                     offerSavePassword(host, username, password)
+                }
+                bridge.onLoginForm = { host ->
+                    view?.post { maybeOfferFill(pwdWebView, host) }
                 }
                 registerJsBridge("SiiPwd", bridge)
                 passwordBridges[this] = bridge
@@ -7853,6 +7865,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bridge.host = ""
                 bridge.pageUrl = ""
             }
+            dismissFillBar()
             adPickBridges[webView]?.let { bridge ->
                 bridge.active = false
                 bridge.host = ""
@@ -9246,6 +9259,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 com.sii.browser.core.webview.PasswordJsBridge.fillJs(username, password)
             )
         }
+        AppServices.currentPageHost = {
+            val url = tabManager.current?.url.orEmpty()
+            runCatching { android.net.Uri.parse(url).host?.lowercase() }.getOrNull()
+        }
         AppServices.openUrl = { url ->
             // tabManager 与 WebView 绑定在 Fragment 实例上，view 销毁期间也直接加载，
             // 视图重建后 showWeb 会重新挂载。
@@ -9527,7 +9544,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         updateSiteInfoIcon()
     }
 
-    /** 密码库：记录域名、注入提交监听，并按设置尝试自动填充。 */
+    /** 密码库：记录域名、注入提交监控，并按填充方式自动填充。 */
     private fun applyPasswordFeatures(webView: SiiWebView, url: String) {
         if (!AppServices.settings.passwordEnabled()) return
         if (AppServices.privacyManager.isIncognito) return
@@ -9537,7 +9554,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             bridge.host = host
         }
         webView.injectJavaScript(com.sii.browser.core.webview.PasswordJsBridge.DETECT_JS)
-        if (!AppServices.settings.passwordAutofill()) return
+        if (AppServices.settings.passwordFillMode() != 1) return
         lifecycleScope.launch {
             val list = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 AppServices.passwordRepository.byHost(host)
@@ -9547,6 +9564,149 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             webView.injectJavaScript(
                 com.sii.browser.core.webview.PasswordJsBridge.fillJs(first.username, plain)
             )
+        }
+    }
+
+    /** 询问模式：页面出现登录表单时，底部浮条问是否填充。 */
+    private fun maybeOfferFill(webView: SiiWebView, host: String) {
+        if (!isAdded || view == null) return
+        if (webView !== tabManager.currentWebView) return
+        if (AppServices.settings.passwordFillMode() != 0) return
+        if (AppServices.privacyManager.isIncognito) return
+        val url = webView.url.orEmpty()
+        if (!url.startsWith("https://")) return
+        if (fillPromptedUrl[webView] == url) return
+        fillPromptedUrl[webView] = url
+        viewLifecycleOwner.lifecycleScope.launch {
+            val items = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AppServices.passwordRepository.byHost(host.lowercase())
+            }
+            if (items.isEmpty() || !isAdded || view == null) return@launch
+            showFillBar(webView, host, items)
+        }
+    }
+
+    private fun showFillBar(
+        webView: SiiWebView,
+        host: String,
+        items: List<com.sii.browser.data.db.PasswordItem>
+    ) {
+        val root = view as? FrameLayout ?: return
+        if (fillBar != null) return
+        val context = requireContext()
+        val dark = AppServices.settings.isNightMode()
+        val bar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(10), dp(6), dp(10))
+            background = GlassStyle.surface(
+                context, dark, dp(22).toFloat(),
+                AppServices.settings.glassStrength(), minAlpha = 92,
+                highlight = 0f
+            )
+            elevation = dp(8).toFloat()
+            alpha = 0f
+            translationY = dp(14).toFloat()
+        }
+        val column = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            )
+        }
+        column.addView(TextView(context).apply {
+            text = getString(R.string.pwd_fill_bar_title)
+            setTextSize(13f)
+            setTextColor(
+                if (dark) android.graphics.Color.WHITE
+                else context.getColor(R.color.text_primary)
+            )
+        })
+        column.addView(TextView(context).apply {
+            text = "$host · ${items.first().username.ifEmpty { "-" }}"
+            setTextSize(11.5f)
+            setTextColor(
+                if (dark) 0x99FFFFFF.toInt()
+                else context.getColor(R.color.text_secondary)
+            )
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        bar.addView(column)
+        bar.addView(TextView(context).apply {
+            text = getString(R.string.pwd_fill_action)
+            setTextSize(13f)
+            setTextColor(ThemeAccent.color(context))
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setOnClickListener {
+                dismissFillBar()
+                chooseFillAccount(webView, items)
+            }
+        })
+        bar.addView(TextView(context).apply {
+            text = "×"
+            setTextSize(18f)
+            setTextColor(
+                if (dark) 0x99FFFFFF.toInt()
+                else context.getColor(R.color.text_secondary)
+            )
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setOnClickListener { dismissFillBar() }
+        })
+        val autoDismiss = Runnable { dismissFillBar() }
+        fillBar = bar
+        fillBarDismiss = autoDismiss
+        root.addView(
+            bar,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM
+            ).apply {
+                marginStart = dp(12)
+                marginEnd = dp(12)
+                bottomMargin = dp(96)
+            }
+        )
+        bar.animate().alpha(1f).translationY(0f).setDuration(180).start()
+        bar.postDelayed(autoDismiss, 10000)
+    }
+
+    private fun dismissFillBar() {
+        val bar = fillBar ?: return
+        fillBar = null
+        fillBarDismiss?.let { bar.removeCallbacks(it) }
+        fillBarDismiss = null
+        (bar.parent as? ViewGroup)?.removeView(bar)
+    }
+
+    private fun chooseFillAccount(
+        webView: SiiWebView,
+        items: List<com.sii.browser.data.db.PasswordItem>
+    ) {
+        if (items.size == 1) {
+            fillPasswordInto(webView, items.first())
+            return
+        }
+        val labels = items.map { it.username.ifEmpty { "-" } }.toTypedArray()
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.pwd_fill_choose)
+            .setItems(labels) { _, which -> fillPasswordInto(webView, items[which]) }
+            .show()
+    }
+
+    private fun fillPasswordInto(
+        webView: SiiWebView,
+        item: com.sii.browser.data.db.PasswordItem
+    ) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val plain = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AppServices.passwordRepository.decrypt(item)
+            } ?: return@launch
+            webView.injectJavaScript(
+                com.sii.browser.core.webview.PasswordJsBridge.fillJs(item.username, plain)
+            )
+            Toast.makeText(requireContext(), R.string.pwd_filled, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -10524,6 +10684,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         restoreAutoDismiss = null
         restorePromptBar = null
+        dismissFillBar()
         view?.removeCallbacks(applyScrollDirection)
         MenuPopup.dismiss()
         // 建议弹层是独立 PopupWindow，必须在这里强制关掉，否则会漂到其他页面。
@@ -10601,6 +10762,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         AppServices.reapplySiteSettings = null
         AppServices.applyLayout = null
         AppServices.fillPassword = null
+        AppServices.currentPageHost = null
         AppServices.trimThumbnails = null
         AppServices.sniffTarget = null
         AppServices.uiActions = null

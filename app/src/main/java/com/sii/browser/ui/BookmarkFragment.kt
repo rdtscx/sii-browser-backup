@@ -23,6 +23,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.sii.browser.R
 import com.sii.browser.data.SiteIconCache
@@ -58,7 +59,13 @@ class BookmarkFragment : Fragment() {
     private val selectedIds = mutableSetOf<String>()
 
     private val folderId: String? get() = arguments?.getString(ARG_FOLDER)
+    private var observeJob: kotlinx.coroutines.Job? = null
     private val repository get() = AppServices.bookmarkRepository
+
+    override fun onResume() {
+        super.onResume()
+        if (folderId == null) AppServices.bookmarkFolderId = null
+    }
 
     override fun onDestroyView() {
         if (::listContainer.isInitialized) listContainer.removeAllViews()
@@ -75,7 +82,13 @@ class BookmarkFragment : Fragment() {
 
         addView(
             PageHeader.build(requireContext(), getString(R.string.menu_bookmarks), onBack = {
-                parentFragmentManager.popBackStack()
+                if (editMode) {
+                    editMode = false
+                    selectedIds.clear()
+                    render()
+                } else {
+                    closePage()
+                }
             }, onMenu = { anchor -> showMenu(anchor) })
         )
         addView(View(requireContext()).apply {
@@ -104,7 +117,20 @@ class BookmarkFragment : Fragment() {
         sortMode = AppServices.settings.bookmarkSort()
         sizeMode = AppServices.settings.bookmarkSize()
         iconMode = AppServices.settings.bookmarkIcon()
+        startObserve()
+        val folder = folderId ?: return
         viewLifecycleOwner.lifecycleScope.launch {
+            val exists = repository.findFolderById(folder) != null
+            if (!exists && isAdded) {
+                arguments?.remove(ARG_FOLDER)
+                startObserve()
+            }
+        }
+    }
+
+    private fun startObserve() {
+        observeJob?.cancel()
+        observeJob = viewLifecycleOwner.lifecycleScope.launch {
             combine(
                 repository.itemsInFolder(folderId),
                 repository.childFolders(folderId),
@@ -117,6 +143,15 @@ class BookmarkFragment : Fragment() {
                 folderCounts = fcounts
                 render()
             }.collect { }
+        }
+    }
+
+    /** 页头返回：一次关掉整个书签页，回到打开前的网站或主页。 */
+    private fun closePage() {
+        if (folderId == null) AppServices.bookmarkFolderId = null
+        val fm = parentFragmentManager
+        if (!fm.popBackStackImmediate(BACK_STACK, FragmentManager.POP_BACK_STACK_INCLUSIVE)) {
+            fm.popBackStack()
         }
     }
 
@@ -219,6 +254,7 @@ class BookmarkFragment : Fragment() {
             if (editMode) {
                 toggleSelection(folder.id)
             } else {
+                AppServices.bookmarkFolderId = folder.id
                 NavAnim.apply(parentFragmentManager.beginTransaction())
                     .replace(R.id.shell_root, BookmarkFragment().apply {
                         arguments = bundleOf(ARG_FOLDER to folder.id)
@@ -879,7 +915,12 @@ class BookmarkFragment : Fragment() {
         (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        /** 书签页在回退栈里的统一标记，页头返回按它整体关闭。 */
+        const val BACK_STACK = "bookmarks"
         private const val ARG_FOLDER = "folder_id"
+
+        fun args(folderId: String?): Bundle? =
+            folderId?.let { bundleOf(ARG_FOLDER to it) }
         private val COLORS = intArrayOf(
             0xFF2F7CF6.toInt(), 0xFF34C28F.toInt(), 0xFFF2984A.toInt(), 0xFF8A6FF0.toInt(),
             0xFFE5537A.toInt(), 0xFF3AB3C9.toInt(), 0xFFC9A23A.toInt(), 0xFF6D7F95.toInt()

@@ -1917,17 +1917,40 @@ class SettingsDetailFragment : Fragment() {
                 settings.setPasswordEnabled(it)
                 build()
             },
-            switchRow(
-                getString(R.string.settings_password_autofill),
-                settings.passwordAutofill(),
+            navRow(
+                getString(R.string.settings_password_fill_mode),
+                getString(
+                    when (settings.passwordFillMode()) {
+                        1 -> R.string.settings_password_autofill
+                        2 -> R.string.pwd_fill_mode_off
+                        else -> R.string.pwd_fill_mode_prompt
+                    }
+                ),
                 enabled = enabled
-            ) { settings.setPasswordAutofill(it) },
+            ) { showPasswordFillModeDialog() },
             switchRow(
                 getString(R.string.settings_pwd_biometric),
                 settings.passwordBiometric(),
                 enabled = enabled
             ) { settings.setPasswordBiometric(it) }
         )
+    }
+
+    private fun showPasswordFillModeDialog() {
+        val modes = arrayOf(
+            getString(R.string.pwd_fill_mode_prompt),
+            getString(R.string.settings_password_autofill),
+            getString(R.string.pwd_fill_mode_off)
+        )
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_password_fill_mode)
+            .setSingleChoiceItems(modes, settings.passwordFillMode()) { dialog, which ->
+                settings.setPasswordFillMode(which)
+                settings.setPasswordAutofill(which == 1)
+                dialog.dismiss()
+                build()
+            }
+            .show()
     }
 
     private fun buildV2Clear() {

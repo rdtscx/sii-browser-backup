@@ -218,6 +218,12 @@
     <string name="menu_passwords">Password vault</string>
     <string name="settings_password_enabled">Save passwords</string>
     <string name="settings_password_autofill">Autofill passwords</string>
+    <string name="settings_password_fill_mode">Fill mode</string>
+    <string name="pwd_fill_mode_prompt">Ask before filling</string>
+    <string name="pwd_fill_mode_off">Never fill</string>
+    <string name="pwd_fill_bar_title">Fill this password?</string>
+    <string name="pwd_fill_action">Fill</string>
+    <string name="pwd_fill_choose">Choose account</string>
     <string name="pwd_empty">No saved passwords</string>
     <string name="pwd_failed">Unable to decrypt (key may be invalid)</string>
     <string name="pwd_filled">Filled into the current page</string>

@@ -23,6 +23,9 @@ class PasswordJsBridge {
     /** 收到提交的账号密码（主线程回调）。 */
     var onOfferSave: ((host: String, username: String, password: String) -> Unit)? = null
 
+    /** 页面出现登录表单（主线程回调，每次页面只报一次）。 */
+    var onLoginForm: ((host: String) -> Unit)? = null
+
     @JavascriptInterface
     fun offerSave(username: String, password: String) {
         if (!AppServices.settings.passwordEnabled() || AppServices.privacyManager.isIncognito) return
@@ -31,6 +34,17 @@ class PasswordJsBridge {
         val currentHost = host
         Handler(Looper.getMainLooper()).post {
             onOfferSave?.invoke(currentHost, username, password)
+        }
+    }
+
+    @JavascriptInterface
+    fun reportLoginForm() {
+        if (!AppServices.settings.passwordEnabled() || AppServices.privacyManager.isIncognito) return
+        if (!pageUrl.startsWith("https://")) return
+        if (host.isBlank()) return
+        val currentHost = host
+        Handler(Looper.getMainLooper()).post {
+            onLoginForm?.invoke(currentHost)
         }
     }
 
@@ -50,6 +64,13 @@ class PasswordJsBridge {
             "document.addEventListener('click',function(ev){var t=ev.target;" +
             "try{if(t&&(t.type==='submit'||t.tagName==='BUTTON'||t.getAttribute&&t.getAttribute('type')==='submit'))" +
             "setTimeout(report,600);}catch(e){}},true);" +
+            "var formReported=false;" +
+            "function probeLoginForm(){if(formReported)return;try{" +
+            "if(document.querySelector('input[type=password]')&&window.SiiPwd){" +
+            "formReported=true;window.SiiPwd.reportLoginForm();}}catch(e){}}" +
+            "probeLoginForm();" +
+            "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',probeLoginForm);" +
+            "try{new MutationObserver(probeLoginForm).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}" +
             "})();"
 
         /** 生成填充脚本：填用户名与密码并派发 input 事件（触发站点 JS 校验）。 */

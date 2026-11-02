@@ -57,6 +57,7 @@ object SettingsKeys {
     const val AUTO_EXPAND = "autoexpand"
     const val PASSWORD_ENABLED = "pwd"
     const val PASSWORD_AUTOFILL = "pwdautofill"
+    const val PASSWORD_FILL_MODE = "pwdfillmode"
     const val PASSWORD_IGNORED = "pwdignored"
     const val HOME_BACKGROUND = "homebg"
     const val CUSTOM_CSS = "customcss"

@@ -1608,6 +1608,14 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setPasswordBiometric(value: Boolean) =
         putBool(SettingsKeys.PASSWORD_BIOMETRIC, value)
 
+    override fun passwordFillMode(): Int {
+        val raw = int(SettingsKeys.PASSWORD_FILL_MODE, SettingsDefaults.PASSWORD_FILL_MODE)
+        return if (raw >= 0) raw else if (passwordAutofill()) 1 else 0
+    }
+
+    override fun setPasswordFillMode(value: Int) =
+        putInt(SettingsKeys.PASSWORD_FILL_MODE, value)
+
     override fun toolbarPosition(): Int = int(SettingsKeys.TOOLBAR_POS, 0)
 
     override fun setToolbarPosition(value: Int) = putInt(SettingsKeys.TOOLBAR_POS, value)

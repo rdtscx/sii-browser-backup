@@ -60,6 +60,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("无痕", "隐私与安全", "incognito"),
         SearchEntry("隐私保护", "隐私与安全", "privacy"),
         SearchEntry("密码库", "隐私与安全", "password"),
+        SearchEntry("填充方式", "隐私与安全", "密码 自动填充 提示 询问 password autofill fill"),
         SearchEntry("清除数据", "隐私与安全", "clear data"),
         SearchEntry("浏览器标识", "高级", "UA user agent"),
         SearchEntry("网络", "高级", "network"),
