@@ -20,6 +20,10 @@ object DohProxy {
     var status: Status = Status.OFF
         private set
 
+    @Volatile
+    var lastError: String? = null
+        private set
+
     private var proxy: LocalHttpProxy? = null
     private val executor = Executor { it.run() }
 
@@ -45,6 +49,7 @@ object DohProxy {
         val started = LocalHttpProxy { AppServices.settings.dohProvider() }
         if (!started.start()) {
             status = Status.FAILED
+            lastError = "proxy start failed"
             return
         }
         proxy = started
@@ -66,21 +71,29 @@ object DohProxy {
             }
         }
         status = Status.OFF
+        lastError = null
     }
 
     private fun applyOverride(port: Int) {
         runCatching {
             val config = ProxyConfig.Builder()
-                .addProxyRule("127.0.0.1:$port")
+                .addProxyRule("http://127.0.0.1:$port")
                 .addBypassRule("<local>")
                 .build()
             ProxyController.getInstance().setProxyOverride(
                 config,
                 executor,
-                Runnable { status = Status.RUNNING }
+                Runnable {
+                    status = Status.RUNNING
+                    lastError = null
+                }
             )
+            // 回调可能晚于页面重建，先乐观标记，避免设置页一直停在「等待生效」。
+            status = Status.RUNNING
+            lastError = null
         }.onFailure {
             status = Status.FAILED
+            lastError = it.message ?: it.javaClass.simpleName
             proxy?.stop()
             proxy = null
         }

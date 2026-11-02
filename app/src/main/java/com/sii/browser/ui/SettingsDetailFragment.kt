@@ -2119,6 +2119,7 @@ class SettingsDetailFragment : Fragment() {
                     com.sii.browser.core.dns.DohProxy.stop()
                 }
                 build()
+                view?.postDelayed({ if (isAdded) build() }, 600)
             },
             choiceRow(
                 getString(R.string.settings_doh_provider),
@@ -2148,7 +2149,8 @@ class SettingsDetailFragment : Fragment() {
             proxy.status == com.sii.browser.core.dns.DohProxy.Status.RUNNING ->
                 getString(R.string.settings_doh_status_running)
             proxy.status == com.sii.browser.core.dns.DohProxy.Status.FAILED ->
-                getString(R.string.settings_doh_status_failed)
+                getString(R.string.settings_doh_status_failed) +
+                    (proxy.lastError?.let { "：$it" } ?: "")
             else -> getString(R.string.settings_doh_status_pending)
         }
     }
