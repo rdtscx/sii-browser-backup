@@ -1321,9 +1321,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 密码库列表。 */
-    private fun openPasswords() {        NavAnim.apply(parentFragmentManager.beginTransaction())
+    private fun openPasswords() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, PasswordFragment())
-            .addToBackStack(null)
+            .addToBackStack(PasswordFragment.BACK_STACK)
             .commit()
     }
 
@@ -4083,44 +4084,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             headers["Save-Data"] = "on"
         }
         return headers
-    }
-
-    /** 内建 about:bookmarks 页：WebView 渲染，页面由 Sii 自写。 */
-    private fun openBookmarksPage() {
-        if (tabManager.current == null) tabManager.newTab(ABOUT_BOOKMARKS)
-        showWeb()
-        setAddressText(ABOUT_BOOKMARKS)
-        viewLifecycleOwner.lifecycleScope.launch {
-            val items = AppServices.bookmarkRepository.itemsInFolder(null).first()
-            tabManager.currentWebView?.loadDataWithBaseURL(
-                null, bookmarksHtml(items), "text/html", "utf-8", null
-            )
-        }
-    }
-
-    private fun bookmarksHtml(items: List<com.sii.browser.data.db.BookmarkItem>): String {
-        fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace("\"", "&quot;")
-        val rows = if (items.isEmpty()) {
-            "<p class=\"empty\">还没有书签</p>"
-        } else {
-            items.joinToString("") { item ->
-                "<a class=\"item\" href=\"${esc(item.url)}\">" +
-                    "<b>${esc(item.title.ifEmpty { item.url })}</b>" +
-                    "<span>${esc(item.url)}</span></a>"
-            }
-        }
-        return "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">" +
-            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">" +
-            "<title>书签</title><style>" +
-            "body{margin:0;background:#f6f7f9;font-family:-apple-system,system-ui,sans-serif;padding:12px}" +
-            "h2{font-size:16px;margin:8px 4px 14px}" +
-            ".item{display:block;background:#fff;border:1px solid #ececf0;border-radius:14px;" +
-            "padding:12px 14px;margin-bottom:8px;text-decoration:none;color:#1a1a1e}" +
-            ".item b{display:block;font-size:14px;font-weight:500}" +
-            ".item span{display:block;font-size:11px;color:#8a8f99;margin-top:2px;" +
-            "overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-            ".empty{color:#8a8f99;font-size:13px;text-align:center;padding:24px}" +
-            "</style></head><body><h2>书签</h2>$rows</body></html>"
     }
 
     /** 内建 about:links 页（常用网站列表，WebView 渲染自写 HTML）。 */
@@ -7866,6 +7829,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bridge.pageUrl = ""
             }
             dismissFillBar()
+            webView?.let { fillPromptedUrl.remove(it) }
             adPickBridges[webView]?.let { bridge ->
                 bridge.active = false
                 bridge.host = ""
@@ -9200,6 +9164,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onResume() {
         super.onResume()
+        // 回到浏览器即结束密码库本次解锁，下次打开重新验证。
+        AppServices.passwordUnlockedAt = 0L
         (activity as? ShellActivity)?.refreshDialogTheme()
         applyKeepScreenOn()
         applyIncognitoBadge()

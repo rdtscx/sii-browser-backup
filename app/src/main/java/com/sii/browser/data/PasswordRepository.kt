@@ -41,6 +41,23 @@ class PasswordRepository(private val dao: PasswordDao) {
 
     suspend fun delete(id: Long) = dao.delete(id)
 
+    suspend fun byId(id: Long): PasswordItem? = dao.byId(id)
+
+    /** 修改条目：站点或用户名变化时用新的 AAD 重新加密。 */
+    suspend fun update(item: PasswordItem, host: String, username: String, password: String): Boolean {
+        val normalizedHost = host.lowercase()
+        val cipher = PasswordCrypto.encrypt(password, "$normalizedHost|$username") ?: return false
+        dao.update(
+            item.copy(
+                host = normalizedHost,
+                username = username,
+                cipher = cipher,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        return true
+    }
+
     suspend fun clearAll() = dao.clearAll()
 
     /** 解密条目密码（失败返回 null，例如密钥丢失）。 */

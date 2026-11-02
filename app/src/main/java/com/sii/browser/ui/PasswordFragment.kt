@@ -2,27 +2,40 @@
 // Copyright (c) 2026 wanwuwww
 package com.sii.browser.ui
 
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import com.sii.browser.R
+import com.sii.browser.data.SiteIconCache
 import com.sii.browser.data.db.PasswordItem
 import com.sii.browser.di.AppServices
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * 密码库列表：按域名/用户名展示，点击填充到当前页面，长按查看/删除。
+ * 密码库列表：按站点分组展示，点击进入详情/编辑，长按快捷操作。
  */
 class PasswordFragment : Fragment() {
 
@@ -30,6 +43,9 @@ class PasswordFragment : Fragment() {
     private var items: List<PasswordItem> = emptyList()
     private var query: String = ""
     private var unlocked = false
+    private var loaded = false
+    private var authInFlight = false
+    private var lockHint = 0
 
     private val csvImportLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -44,21 +60,40 @@ class PasswordFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = LinearLayout(requireContext()).apply {
-        orientation = LinearLayout.VERTICAL
-        setBackgroundColor(requireContext().getColor(R.color.bg))
-        addView(PageHeader.build(
-            requireContext(),
-            getString(R.string.menu_passwords),
-            onBack = { parentFragmentManager.popBackStack() },
-            onMenu = { showCsvMenu() }
-        ))
-        addView(View(requireContext()).apply {
+    ): View {
+        val context = requireContext()
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(context.getColor(R.color.bg))
+        }
+        root.addView(
+            PageHeader.build(
+                context,
+                getString(R.string.menu_passwords),
+                onBack = { closePage() },
+                onMenu = { showMenu() },
+                actionLabel = "＋",
+                onAction = { openDetail(0L) }
+            )
+        )
+        root.addView(View(context).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
-            setBackgroundColor(requireContext().getColor(R.color.divider))
+            setBackgroundColor(context.getColor(R.color.divider))
         })
-        addView(android.widget.EditText(requireContext()).apply {
+        root.addView(EditText(context).apply {
             hint = getString(R.string.search_hint)
+            background = ContextCompat.getDrawable(context, R.drawable.bg_search_box)
+            setPadding(dp(14), 0, dp(14), 0)
+            setTextSize(14f)
+            isSingleLine = true
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)
+            ).apply {
+                marginStart = dp(12)
+                marginEnd = dp(12)
+                topMargin = dp(8)
+                bottomMargin = dp(4)
+            }
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -68,25 +103,38 @@ class PasswordFragment : Fragment() {
                 }
             })
         })
-        val content = LinearLayout(requireContext()).apply {
+        val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(4), dp(12), dp(8))
+            setPadding(0, dp(4), 0, dp(12))
         }
-        addView(CardList.scroll(requireContext(), content), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(
+            CardList.scroll(context, content),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
         this@PasswordFragment.container = content
+        return root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (AppServices.settings.passwordBiometric()) {
-            requireUnlock()
-        } else {
+        if (!AppServices.settings.passwordBiometric()) {
             unlocked = true
             load()
+            return
         }
+        val unlockedAt = AppServices.passwordUnlockedAt
+        if (unlockedAt > 0 && System.currentTimeMillis() - unlockedAt < UNLOCK_WINDOW_MS) {
+            unlocked = true
+            load()
+            return
+        }
+        render()
+        view.post { if (isAdded && view != null) requestUnlock() }
     }
 
     private fun load() {
+        if (loaded) return
+        loaded = true
         viewLifecycleOwner.lifecycleScope.launch {
             AppServices.passwordRepository.all().collect { list ->
                 items = list
@@ -95,50 +143,299 @@ class PasswordFragment : Fragment() {
         }
     }
 
-    /** 指纹/面容或锁屏密码验证后才展示列表。 */
-    private fun requireUnlock() {
-        val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
-            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        val can = androidx.biometric.BiometricManager.from(requireContext())
-            .canAuthenticate(authenticators)
-        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
-            unlocked = true
-            load()
+    /** 指纹/面容或锁屏密码验证后才展示列表；失败停在锁定态，可重试。 */
+    private fun requestUnlock() {
+        if (!isAdded || view == null || authInFlight) return
+        val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        val canAuthenticate = runCatching {
+            BiometricManager.from(requireContext()).canAuthenticate(authenticators)
+        }.getOrDefault(BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED)
+        if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
+            lockHint = R.string.pwd_lock_unavailable
+            render()
             return
         }
-        val prompt = androidx.biometric.BiometricPrompt(
-            requireActivity(),
-            androidx.core.content.ContextCompat.getMainExecutor(requireContext()),
-            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(
-                    result: androidx.biometric.BiometricPrompt.AuthenticationResult
-                ) {
-                    unlocked = true
-                    load()
-                }
-
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    if (isAdded) parentFragmentManager.popBackStack()
-                }
+        val callback = object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(
+                result: BiometricPrompt.AuthenticationResult
+            ) {
+                authInFlight = false
+                if (!isAdded || view == null) return
+                unlocked = true
+                lockHint = 0
+                AppServices.passwordUnlockedAt = System.currentTimeMillis()
+                render()
+                load()
             }
-        )
-        prompt.authenticate(
-            androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                authInFlight = false
+                if (!isAdded || view == null) return
+                render()
+            }
+        }
+        val prompt = runCatching {
+            BiometricPrompt(
+                requireActivity(),
+                ContextCompat.getMainExecutor(requireContext()),
+                callback
+            )
+        }.getOrNull()
+        if (prompt == null) {
+            lockHint = R.string.pwd_lock_unavailable
+            render()
+            return
+        }
+        val info = runCatching {
+            BiometricPrompt.PromptInfo.Builder()
                 .setTitle(getString(R.string.pwd_lock_title))
                 .setAllowedAuthenticators(authenticators)
                 .build()
-        )
+        }.getOrNull()
+        if (info == null || runCatching { prompt.authenticate(info) }.isFailure) {
+            authInFlight = false
+            lockHint = R.string.pwd_lock_unavailable
+            render()
+            return
+        }
+        authInFlight = true
     }
 
-    private fun showCsvMenu() {
-        val items = arrayOf(
-            getString(R.string.pwd_export_csv),
-            getString(R.string.pwd_import_csv)
+    private fun render() {
+        if (!::container.isInitialized) return
+        container.removeAllViews()
+        if (!unlocked) {
+            renderLock()
+            return
+        }
+        val context = requireContext()
+        val filtered = if (query.isBlank()) {
+            items
+        } else {
+            items.filter {
+                it.host.contains(query, true) || it.username.contains(query, true)
+            }
+        }
+        if (filtered.isEmpty()) {
+            container.addView(TextView(context).apply {
+                text = getString(if (items.isEmpty()) R.string.pwd_empty else R.string.search_no_match)
+                setTextSize(13f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(60), dp(8), dp(8))
+            })
+            return
+        }
+        filtered.groupBy { it.host }.toSortedMap().forEach { (host, group) ->
+            container.addView(
+                CardList.sectionTitle(
+                    context,
+                    getString(R.string.pwd_group_title, host, group.size)
+                )
+            )
+            val card = CardList.pageCard(context)
+            CardList.addRows(card, group.sortedByDescending { it.updatedAt }.map { row(it) })
+            container.addView(card)
+        }
+    }
+
+    private fun renderLock() {
+        val context = requireContext()
+        val wrap = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(44), dp(24), dp(16))
+        }
+        wrap.addView(TextView(context).apply {
+            text = getString(R.string.pwd_locked)
+            setTextSize(13.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            gravity = Gravity.CENTER
+        })
+        if (lockHint != 0) {
+            wrap.addView(TextView(context).apply {
+                text = getString(lockHint)
+                setTextSize(12f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                gravity = Gravity.CENTER
+                setPadding(0, dp(8), 0, 0)
+            })
+        }
+        wrap.addView(TextView(context).apply {
+            text = getString(R.string.pwd_unlock_action)
+            setTextSize(14f)
+            setTextColor(ThemeAccent.color(context))
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            setOnClickListener { requestUnlock() }
+        })
+        container.addView(wrap)
+    }
+
+    private fun row(item: PasswordItem): View {
+        val context = requireContext()
+        return CardList.row(context).apply {
+            addView(siteAvatar(item.host))
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                )
+                addView(TextView(context).apply {
+                    text = item.username.ifEmpty { "-" }
+                    setTextSize(14.5f)
+                    setTextColor(context.getColor(R.color.text_primary))
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+                addView(TextView(context).apply {
+                    text = getString(R.string.pwd_updated, timeLabel(item.updatedAt))
+                    setTextSize(11.5f)
+                    setTextColor(context.getColor(R.color.text_secondary))
+                    setPadding(0, dp(2), 0, 0)
+                })
+            })
+            addView(TextView(context).apply {
+                text = "›"
+                setTextSize(18f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(dp(8), 0, 0, 0)
+            })
+            setOnClickListener { openDetail(item.id) }
+            setOnLongClickListener {
+                showItemMenu(item)
+                true
+            }
+        }
+    }
+
+    private fun siteAvatar(host: String): View {
+        val context = requireContext()
+        val size = dp(34)
+        val holder = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(12) }
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(10).toFloat()
+                setColor(colorOf(host))
+            }
+            clipToOutline = true
+            tag = host
+        }
+        holder.addView(TextView(context).apply {
+            text = host.take(1).uppercase()
+            setTextSize(15f)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        })
+        val cached = SiteIconCache.cached(context, host)
+        if (cached != null) {
+            showFavicon(holder, cached)
+        } else {
+            SiteIconCache.load(context, host) { bitmap ->
+                view?.post {
+                    if (bitmap != null && holder.parent != null && holder.tag == host) {
+                        showFavicon(holder, bitmap)
+                    }
+                }
+            }
+        }
+        return holder
+    }
+
+    private fun showFavicon(holder: FrameLayout, bitmap: Bitmap) {
+        holder.removeAllViews()
+        holder.addView(ImageView(requireContext()).apply {
+            setImageBitmap(bitmap)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        })
+    }
+
+    private fun showItemMenu(item: PasswordItem) {
+        val options = arrayOf(
+            getString(R.string.pwd_copy_username),
+            getString(R.string.pwd_copy),
+            getString(R.string.pwd_edit),
+            getString(R.string.delete)
         )
         AlertDialog.Builder(requireContext())
-            .setItems(items) { _, which ->
-                if (which == 0) confirmExportCsv() else csvImportLauncher.launch(arrayOf("text/*", "text/csv"))
+            .setTitle(item.host)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        if (item.username.isNotBlank()) copyText(item.username)
+                    }
+                    1 -> copyPassword(item)
+                    2 -> openDetail(item.id)
+                    else -> confirmDelete(item)
+                }
             }
+            .show()
+    }
+
+    private fun copyPassword(item: PasswordItem) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val plain = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                AppServices.passwordRepository.decrypt(item)
+            }
+            if (plain == null) {
+                Toast.makeText(requireContext(), R.string.pwd_failed, Toast.LENGTH_SHORT).show()
+            } else if (isAdded) {
+                copyText(plain)
+            }
+        }
+    }
+
+    private fun confirmDelete(item: PasswordItem) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.pwd_delete_confirm)
+            .setPositiveButton(R.string.delete) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    AppServices.passwordRepository.delete(item.id)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showMenu() {
+        val options = arrayOf(
+            getString(R.string.pwd_import_csv),
+            getString(R.string.pwd_export_csv),
+            getString(R.string.pwd_clear_all)
+        )
+        AlertDialog.Builder(requireContext())
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> csvImportLauncher.launch(arrayOf("text/*", "text/csv"))
+                    1 -> confirmExportCsv()
+                    else -> confirmClearAll()
+                }
+            }
+            .show()
+    }
+
+    private fun confirmClearAll() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.pwd_clear_all)
+            .setMessage(R.string.pwd_clear_confirm)
+            .setPositiveButton(R.string.delete) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    AppServices.passwordRepository.clearAll()
+                    if (isAdded) {
+                        Toast.makeText(requireContext(), R.string.pwd_clear_done, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -221,11 +518,11 @@ class PasswordFragment : Fragment() {
         while (i < line.length) {
             val ch = line[i]
             when {
-                ch == '\"' && quoted && i + 1 < line.length && line[i + 1] == '\"' -> {
-                    current.append('\"')
+                ch == '"' && quoted && i + 1 < line.length && line[i + 1] == '"' -> {
+                    current.append('"')
                     i++
                 }
-                ch == '\"' -> quoted = !quoted
+                ch == '"' -> quoted = !quoted
                 ch == ',' && !quoted -> {
                     cells.add(current.toString())
                     current.clear()
@@ -238,103 +535,52 @@ class PasswordFragment : Fragment() {
         return cells
     }
 
-    private fun render() {
-        container.removeAllViews()
-        if (!unlocked) {
-            container.addView(TextView(requireContext()).apply {
-                text = getString(R.string.pwd_locked)
-                setTextSize(13f)
-                setTextColor(requireContext().getColor(R.color.text_secondary))
-                setPadding(dp(8), dp(24), dp(8), dp(8))
+    private fun openDetail(id: Long) {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, PasswordDetailFragment().apply {
+                arguments = bundleOf(PasswordDetailFragment.ARG_ID to id)
             })
-            return
-        }
-        val filtered = if (query.isBlank()) {
-            items
-        } else {
-            items.filter {
-                it.host.contains(query, true) || it.username.contains(query, true)
-            }
-        }
-        if (filtered.isEmpty()) {
-            container.addView(TextView(requireContext()).apply {
-                text = getString(if (items.isEmpty()) R.string.pwd_empty else R.string.search_no_match)
-                setTextSize(13f)
-                setTextColor(requireContext().getColor(R.color.text_secondary))
-                setPadding(dp(8), dp(24), dp(8), dp(8))
-            })
-            return
-        }
-        val card = CardList.card(requireContext())
-        CardList.addRows(card, filtered.map { row(it) })
-        container.addView(card)
+            .addToBackStack(null)
+            .commit()
     }
 
-    private fun row(item: PasswordItem): View = CardList.row(requireContext()).apply {
-        addView(LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(TextView(requireContext()).apply {
-                text = item.host
-                setTextSize(14f)
-                setTextColor(requireContext().getColor(R.color.text_primary))
-            })
-            addView(TextView(requireContext()).apply {
-                text = item.username.ifEmpty { "-" }
-                setTextSize(11.5f)
-                setTextColor(requireContext().getColor(R.color.text_secondary))
-            })
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        })
-        setOnClickListener {
-            val password = AppServices.passwordRepository.decrypt(item)
-            if (password == null) {
-                Toast.makeText(requireContext(), R.string.pwd_failed, Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            val fill = AppServices.fillPassword
-            if (fill != null) {
-                fill(item.username, password)
-                Toast.makeText(requireContext(), R.string.pwd_filled, Toast.LENGTH_SHORT).show()
-                parentFragmentManager.popBackStack()
-            } else {
-                copyText(password)
-            }
-        }
-        setOnLongClickListener {
-            val password = AppServices.passwordRepository.decrypt(item)
-            AlertDialog.Builder(requireContext())
-                .setTitle(item.host)
-                .setItems(
-                    arrayOf(
-                        getString(R.string.pwd_copy),
-                        getString(R.string.pwd_view),
-                        getString(R.string.delete)
-                    )
-                ) { _, which ->
-                    when (which) {
-                        0 -> password?.let { copyText(it) }
-                        1 -> AlertDialog.Builder(requireContext())
-                            .setTitle(item.username)
-                            .setMessage(password ?: getString(R.string.pwd_failed))
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show()
-                        else -> viewLifecycleOwner.lifecycleScope.launch {
-                            AppServices.passwordRepository.delete(item.id)
-                        }
-                    }
-                }
-                .show()
-            true
+    private fun closePage() {
+        AppServices.passwordUnlockedAt = 0L
+        val fm = parentFragmentManager
+        if (!fm.popBackStackImmediate(BACK_STACK, FragmentManager.POP_BACK_STACK_INCLUSIVE)) {
+            fm.popBackStack()
         }
     }
 
     private fun copyText(text: String) {
+        if (text.isBlank()) return
         val clipboard = requireContext()
             .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
         Toast.makeText(requireContext(), R.string.pwd_copied, Toast.LENGTH_SHORT).show()
     }
 
+    private fun timeLabel(time: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(time))
+
+    private fun colorOf(value: String): Int {
+        var h = 0
+        value.forEach { h = h * 31 + it.code }
+        return COLORS[Math.floorMod(h, COLORS.size)]
+    }
+
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val BACK_STACK = "passwords"
+
+        private const val UNLOCK_WINDOW_MS = 5 * 60 * 1000L
+
+        private val COLORS = intArrayOf(
+            0xFF2F7CF6.toInt(), 0xFF34C28F.toInt(), 0xFFF2984A.toInt(), 0xFF8A6FF0.toInt(),
+            0xFFE5537A.toInt(), 0xFF3AB3C9.toInt(), 0xFFC9A23A.toInt(), 0xFF6D7F95.toInt()
+        )
+    }
 }

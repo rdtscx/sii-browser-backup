@@ -147,6 +147,9 @@ object AppServices {
     /** 书签页上次停留的文件夹；进程内记忆，重新打开书签时直接进入。 */
     var bookmarkFolderId: String? = null
 
+    /** 密码库本次停留期间的验证时间（0 = 未验证）。 */
+    var passwordUnlockedAt: Long = 0L
+
     /** 当前激活的 WebView（资源嗅探列表据此读取对应标签的资源）。 */
     var sniffTarget: com.sii.browser.core.webview.SiiWebView? = null
 

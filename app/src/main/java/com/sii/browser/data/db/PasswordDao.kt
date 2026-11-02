@@ -23,6 +23,9 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords WHERE host = :host AND username = :username LIMIT 1")
     suspend fun find(host: String, username: String): PasswordItem?
 
+    @Query("SELECT * FROM passwords WHERE id = :id LIMIT 1")
+    suspend fun byId(id: Long): PasswordItem?
+
     @Insert
     suspend fun insert(item: PasswordItem): Long
 
