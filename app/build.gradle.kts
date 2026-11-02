@@ -20,8 +20,8 @@ android {
         applicationId = "com.sii.browser"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.3.3"
+        versionCode = 10
+        versionName = "1.4.0"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }

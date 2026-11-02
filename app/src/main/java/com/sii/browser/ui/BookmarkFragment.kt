@@ -58,18 +58,18 @@ class BookmarkFragment : Fragment() {
     private var editMode = false
     private val selectedIds = mutableSetOf<String>()
 
-    private val folderId: String? get() = arguments?.getString(ARG_FOLDER)
+    private var folderId: String? = null
     private var observeJob: kotlinx.coroutines.Job? = null
     private val repository get() = AppServices.bookmarkRepository
-
-    override fun onResume() {
-        super.onResume()
-        if (folderId == null) AppServices.bookmarkFolderId = null
-    }
 
     override fun onDestroyView() {
         if (::listContainer.isInitialized) listContainer.removeAllViews()
         super.onDestroyView()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(ARG_FOLDER, folderId)
     }
 
     override fun onCreateView(
@@ -77,6 +77,7 @@ class BookmarkFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View = LinearLayout(requireContext()).apply {
+        folderId = arguments?.getString(ARG_FOLDER)
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(requireContext().getColor(R.color.bg_page))
 
@@ -117,14 +118,48 @@ class BookmarkFragment : Fragment() {
         sortMode = AppServices.settings.bookmarkSort()
         sizeMode = AppServices.settings.bookmarkSize()
         iconMode = AppServices.settings.bookmarkIcon()
+        folderId = savedInstanceState?.getString(ARG_FOLDER) ?: arguments?.getString(ARG_FOLDER)
         startObserve()
         val folder = folderId ?: return
         viewLifecycleOwner.lifecycleScope.launch {
             val exists = repository.findFolderById(folder) != null
-            if (!exists && isAdded) {
-                arguments?.remove(ARG_FOLDER)
-                startObserve()
+            if (!exists && isAdded) applyFolder(null)
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (folderId != null) {
+                        goUpLevel()
+                    } else {
+                        view?.post { if (isAdded) closePage() }
+                    }
+                }
             }
+        )
+    }
+
+    /** 在页面内切换层级：整页只占一个回退栈条目，返回键不会直接退回浏览器。 */
+    private fun applyFolder(id: String?) {
+        folderId = id
+        AppServices.bookmarkFolderId = id
+        if (editMode) {
+            editMode = false
+            selectedIds.clear()
+        }
+        startObserve()
+        if (::listContainer.isInitialized) {
+            listContainer.alpha = 0f
+            listContainer.animate().alpha(1f).setDuration(140).start()
+        }
+    }
+
+    /** 上一级：当前文件夹的父文件夹，顶级文件夹回到书签根目录。 */
+    private fun goUpLevel() {
+        val current = folderId ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val parent = repository.findFolderById(current)?.parentFolderId
+            if (isAdded) applyFolder(parent)
         }
     }
 
@@ -224,7 +259,7 @@ class BookmarkFragment : Fragment() {
             includeFontPadding = false
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
-        setOnClickListener { parentFragmentManager.popBackStack() }
+        setOnClickListener { goUpLevel() }
     }
 
     private fun folderRow(folder: BookmarkFolder): View = cardRow().apply {
@@ -254,13 +289,7 @@ class BookmarkFragment : Fragment() {
             if (editMode) {
                 toggleSelection(folder.id)
             } else {
-                AppServices.bookmarkFolderId = folder.id
-                NavAnim.apply(parentFragmentManager.beginTransaction())
-                    .replace(R.id.shell_root, BookmarkFragment().apply {
-                        arguments = bundleOf(ARG_FOLDER to folder.id)
-                    })
-                    .addToBackStack(null)
-                    .commit()
+                applyFolder(folder.id)
             }
         }
         if (!editMode) {
