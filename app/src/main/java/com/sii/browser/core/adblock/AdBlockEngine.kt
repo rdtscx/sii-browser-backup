@@ -430,7 +430,8 @@ class AdBlockEngine {
     fun cosmeticCssFor(host: String?): String {
         val selectors = cosmeticSelectorsFor(host)
         if (selectors.isEmpty()) return ""
-        return selectors.chunked(100).joinToString("\n") { chunk ->
+        // 不能带换行：整段 CSS 会被塞进 JS 单引号字符串，字面换行会导致语法错误。
+        return selectors.chunked(100).joinToString("") { chunk ->
             chunk.joinToString(",") + "{display:none!important}"
         }
     }

@@ -8486,6 +8486,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
         if (css.isEmpty() || webView == null) return
         val escaped = css.replace("\\", "\\\\").replace("'", "\\'")
+            .replace("\n", "\\n").replace("\r", "")
         // documentElement 可能还没建立（提交早期）：短间隔重试，最迟 5 秒后放弃。
         webView.evaluateJavascript(
             "(function(){var css='$escaped';" +
