@@ -131,6 +131,12 @@ object SettingsDefaults {
     /** 密码填充方式：-1 未设置（按旧的自动填充开关推断）。 */
     const val PASSWORD_FILL_MODE = -1
 
+    /** 菜单隐私保护开关关闭前的快照（0 = 无）。 */
+    const val PRIVACY_TOGGLE_STATE = 0
+
+    /** 文本翻译引擎：0 本地 / 1 云端。 */
+    const val TEXT_TRANSLATE_ENGINE = 0
+
     const val HOME_LOGO_ICON_SIZE = 80
 
     /** 退出时清理。 */

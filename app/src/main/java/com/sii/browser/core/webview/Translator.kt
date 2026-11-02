@@ -33,30 +33,34 @@ object Translator {
         context: Context,
         text: String,
         to: String = targetLang(context),
-        from: String? = null
+        from: String? = null,
+        modeOverride: Int? = null,
+        providerOverride: Int? = null
     ): Result =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val mode = AppServices.settings.translateMode()
+            val mode = modeOverride ?: AppServices.settings.translateMode()
             val result = when (mode) {
                 0 -> Result(null, "translation_disabled")
                 2 -> OfflineTranslator.translate(context, text, to, from)
                 else -> runCatching {
-                    when (AppServices.settings.translateProvider()) {
+                    val provider = providerOverride ?: AppServices.settings.translateProvider()
+                    when (provider) {
                         1 -> libreTranslate(text, to)
                         2 -> google(text, to)
                         3 -> custom(text, to)
                         4 -> baidu(text, to)
-                        else -> myMemory(text, to)
+                        else -> myMemory(text, to, from)
                     }
                 }.getOrElse { Result(null, it.message ?: "error") }
             }
             result
         }
 
-    private fun myMemory(text: String, to: String): Result {
-        val from = if (to.startsWith("zh")) "en" else "zh-CN"
+    private fun myMemory(text: String, to: String, from: String?): Result {
+        val source = from?.takeIf { it.isNotBlank() && it != "auto" }
+            ?: if (text.any { it.code in 0x4E00..0x9FFF }) "zh-CN" else "en"
         val url = "https://api.mymemory.translated.net/get?q=" + enc(text) +
-            "&langpair=" + enc("$from|$to")
+            "&langpair=" + enc("$source|$to")
         val body = get(url) ?: return Result(null, "network")
         val json = JSONObject(body)
         val translated = json.optJSONObject("responseData")?.optString("translatedText")
@@ -115,7 +119,7 @@ object Translator {
         if (appid.isBlank() || key.isBlank()) return Result(null, "no key")
         val salt = (System.currentTimeMillis() % 1000000).toString()
         val sign = md5(appid + text + salt + key)
-        val lang = if (to.startsWith("zh")) "zh" else to.substringBefore('-')
+        val lang = baiduLang(to)
         val url = "https://fanyi-api.baidu.com/api/trans/vip/translate"
         val form = "q=" + enc(text) + "&from=auto&to=" + enc(lang) +
             "&appid=" + enc(appid) + "&salt=" + salt + "&sign=" + sign
@@ -199,6 +203,17 @@ object Translator {
             null -> null
             else -> value.toString()
         }
+    }
+
+    private fun baiduLang(tag: String): String = when (tag.substringBefore('-')) {
+        "zh" -> if (tag.contains("TW") || tag.contains("HK")) "cht" else "zh"
+        "ja" -> "jp"
+        "ko" -> "kor"
+        "fr" -> "fra"
+        "es" -> "spa"
+        "vi" -> "vie"
+        "ar" -> "ara"
+        else -> tag.substringBefore('-')
     }
 
     private fun md5(input: String): String {

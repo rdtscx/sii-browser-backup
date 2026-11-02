@@ -17,6 +17,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.sii.browser.R
 import com.sii.browser.core.privacy.PrivacyPacks
+import com.sii.browser.data.PrivacyLevels
 import com.sii.browser.data.Settings
 import com.sii.browser.di.AppServices
 import kotlinx.coroutines.flow.first
@@ -142,7 +143,6 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_TRANSLATE_OFFLINE -> getString(R.string.settings_translate_offline_pack)
         VIEW_V2_READING -> getString(R.string.settings_reading)
         VIEW_V2_READING_MODE -> getString(R.string.settings_reading_mode)
-        VIEW_V2_NOTIFY -> getString(R.string.settings_notify)
         VIEW_V2_NIGHT -> getString(R.string.settings_night_group)
         VIEW_V2_THEME_COLOR_GROUP -> getString(R.string.settings_theme_color)
         VIEW_V2_CARD -> getString(R.string.settings_card_group)
@@ -205,7 +205,6 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_TRANSLATE_OFFLINE -> buildV2TranslateOffline()
             VIEW_V2_READING -> buildV2Reading()
             VIEW_V2_READING_MODE -> buildV2ReadingMode()
-            VIEW_V2_NOTIFY -> buildV2Notify()
             VIEW_V2_NIGHT -> buildV2Night()
             VIEW_V2_THEME_COLOR_GROUP -> buildV2ThemeColorGroup()
             VIEW_V2_CARD -> buildV2Card()
@@ -372,7 +371,6 @@ class SettingsDetailFragment : Fragment() {
             navRow(getString(R.string.settings_gestures)) { open(VIEW_V2_GESTURE) },
             navRow(getString(R.string.settings_lp_custom)) { open(VIEW_LP_CUSTOM) },
             navRow(getString(R.string.settings_operate)) { open(VIEW_V2_OPERATE) },
-            navRow(getString(R.string.settings_notify)) { open(VIEW_V2_NOTIFY) },
             choiceRow(
                 getString(R.string.settings_screen_orientation),
                 ORIENTATIONS,
@@ -730,15 +728,6 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_reader_css),
                 settings.readerCustomCss().orEmpty()
             ) { settings.setReaderCustomCss(it.ifBlank { null }) }
-        )
-    }
-
-    private fun buildV2Notify() {
-        card(
-            switchRow(
-                getString(R.string.settings_closetab_toast),
-                settings.closeTabToast()
-            ) { settings.setCloseTabToast(it) }
         )
     }
 
@@ -1809,42 +1798,7 @@ class SettingsDetailFragment : Fragment() {
 
     private fun applyPrivacyLevel(level: Int) {
         val normalized = level.coerceIn(0, 3)
-        settings.setPrivacyLevel(normalized)
-        when (normalized) {
-            0 -> {
-                settings.setPrivacyTracking(false)
-                settings.setPrivacySocial(false)
-                settings.setPrivacyMiners(false)
-                settings.setPrivacyFingerprint(false)
-                settings.setPrivacyContent(false)
-                settings.setPrivacyCookies(false)
-                settings.setPrivacyCleanUrls(false)
-                settings.setPrivacyGpc(false)
-                settings.setPrivacyHttpsOnly(false)
-            }
-            1 -> {
-                settings.setPrivacyTracking(true)
-                settings.setPrivacySocial(true)
-                settings.setPrivacyMiners(true)
-                settings.setPrivacyFingerprint(true)
-                settings.setPrivacyContent(false)
-                settings.setPrivacyCookies(false)
-                settings.setPrivacyCleanUrls(false)
-                settings.setPrivacyGpc(true)
-                settings.setPrivacyHttpsOnly(false)
-            }
-            2 -> {
-                settings.setPrivacyTracking(true)
-                settings.setPrivacySocial(true)
-                settings.setPrivacyMiners(true)
-                settings.setPrivacyFingerprint(true)
-                settings.setPrivacyContent(true)
-                settings.setPrivacyCookies(true)
-                settings.setPrivacyCleanUrls(false)
-                settings.setPrivacyGpc(true)
-                settings.setPrivacyHttpsOnly(false)
-            }
-        }
+        PrivacyLevels.apply(settings, normalized)
         AppServices.adBlock.resetPrivacyStats()
         build()
         if (normalized == 0) {
@@ -1927,12 +1881,7 @@ class SettingsDetailFragment : Fragment() {
                     }
                 ),
                 enabled = enabled
-            ) { showPasswordFillModeDialog() },
-            switchRow(
-                getString(R.string.settings_pwd_biometric),
-                settings.passwordBiometric(),
-                enabled = enabled
-            ) { settings.setPasswordBiometric(it) }
+            ) { showPasswordFillModeDialog() }
         )
     }
 
@@ -2854,7 +2803,6 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_TRANSLATE_OFFLINE = "v2TranslateOffline"
         const val VIEW_V2_READING = "v2Reading"
         const val VIEW_V2_READING_MODE = "v2ReadingMode"
-        const val VIEW_V2_NOTIFY = "v2Notify"
         const val VIEW_V2_TABS = "v2Tabs"
         const val VIEW_V2_ADDRESS = "v2Address"
         const val VIEW_V2_SUGGEST = "v2Suggest"
@@ -2897,7 +2845,7 @@ class SettingsDetailFragment : Fragment() {
         private val SUGGESTION_COUNTS = intArrayOf(3, 4, 5, 6, 8, 10)
         private val HOME_LAYOUT_NAMES = arrayOf("顶部", "居中", "底部")
         private val DOUBLE_TAP_NAMES = arrayOf("无", "回到顶部", "刷新", "打开主页")
-        private val TRANSLATE_PROVIDER_NAMES =
+        internal val TRANSLATE_PROVIDER_NAMES =
             arrayOf("MyMemory（免费）", "LibreTranslate（免费）", "Google（非官方）", "自定义", "百度翻译")
         private val TRANSLATE_CUSTOM_METHOD_NAMES = arrayOf("GET", "POST")
         private val PERMISSION_DEFAULT_NAMES = arrayOf("询问", "允许", "拒绝")

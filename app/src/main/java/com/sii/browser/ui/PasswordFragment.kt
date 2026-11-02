@@ -122,8 +122,7 @@ class PasswordFragment : Fragment() {
             load()
             return
         }
-        val unlockedAt = AppServices.passwordUnlockedAt
-        if (unlockedAt > 0 && System.currentTimeMillis() - unlockedAt < UNLOCK_WINDOW_MS) {
+        if (AppServices.passwordUnlockedAt > 0) {
             unlocked = true
             load()
             return
@@ -407,7 +406,9 @@ class PasswordFragment : Fragment() {
     }
 
     private fun showMenu() {
+        val lockOn = AppServices.settings.passwordBiometric()
         val options = arrayOf(
+            (if (lockOn) "✓ " else "") + getString(R.string.pwd_lock_toggle),
             getString(R.string.pwd_import_csv),
             getString(R.string.pwd_export_csv),
             getString(R.string.pwd_clear_all)
@@ -415,12 +416,46 @@ class PasswordFragment : Fragment() {
         AlertDialog.Builder(requireContext())
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> csvImportLauncher.launch(arrayOf("text/*", "text/csv"))
-                    1 -> confirmExportCsv()
+                    0 -> toggleLock()
+                    1 -> csvImportLauncher.launch(arrayOf("text/*", "text/csv"))
+                    2 -> confirmExportCsv()
                     else -> confirmClearAll()
                 }
             }
             .show()
+    }
+
+    /** 密码库加锁：开启时验证一次，本页停留期间有效；关闭需二次确认。 */
+    private fun toggleLock() {
+        if (AppServices.settings.passwordBiometric()) {
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.pwd_lock_toggle)
+                .setMessage(R.string.pwd_lock_off_confirm)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    AppServices.settings.setPasswordBiometric(false)
+                    AppServices.passwordUnlockedAt = 0L
+                    unlocked = true
+                    render()
+                    load()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        val authenticators = BiometricManager.Authenticators.BIOMETRIC_WEAK or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        val canAuthenticate = runCatching {
+            BiometricManager.from(requireContext()).canAuthenticate(authenticators)
+        }.getOrDefault(BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED)
+        if (canAuthenticate != BiometricManager.BIOMETRIC_SUCCESS) {
+            Toast.makeText(requireContext(), R.string.pwd_lock_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        AppServices.settings.setPasswordBiometric(true)
+        AppServices.passwordUnlockedAt = 0L
+        unlocked = false
+        render()
+        view?.post { if (isAdded && view != null) requestUnlock() }
     }
 
     private fun confirmClearAll() {
@@ -575,8 +610,6 @@ class PasswordFragment : Fragment() {
 
     companion object {
         const val BACK_STACK = "passwords"
-
-        private const val UNLOCK_WINDOW_MS = 5 * 60 * 1000L
 
         private val COLORS = intArrayOf(
             0xFF2F7CF6.toInt(), 0xFF34C28F.toInt(), 0xFFF2984A.toInt(), 0xFF8A6FF0.toInt(),

@@ -836,6 +836,28 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setTranslateTarget(value: String) =
         putStr(SettingsKeys.TRANSLATE_TARGET, value)
 
+    override fun textTranslateEngine(): Int =
+        int(SettingsKeys.TEXT_TRANSLATE_ENGINE, SettingsDefaults.TEXT_TRANSLATE_ENGINE).coerceIn(0, 1)
+
+    override fun setTextTranslateEngine(value: Int) =
+        putInt(SettingsKeys.TEXT_TRANSLATE_ENGINE, value.coerceIn(0, 1))
+
+    override fun textTranslateSource(): String = str(SettingsKeys.TEXT_TRANSLATE_SOURCE, null) ?: ""
+
+    override fun setTextTranslateSource(value: String) =
+        putStr(SettingsKeys.TEXT_TRANSLATE_SOURCE, value)
+
+    override fun textTranslateTarget(): String = str(SettingsKeys.TEXT_TRANSLATE_TARGET, null) ?: ""
+
+    override fun setTextTranslateTarget(value: String) =
+        putStr(SettingsKeys.TEXT_TRANSLATE_TARGET, value)
+
+    override fun textTranslateCloudNotice(): Boolean =
+        bool(SettingsKeys.TEXT_TRANSLATE_CLOUD_NOTICE, false)
+
+    override fun setTextTranslateCloudNotice(value: Boolean) =
+        putBool(SettingsKeys.TEXT_TRANSLATE_CLOUD_NOTICE, value)
+
     override fun translateDetect(): Boolean =
         bool(SettingsKeys.TRANSLATE_DETECT, SettingsDefaults.TRANSLATE_DETECT)
 
@@ -1376,6 +1398,12 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setPrivacyLevel(value: Int) = putInt(SettingsKeys.PRIVACY_LEVEL, value)
 
+    override fun privacyToggleState(): Int =
+        int(SettingsKeys.PRIVACY_TOGGLE_STATE, SettingsDefaults.PRIVACY_TOGGLE_STATE)
+
+    override fun setPrivacyToggleState(value: Int) =
+        putInt(SettingsKeys.PRIVACY_TOGGLE_STATE, value)
+
     override fun privacyTracking(): Boolean = bool(SettingsKeys.PRIVACY_TRACKING, true)
 
     override fun setPrivacyTracking(value: Boolean) = putBool(SettingsKeys.PRIVACY_TRACKING, value)
@@ -1603,7 +1631,7 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setUpdateLastNotified(value: Long) = putLong(SettingsKeys.UPDATE_LAST_NOTIFIED, value)
 
-    override fun passwordBiometric(): Boolean = bool(SettingsKeys.PASSWORD_BIOMETRIC, false)
+    override fun passwordBiometric(): Boolean = bool(SettingsKeys.PASSWORD_BIOMETRIC, true)
 
     override fun setPasswordBiometric(value: Boolean) =
         putBool(SettingsKeys.PASSWORD_BIOMETRIC, value)

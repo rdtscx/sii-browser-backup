@@ -576,6 +576,26 @@ interface BehaviorSettings {
 
     fun setTranslateTarget(value: String)
 
+    /** 文本翻译引擎：0 本地 / 1 云端（独立于网页翻译）。 */
+    fun textTranslateEngine(): Int
+
+    fun setTextTranslateEngine(value: Int)
+
+    /** 文本翻译源语言（空 = 自动）。 */
+    fun textTranslateSource(): String
+
+    fun setTextTranslateSource(value: String)
+
+    /** 文本翻译目标语言（空 = 跟随界面）。 */
+    fun textTranslateTarget(): String
+
+    fun setTextTranslateTarget(value: String)
+
+    /** 是否已提示过云端翻译会把文本发给服务商。 */
+    fun textTranslateCloudNotice(): Boolean
+
+    fun setTextTranslateCloudNotice(value: Boolean)
+
     /** 检测到英文页面时提示翻译。 */
     fun translateDetect(): Boolean
 
@@ -1065,6 +1085,11 @@ interface WebPageSettings {
     fun privacyLevel(): Int
 
     fun setPrivacyLevel(value: Int)
+
+    /** 菜单隐私保护开关关闭前的等级与分类快照。 */
+    fun privacyToggleState(): Int
+
+    fun setPrivacyToggleState(value: Int)
 
     fun privacyTracking(): Boolean
 

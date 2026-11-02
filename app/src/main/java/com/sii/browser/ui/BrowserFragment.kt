@@ -46,6 +46,7 @@ import com.sii.browser.core.webview.UrlLoadDecision
 import com.sii.browser.core.webview.WebChromeClientBridge
 import com.sii.browser.core.webview.WebViewCallback
 import com.sii.browser.core.webview.WebViewClientBridge
+import com.sii.browser.data.PrivacyLevels
 import com.sii.browser.data.SiteConfig
 import com.sii.browser.data.WebPageBehavior
 import com.sii.browser.di.AppServices
@@ -1325,6 +1326,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, PasswordFragment())
             .addToBackStack(PasswordFragment.BACK_STACK)
+            .commit()
+    }
+
+    /** 文本翻译页。 */
+    private fun openTextTranslate() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, TextTranslateFragment())
+            .addToBackStack(null)
             .commit()
     }
 
@@ -5520,6 +5529,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("savepage", getString(R.string.menu_save_page), R.drawable.ic_m_save_page, false, { false }, { hasWebPage() }) { savePageOffline() },
         MenuEntry("readlaterlist", getString(R.string.menu_read_later), R.drawable.ic_m_read_later, false, { false }) { openReadLater() },
         MenuEntry("translatepage", getString(R.string.menu_translate_page), R.drawable.ic_m_translate, false, { false }, { hasWebPage() }, iconText = getString(R.string.translate_mark)) { translatePage() },
+        MenuEntry(
+            "texttranslate",
+            getString(R.string.menu_text_translate),
+            R.drawable.ic_m_translate,
+            false,
+            { false },
+            iconText = getString(R.string.menu_text_translate_mark)
+        ) { openTextTranslate() },
         MenuEntry("source", getString(R.string.menu_source), R.drawable.ic_m_code, false, { false }, { hasWebPage() }) { showPageSource() },
         MenuEntry("print", getString(R.string.menu_print), R.drawable.ic_m_print, false, { false }, { hasWebPage() }) { printPage() },
         MenuEntry("passwords", getString(R.string.menu_passwords), R.drawable.ic_m_key, false, { false }) { openPasswords() },
@@ -5572,6 +5589,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             AppServices.settings.setAdBlockEnabled(enabled)
             AppServices.refreshAdBlockWhitelist()
         },
+        MenuEntry(
+            "privacy",
+            getString(R.string.menu_privacy_protection),
+            R.drawable.ic_m_privacy_lock,
+            true,
+            { AppServices.settings.privacyLevel() > 0 }
+        ) { togglePrivacyProtection() },
         MenuEntry("desktop", getString(R.string.menu_desktop), R.drawable.ic_m_desktop, true, {
             // 全局开关开着时菜单也应为开（主页等非网页页面 URL 为空，否则会误显示为关）。
             AppServices.settings.desktopMode() || isDesktopMode()
@@ -5765,17 +5789,47 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         "reader" -> SettingsDetailFragment.VIEW_V2_READING_MODE
         "sniff" -> SettingsDetailFragment.VIEW_V2_BROWSE
         "translatepage" -> SettingsDetailFragment.VIEW_V2_TRANSLATE
+        "texttranslate" -> SettingsDetailFragment.VIEW_V2_TRANSLATE
         "passwords" -> SettingsDetailFragment.VIEW_V2_PASSWORD
         "cleardata" -> SettingsDetailFragment.VIEW_V2_CLEAR
         "adblock", "adpick" -> "rules"
+        "privacy" -> SettingsDetailFragment.VIEW_V2_PRIVACY_PROTECTION
         "dark", "nightauto" -> SettingsDetailFragment.VIEW_V2_NIGHT
         "incog" -> SettingsDetailFragment.VIEW_V2_INCOG
         "newtab" -> SettingsDetailFragment.VIEW_V2_OPERATE
         else -> null
     }
 
-    private fun openMenuSettings(viewId: String) {
-        hideMenuSheet()
+    /** 菜单隐私保护快捷开关：开 = 恢复上次等级（默认标准），关 = 等级 0。 */
+    private fun togglePrivacyProtection() {
+        val s = AppServices.settings
+        val on = s.privacyLevel() > 0
+        if (on) {
+            s.setPrivacyToggleState(PrivacyLevels.snapshot(s))
+            PrivacyLevels.apply(s, 0)
+            AppServices.adBlock.privacyEnabled = false
+        } else {
+            val state = s.privacyToggleState()
+            if (state == 0) PrivacyLevels.apply(s, 1) else PrivacyLevels.restore(s, state)
+        }
+        AppServices.adBlock.resetPrivacyStats()
+        AppServices.reapplyPrivacyIfChanged?.invoke()
+        lifecycleScope.launch {
+            kotlinx.coroutines.withContext(
+                kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable
+            ) {
+                if (on) AppServices.ruleRepository.loadIntoEngine(AppServices.adBlock)
+                else PrivacyLevels.ensureRules(s)
+            }
+        }
+        Toast.makeText(
+            requireContext(),
+            if (on) R.string.menu_privacy_off else R.string.menu_privacy_on,
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun openMenuSettings(viewId: String) {        hideMenuSheet()
         val target: androidx.fragment.app.Fragment = if (viewId == "rules") {
             RulesFragment()
         } else {
