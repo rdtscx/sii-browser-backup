@@ -452,6 +452,14 @@ class AdBlockEngine {
             .distinct()
     }
 
+    /** 元素隐藏规则总数与其中隐私类数量，供测试包诊断。 */
+    @Synchronized
+    fun cosmeticRuleCounts(): IntArray {
+        rebuildIndexIfNeeded()
+        val privacy = cosmeticRules.count { it.privacyCategory != null }
+        return intArrayOf(cosmeticRules.size, privacy)
+    }
+
     /** 隐私规则在当前站点是否生效：全局开启且未被站点暂停。 */
     private fun privacyActiveForSite(host: String?): Boolean {
         if (!privacyEnabled) return false

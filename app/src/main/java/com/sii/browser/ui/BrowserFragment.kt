@@ -8479,6 +8479,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()
         val selectors = AppServices.adBlock.cosmeticSelectorsFor(host)
         val css = AppServices.adBlock.cosmeticCssFor(host)
+        val counts = AppServices.adBlock.cosmeticRuleCounts()
+        com.sii.browser.core.mcp.DiagLog.record(
+            "cosmetic",
+            "host=${host.orEmpty()} rules=${counts[0]}/privacy=${counts[1]} selectors=${selectors.size}"
+        )
         if (css.isEmpty() || webView == null) return
         val escaped = css.replace("\\", "\\\\").replace("'", "\\'")
         // documentElement 可能还没建立（提交早期）：短间隔重试，最迟 5 秒后放弃。
