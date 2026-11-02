@@ -84,7 +84,7 @@ class ShellActivity : AppCompatActivity() {
         val config = Configuration(newBase.resources.configuration)
         val language = AppServices.settings.language()
         if (!language.isNullOrEmpty()) {
-            config.setLocale(java.util.Locale(language))
+            config.setLocale(java.util.Locale.forLanguageTag(language.replace('_', '-')))
         }
         // AppCompat 1.7 会在 attachBaseContext2 里按 delegate 的夜间模式重算 uiMode，
         // 手动覆写 uiMode 会被覆盖；必须把应用夜间状态先同步给 delegate，

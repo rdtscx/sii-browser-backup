@@ -13,7 +13,7 @@ object UiLanguages {
         Entry("", "", true),
         Entry("zh-CN", "简体中文", true),
         Entry("en", "English", true),
-        Entry("zh-TW", "繁體中文", false),
+        Entry("zh-TW", "繁體中文", true),
         Entry("ja", "日本語", false),
         Entry("ko", "한국어", false),
         Entry("fr", "Français", false),

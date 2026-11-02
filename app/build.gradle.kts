@@ -25,7 +25,7 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
-        resourceConfigurations += listOf("zh", "en")
+        resourceConfigurations += listOf("zh", "zh-rTW", "en", "ja", "ko", "fr", "de", "es")
         resValue("string", "app_package_name", "com.sii.browser")
     }
 
