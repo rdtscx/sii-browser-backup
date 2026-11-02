@@ -62,9 +62,8 @@ The goal is to make browsing complete: multiple tabs and a tab panel, ad blockin
 
 <p align="center">
   <img src="docs/screenshots/menu.jpg" width="270" alt="Menu" />
-  <img src="docs/screenshots/browse.jpg" width="270" alt="Browsing" />
 </p>
-<p align="center"><sub>Menu · Browsing</sub></p>
+<p align="center"><sub>Menu</sub></p>
 
 <p align="center">
   <img src="docs/screenshots/diy.jpg" width="270" alt="UI DIY" />

@@ -62,9 +62,8 @@ Sii 是一款从零实现的 Android 浏览器，使用 Kotlin 与原生 XML 布
 
 <p align="center">
   <img src="docs/screenshots/menu.jpg" width="270" alt="菜单" />
-  <img src="docs/screenshots/browse.jpg" width="270" alt="网页浏览" />
 </p>
-<p align="center"><sub>菜单 · 网页浏览</sub></p>
+<p align="center"><sub>菜单</sub></p>
 
 <p align="center">
   <img src="docs/screenshots/diy.jpg" width="270" alt="界面DIY" />
