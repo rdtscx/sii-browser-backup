@@ -844,26 +844,6 @@ class DownloadFragment : Fragment() {
             Toast.makeText(context, R.string.download_file_missing, Toast.LENGTH_SHORT).show()
             return
         }
-        if (android.os.Build.VERSION.SDK_INT >= 26 &&
-            !context.packageManager.canRequestPackageInstalls()
-        ) {
-            android.app.AlertDialog.Builder(context)
-                .setTitle(R.string.install_unknown_title)
-                .setMessage(R.string.install_unknown_message)
-                .setPositiveButton(R.string.install_go_settings) { _, _ ->
-                    runCatching {
-                        startActivity(
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                android.net.Uri.parse("package:${context.packageName}")
-                            )
-                        )
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-            return
-        }
         val archive = apkArchiveInfo(path)
         val appName = archive?.label?.takeIf { it.isNotBlank() } ?: displayName(task)
         val version = archive?.version
@@ -950,7 +930,7 @@ class DownloadFragment : Fragment() {
     private fun launchInstaller(uri: android.net.Uri) {
         runCatching {
             startActivity(
-                android.content.Intent(android.content.Intent.ACTION_INSTALL_PACKAGE)
+                android.content.Intent(android.content.Intent.ACTION_VIEW)
                     .setDataAndType(uri, "application/vnd.android.package-archive")
                     .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             )
