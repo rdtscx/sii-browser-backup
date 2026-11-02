@@ -122,10 +122,15 @@ class SniffFragment : Fragment() {
         val target = key()
         val all = target?.let { SniffStore.list(it) }.orEmpty()
         val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
-        val visible = if (showAllPages || current.isNullOrEmpty()) {
+        var visible = if (showAllPages || current.isNullOrEmpty()) {
             all
         } else {
-            all.filter { it.pageUrl == null || it.pageUrl == current }
+            all.filter { samePage(it.pageUrl, current) }
+        }
+        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
+        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
+            showAllPages = true
+            visible = all
         }
         val items = if (filter == null) visible else visible.filter { it.type == filter }
         if (items.isEmpty()) {
@@ -140,6 +145,15 @@ class SniffFragment : Fragment() {
         val card = CardList.card(requireContext())
         CardList.addRows(card, items.map { row(it) })
         container.addView(card)
+    }
+
+    /** 两个 URL 是否属于同一文档：忽略 query/hash 与末尾斜杠，任一缺失时视为同页。 */
+    private fun samePage(a: String?, b: String?): Boolean {
+        if (a.isNullOrBlank() || b.isNullOrBlank()) return true
+        val ua = runCatching { android.net.Uri.parse(a) }.getOrNull() ?: return true
+        val ub = runCatching { android.net.Uri.parse(b) }.getOrNull() ?: return true
+        if (ua.host != ub.host || ua.scheme != ub.scheme) return false
+        return ua.path.orEmpty().trimEnd('/') == ub.path.orEmpty().trimEnd('/')
     }
 
     private fun renderChips() {
