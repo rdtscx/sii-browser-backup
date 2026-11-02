@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -83,6 +84,7 @@ class TextTranslateFragment : Fragment() {
                 context,
                 getString(R.string.menu_text_translate),
                 onBack = { parentFragmentManager.popBackStack() },
+                onMenu = { showPageMenu() },
                 actionLabel = getString(R.string.text_translate_clear),
                 onAction = { clearAll() }
             )
@@ -371,6 +373,40 @@ class TextTranslateFragment : Fragment() {
         input.setText("")
         resultText.text = ""
         resultCard.visibility = View.GONE
+    }
+
+    private fun showPageMenu() {
+        AlertDialog.Builder(requireContext())
+            .setItems(arrayOf(getString(R.string.menu_add_home))) { _, _ -> createShortcut() }
+            .show()
+    }
+
+    /** 桌面快捷方式：带 sii_action，由 BrowserFragment.handleNewIntent 直接打开本页。 */
+    private fun createShortcut() {
+        val context = requireContext()
+        val shortcut = androidx.core.content.pm.ShortcutInfoCompat.Builder(
+            context, "sii_text_translate"
+        )
+            .setShortLabel(getString(R.string.menu_text_translate))
+            .setLongLabel(getString(R.string.menu_text_translate))
+            .setIcon(
+                androidx.core.graphics.drawable.IconCompat.createWithResource(
+                    context, R.drawable.ic_launcher_sii
+                )
+            )
+            .setIntent(
+                Intent(context, ShellActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    putExtra("sii_action", "text_translate")
+                }
+            )
+            .build()
+        val ok = runCatching {
+            androidx.core.content.pm.ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)
+        }.getOrDefault(false)
+        if (!ok) {
+            Toast.makeText(context, R.string.shortcut_unsupported, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun translateNow() {

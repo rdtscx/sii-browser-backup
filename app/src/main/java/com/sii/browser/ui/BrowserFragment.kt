@@ -11068,6 +11068,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 openDownloads()
                 return true
             }
+            "text_translate" -> {
+                openTextTranslate()
+                return true
+            }
         }
         return false
     }
