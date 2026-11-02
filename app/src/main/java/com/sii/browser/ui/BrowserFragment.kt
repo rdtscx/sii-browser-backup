@@ -9195,7 +9195,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 常见 App 深链 → 可访问的网页地址。 */
     private fun mappedWebUrl(scheme: String, uri: android.net.Uri): String? {
-        val segments = uri.pathSegments.orEmpty()
+        // pathSegments 对非分层 URI 会抛 UnsupportedOperationException。
+        val segments = if (uri.isHierarchical) uri.pathSegments.orEmpty() else emptyList()
         return when {
             scheme == "zhihu" && segments.size >= 2 && segments[0] == "articles" ->
                 "https://zhuanlan.zhihu.com/p/${segments[1]}"
