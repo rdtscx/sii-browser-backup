@@ -4,6 +4,13 @@
     <string name="first_launch_title">Sii へようこそ</string>
     <string name="first_launch_notice">Sii をご利用になる前に、利用規約とプライバシーポリシーをよくお読みいただき、同意してください。</string>
     <string name="first_launch_agree">同意して続行</string>
+    <string name="first_launch_links">%1$s と %2$s をお読みください</string>
+    <string name="legal_terms_title">利用規約</string>
+    <string name="legal_privacy_title">プライバシーポリシー</string>
+    <string name="about_qq_group">バグ報告グループ（QQ）</string>
+    <string name="about_qq_group_desc">グループ 1128056947</string>
+    <string name="about_qq_copied">グループ番号をコピーしました</string>
+    <string name="about_qq_open_failed">このリンクを開けるアプリがありません</string>
     <string name="address_hint">URL または検索語を入力</string>
     <string name="go">移動</string>
     <string name="page_load_error">このページを読み込めません</string>

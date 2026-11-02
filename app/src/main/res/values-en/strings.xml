@@ -4,6 +4,13 @@
     <string name="first_launch_title">Welcome to Sii</string>
     <string name="first_launch_notice">Before using Sii, please read and agree to the Terms of Use and Privacy Policy.</string>
     <string name="first_launch_agree">Agree and continue</string>
+    <string name="first_launch_links">Read the %1$s and %2$s</string>
+    <string name="legal_terms_title">Terms of Use</string>
+    <string name="legal_privacy_title">Privacy Policy</string>
+    <string name="about_qq_group">Bug report group (QQ)</string>
+    <string name="about_qq_group_desc">Group 1128056947</string>
+    <string name="about_qq_copied">Group number copied</string>
+    <string name="about_qq_open_failed">No app available to open this link</string>
     <string name="address_hint">Enter URL or search</string>
     <string name="go">Go</string>
     <string name="page_load_error">Unable to load this page</string>

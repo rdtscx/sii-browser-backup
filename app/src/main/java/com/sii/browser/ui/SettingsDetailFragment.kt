@@ -2987,7 +2987,64 @@ class SettingsDetailFragment : Fragment() {
         )
         rows.add(navRow(getString(R.string.settings_crash_log)) { open(VIEW_CRASH_LOG) })
         rows.add(navRow(getString(R.string.settings_about_license)) { showLicense() })
+        rows.add(navRow(getString(R.string.legal_terms_title)) { openFragment(LegalFragment.newInstance(LegalFragment.TYPE_TERMS)) })
+        rows.add(navRow(getString(R.string.legal_privacy_title)) { openFragment(LegalFragment.newInstance(LegalFragment.TYPE_PRIVACY)) })
+        rows.add(
+            navRow(
+                getString(R.string.about_qq_group),
+                getString(R.string.about_qq_group_desc)
+            ) { openQqGroup() }.apply {
+                setOnLongClickListener {
+                    copyQqGroup()
+                    true
+                }
+            }
+        )
         card(*rows.toTypedArray())
+    }
+
+    /** 优先用 QQ 打开群链接，未安装则回到浏览器内打开。 */
+    private fun openQqGroup() {
+        val context = requireContext()
+        val uri = android.net.Uri.parse(QQ_GROUP_URL)
+        val qqIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+            .setPackage("com.tencent.mobileqq")
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val qqAvailable = runCatching {
+            context.packageManager.resolveActivity(qqIntent, 0) != null
+        }.getOrDefault(false)
+        if (qqAvailable && runCatching { context.startActivity(qqIntent); true }.getOrDefault(false)) {
+            return
+        }
+        val opened = runCatching {
+            val open = AppServices.openUrl
+            if (open == null) {
+                false
+            } else {
+                open(QQ_GROUP_URL)
+                true
+            }
+        }.getOrDefault(false)
+        if (opened) {
+            parentFragmentManager.popBackStack(
+                null,
+                androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE
+            )
+            return
+        }
+        runCatching {
+            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+        }.onFailure {
+            Toast.makeText(context, R.string.about_qq_open_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun copyQqGroup() {
+        val clipboard = requireContext()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+            as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("qq_group", QQ_GROUP_NUMBER))
+        Toast.makeText(requireContext(), R.string.about_qq_copied, Toast.LENGTH_SHORT).show()
     }
 
     private fun buildCrashLog() {
@@ -3083,6 +3140,12 @@ class SettingsDetailFragment : Fragment() {
     companion object {
         const val ARG_VIEW = "view"
         const val ARG_FOCUS = "focus"
+
+        private const val QQ_GROUP_NUMBER = "1128056947"
+        private const val QQ_GROUP_URL =
+            "https://qun.qq.com/universal-share/share?ac=1&authKey=3fqbIa8tMhc9LMb3dGvf5yqHfjye71%2Bqt%2F5S47vaPpPfoCdZgzrEp1zQoydN3tQa" +
+                "&busi_data=eyJncm91cENvZGUiOiIxMTI4MDU2OTQ3IiwidG9rZW4iOiJTRCtPZnJiYjJYajI2NnM2Q0ZtUTFDNDY3Zy9LdFFYMW9raytnaWxkREFwbUxmSlJOTUFKaElWdmd4NVRkRlY4IiwidWluIjoiMjg3Njc1NjY2MyJ9" +
+                "&data=Y3NGxGKyKlgCPVs1Xi-SlaZP4rSZ6HDG75WMzmgzLO-kP4NYEdIzuFFQIAhJ13Y5Sa9iYJVERBoEqE41xBtJZQ&svctype=4&tempid=h5_group_info"
 
         const val VIEW_GENERAL = "general"
         const val VIEW_ENGINE = "engine"

@@ -4,6 +4,13 @@
     <string name="first_launch_title">欢迎使用 Sii</string>
     <string name="first_launch_notice">在使用 Sii 前，你需要认真阅读并同意使用协议与隐私政策。</string>
     <string name="first_launch_agree">同意并继续</string>
+    <string name="first_launch_links">阅读《%1$s》与《%2$s》</string>
+    <string name="legal_terms_title">使用协议</string>
+    <string name="legal_privacy_title">隐私政策</string>
+    <string name="about_qq_group">Bug 反馈群（QQ）</string>
+    <string name="about_qq_group_desc">群号 1128056947</string>
+    <string name="about_qq_copied">群号已复制</string>
+    <string name="about_qq_open_failed">未找到可打开的应用</string>
     <string name="address_hint">输入网址或搜索</string>
     <string name="go">前往</string>
     <string name="page_load_error">无法加载该网页</string>

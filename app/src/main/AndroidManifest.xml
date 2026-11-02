@@ -11,6 +11,7 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <queries>
+        <package android:name="com.tencent.mobileqq" />
         <package android:name="com.android.settings" />
         <package android:name="com.oplus.settings" />
         <package android:name="com.coloros.settings" />
