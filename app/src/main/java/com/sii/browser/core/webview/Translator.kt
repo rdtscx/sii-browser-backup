@@ -119,7 +119,7 @@ object Translator {
         if (appid.isBlank() || key.isBlank()) return Result(null, "no key")
         val salt = (System.currentTimeMillis() % 1000000).toString()
         val sign = md5(appid + text + salt + key)
-        val lang = baiduLang(to)
+        val lang = TranslateLanguages.baidu(to) ?: to.substringBefore('-')
         val url = "https://fanyi-api.baidu.com/api/trans/vip/translate"
         val form = "q=" + enc(text) + "&from=auto&to=" + enc(lang) +
             "&appid=" + enc(appid) + "&salt=" + salt + "&sign=" + sign
@@ -203,17 +203,6 @@ object Translator {
             null -> null
             else -> value.toString()
         }
-    }
-
-    private fun baiduLang(tag: String): String = when (tag.substringBefore('-')) {
-        "zh" -> if (tag.contains("TW") || tag.contains("HK")) "cht" else "zh"
-        "ja" -> "jp"
-        "ko" -> "kor"
-        "fr" -> "fra"
-        "es" -> "spa"
-        "vi" -> "vie"
-        "ar" -> "ara"
-        else -> tag.substringBefore('-')
     }
 
     private fun md5(input: String): String {

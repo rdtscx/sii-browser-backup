@@ -33,21 +33,8 @@ class TextTranslateFragment : Fragment() {
 
     private data class Lang(val label: String, val tag: String)
 
-    private val langs = listOf(
-        Lang("中文", "zh-CN"),
-        Lang("English", "en"),
-        Lang("日本語", "ja"),
-        Lang("한국어", "ko"),
-        Lang("Français", "fr"),
-        Lang("Deutsch", "de"),
-        Lang("Español", "es"),
-        Lang("Русский", "ru"),
-        Lang("Português", "pt"),
-        Lang("Italiano", "it"),
-        Lang("ไทย", "th"),
-        Lang("Tiếng Việt", "vi"),
-        Lang("العربية", "ar")
-    )
+    private val langs = com.sii.browser.core.webview.TranslateLanguages.TOOL
+        .map { Lang(it.label, it.tag) }
 
     private lateinit var input: EditText
     private lateinit var sourceValue: TextView
@@ -212,6 +199,20 @@ class TextTranslateFragment : Fragment() {
         refreshLanguageLabels()
         refreshEngine()
         return root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val activity = requireActivity()
+        activity.onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    parentFragmentManager.popBackStack()
+                    activity.moveTaskToBack(true)
+                }
+            }
+        )
     }
 
     private fun defaultTarget(): String =
@@ -436,13 +437,27 @@ class TextTranslateFragment : Fragment() {
                 ).show()
                 return@launch
             }
-            if (engine == 0 && !localSupports(detected)) {
-                finishTranslate()
-                resultCard.visibility = View.GONE
-                Toast.makeText(
-                    requireContext(), R.string.text_translate_local_only, Toast.LENGTH_LONG
-                ).show()
-                return@launch
+            if (engine == 0) {
+                val needed = listOfNotNull(
+                    com.sii.browser.core.webview.TranslateLanguages.mlkit(detected),
+                    com.sii.browser.core.webview.TranslateLanguages.mlkit(targetTag)
+                ).distinct()
+                if (needed.size < 2) {
+                    finishTranslate()
+                    resultCard.visibility = View.GONE
+                    Toast.makeText(
+                        requireContext(), R.string.text_translate_local_only, Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+                val missing = com.sii.browser.core.webview.OfflineTranslator
+                    .missingModels(requireContext(), needed)
+                if (missing.isNotEmpty()) {
+                    finishTranslate()
+                    resultCard.visibility = View.GONE
+                    promptDownload(missing) { translateNow() }
+                    return@launch
+                }
             }
             val error = translateText(raw, detected)
             if (!isAdded) return@launch
@@ -474,21 +489,60 @@ class TextTranslateFragment : Fragment() {
     }
 
     private fun labelOfTag(tag: String): String =
-        langs.firstOrNull { it.tag == tag }?.label
-            ?: langs.firstOrNull { it.tag.substringBefore('-') == tag.substringBefore('-') }?.label
-            ?: tag
+        com.sii.browser.core.webview.TranslateLanguages.label(tag)
 
     private fun sameLanguage(source: String): Boolean {
-        val sourceOk = source.startsWith("zh") || source.startsWith("en")
-        val targetOk = targetTag.startsWith("zh") || targetTag.startsWith("en")
-        if (!sourceOk || !targetOk) return false
-        return source.take(2) == targetTag.take(2)
+        val sourceCode = com.sii.browser.core.webview.TranslateLanguages.mlkit(source) ?: return false
+        val targetCode =
+            com.sii.browser.core.webview.TranslateLanguages.mlkit(targetTag) ?: return false
+        return sourceCode == targetCode
     }
 
-    private fun localSupports(detected: String?): Boolean {
-        val sourceOk = detected == null || detected.startsWith("zh") || detected.startsWith("en")
-        val targetOk = targetTag.startsWith("zh") || targetTag.startsWith("en")
-        return sourceOk && targetOk
+    private fun promptDownload(codes: List<String>, then: () -> Unit) {
+        val names = codes
+            .map { com.sii.browser.core.webview.TranslateLanguages.label(it) }
+            .distinct()
+            .joinToString("、")
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.text_translate_need_pack)
+            .setMessage(getString(R.string.text_translate_download_pack_msg, names))
+            .setPositiveButton(R.string.text_translate_go_download) { _, _ ->
+                downloadModels(codes, then)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun downloadModels(codes: List<String>, then: () -> Unit) {
+        if (com.sii.browser.core.webview.OfflineTranslator.downloading) {
+            Toast.makeText(
+                requireContext(), R.string.text_translate_downloading, Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        translating = true
+        translateButton.isEnabled = false
+        translateButton.text = getString(R.string.text_translate_downloading)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val ok = com.sii.browser.core.webview.OfflineTranslator.downloadModels(
+                requireContext(), codes
+            ) { percent, _, _, _, _ ->
+                view?.post {
+                    if (!isAdded) return@post
+                    translateButton.text =
+                        getString(R.string.text_translate_download_progress, percent)
+                }
+            }
+            if (!isAdded) return@launch
+            finishTranslate()
+            if (ok) {
+                then()
+            } else {
+                Toast.makeText(
+                    requireContext(), R.string.text_translate_pack_failed, Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     /** 逐行翻译（长行分段），成功时把译文写入结果卡并返回 null，否则返回错误文案。 */

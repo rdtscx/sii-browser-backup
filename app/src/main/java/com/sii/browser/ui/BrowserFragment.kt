@@ -3091,15 +3091,25 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     failTranslate(wv, R.string.translate_source_unknown)
                     return@launch
                 }
-                if (!source.startsWith("zh") && !source.startsWith("en")) {
+                val sourceMlkit = com.sii.browser.core.webview.TranslateLanguages.mlkit(source)
+                val targetMlkit = com.sii.browser.core.webview.TranslateLanguages.mlkit(target)
+                if (sourceMlkit == null) {
                     failTranslate(wv, R.string.translate_source_unsupported)
                     return@launch
                 }
-                val targetLower = target.lowercase()
-                if ((source.startsWith("zh") && targetLower.startsWith("zh")) ||
-                    (source.startsWith("en") && targetLower.startsWith("en"))
-                ) {
+                if (targetMlkit == null) {
+                    failTranslate(wv, R.string.translate_target_unsupported)
+                    return@launch
+                }
+                if (sourceMlkit == targetMlkit) {
                     failTranslate(wv, R.string.translate_same_language)
+                    return@launch
+                }
+                if (!com.sii.browser.core.webview.OfflineTranslator
+                        .isReady(requireContext(), listOf(sourceMlkit, targetMlkit))
+                ) {
+                    failTranslate(wv, R.string.translate_failed_offline_pack)
+                    showOfflinePackNeeded()
                     return@launch
                 }
                 sourceLangCache[url] = source
@@ -3357,7 +3367,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 翻译进度提示：完成后自动淡出。 */
     private suspend fun offlinePackReady(): Boolean =
         runCatching {
-            com.sii.browser.core.webview.OfflineTranslator.isReady(requireContext())
+            val host = runCatching {
+                android.net.Uri.parse(tabManager.currentWebView?.url).host
+            }.getOrNull()?.lowercase()
+            val target = com.sii.browser.core.webview.TranslateLanguages
+                .mlkit(effectiveTranslateTarget(host)) ?: return@runCatching false
+            com.sii.browser.core.webview.OfflineTranslator
+                .isReady(requireContext(), listOf(target))
         }.getOrDefault(false)
 
     /** 离线语言包缺失：提示并提供直达下载页的入口。 */

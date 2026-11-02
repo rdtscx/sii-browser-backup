@@ -22,21 +22,22 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * ML Kit 设备端翻译：只支持中英，语言包手动下载，不自动联网。
+ * ML Kit 设备端翻译：语言包按需下载（默认中英），不自动联网。
  */
 object OfflineTranslator {
 
     private val manager = RemoteModelManager.getInstance()
     private val clients = mutableMapOf<String, com.google.mlkit.nl.translate.Translator>()
 
-    /** 译文缓存（原文→译文）：页面重建节点后重翻零开销，避免重复调 ML Kit。 */
+    /** 译文缓存（语言对|原文→译文）：页面重建节点后重翻零开销，避免重复调 ML Kit。 */
     private val cache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>) = size > 2000
     }
 
-    /** 模型就绪状态缓存：isModelDownloaded 是跨进程调用，逐 chunk 查询会明显拖慢翻译。 */
-    @Volatile
-    private var readyCache: Boolean? = null
+    /** 单个模型的下载状态缓存：isModelDownloaded 是跨进程调用，逐 chunk 查询会明显拖慢翻译。 */
+    private val readyCache = mutableMapOf<String, Boolean>()
+
+    private val defaultLanguages = listOf(TranslateLanguage.CHINESE, TranslateLanguage.ENGLISH)
 
     @Volatile
     var downloading = false
@@ -61,74 +62,65 @@ object OfflineTranslator {
 
     fun targetLanguage(context: Context): String? {
         val saved = AppServices.settings.translateTarget()
-        val tag = saved.ifBlank {
-            if (context.resources.configuration.locales[0].language == "zh") "zh" else "en"
-        }
-        return when {
-            tag.startsWith("zh") -> TranslateLanguage.CHINESE
-            tag.startsWith("en") -> TranslateLanguage.ENGLISH
-            else -> null
+        TranslateLanguages.mlkit(saved)?.let { return it }
+        return if (context.resources.configuration.locales[0].language == "zh") {
+            TranslateLanguage.CHINESE
+        } else {
+            TranslateLanguage.ENGLISH
         }
     }
-
-    private fun mapTarget(tag: String): String? = when {
-        tag.startsWith("zh") -> TranslateLanguage.CHINESE
-        tag.startsWith("en") -> TranslateLanguage.ENGLISH
-        else -> null
-    }
-
-    private fun mapSource(tag: String): String? = when {
-        tag.startsWith("zh") -> TranslateLanguage.CHINESE
-        tag.startsWith("en") -> TranslateLanguage.ENGLISH
-        else -> null
-    }
-
-    private fun models(): List<TranslateRemoteModel> = listOf(
-        TranslateRemoteModel.Builder(TranslateLanguage.CHINESE).build(),
-        TranslateRemoteModel.Builder(TranslateLanguage.ENGLISH).build()
-    )
 
     private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { cont ->
         addOnSuccessListener { value -> if (cont.isActive) cont.resume(value) }
         addOnFailureListener { error -> if (cont.isActive) cont.resumeWithException(error) }
     }
 
-    /** 本地模型状态查询；必须在协程/IO 中调用，不能阻塞主线程。 */
-    suspend fun isReady(context: Context): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        readyCache?.let { return@withContext it }
-        val ready = models().all { model ->
-            runCatching { manager.isModelDownloaded(model).awaitResult() }.getOrDefault(false)
+    private fun model(code: String): TranslateRemoteModel =
+        TranslateRemoteModel.Builder(code).build()
+
+    /** 单个模型是否已下载；必须在协程/IO 中调用。 */
+    suspend fun isModelReady(context: Context, code: String): Boolean =
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            synchronized(readyCache) { readyCache[code] }?.let { return@withContext it }
+            val ready = runCatching { manager.isModelDownloaded(model(code)).awaitResult() }
+                .getOrDefault(false)
+            synchronized(readyCache) { readyCache[code] = ready }
+            ready
         }
-        readyCache = ready
-        ready
-    }
+
+    /** 指定语言中尚未下载的模型。 */
+    suspend fun missingModels(context: Context, codes: Collection<String>): List<String> =
+        codes.distinct().filter { !isModelReady(context, it) }
+
+    /** 指定语言的模型是否全部就绪；默认检查中英。 */
+    suspend fun isReady(
+        context: Context,
+        codes: Collection<String> = defaultLanguages
+    ): Boolean = missingModels(context, codes).isEmpty()
 
     suspend fun downloadModels(
         context: Context,
-        onProgress: (percent: Int, index: Int, count: Int, read: Long, total: Long) -> Unit = { _, _, _, _, _ -> }
+        codes: Collection<String> = defaultLanguages,
+        onProgress: (percent: Int, index: Int, count: Int, read: Long, total: Long) -> Unit =
+            { _, _, _, _, _ -> }
     ): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (downloading) return@withContext false
+        val targets = codes.distinct().filter { !isModelReady(context, it) }
+        if (targets.isEmpty()) return@withContext true
         downloading = true
         progressPercent = 0
         progressIndex = 0
-        progressCount = models().size
+        progressCount = targets.size
         try {
             val conditions = DownloadConditions.Builder().build()
-            val list = models()
-            for ((index, model) in list.withIndex()) {
+            targets.forEachIndexed { index, code ->
                 progressIndex = index + 1
-                onProgress(
-                    (index * 100) / list.size,
-                    index + 1,
-                    list.size,
-                    0L,
-                    0L
-                )
-                manager.download(model, conditions).awaitResult()
+                onProgress((index * 100) / targets.size, index + 1, targets.size, 0L, 0L)
+                manager.download(model(code), conditions).awaitResult()
+                synchronized(readyCache) { readyCache[code] = true }
             }
             progressPercent = 100
-            onProgress(100, list.size, list.size, 0L, 0L)
-            readyCache = true
+            onProgress(100, targets.size, targets.size, 0L, 0L)
             synchronized(clients) {
                 clients.values.forEach { runCatching { it.close() } }
                 clients.clear()
@@ -136,17 +128,25 @@ object OfflineTranslator {
             true
         } catch (e: Exception) {
             TranslationTrace.log(context, "ML Kit download failed: ${e.message}")
+            targets.forEach { code ->
+                synchronized(readyCache) { readyCache.remove(code) }
+            }
             false
         } finally {
             downloading = false
         }
     }
 
-    suspend fun deleteModels(context: Context): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun deleteModels(
+        context: Context,
+        codes: Collection<String> = defaultLanguages
+    ): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
         var ok = true
-        for (model in models()) {
-            runCatching { manager.deleteDownloadedModel(model).awaitResult() }
+        val targets = codes.distinct()
+        for (code in targets) {
+            runCatching { manager.deleteDownloadedModel(model(code)).awaitResult() }
                 .onFailure { ok = false }
+            synchronized(readyCache) { readyCache[code] = false }
         }
         synchronized(clients) {
             clients.values.forEach { runCatching { it.close() } }
@@ -154,7 +154,6 @@ object OfflineTranslator {
         }
         progressPercent = 0
         synchronized(cache) { cache.clear() }
-        readyCache = null
         ok
     }
 
@@ -164,15 +163,17 @@ object OfflineTranslator {
         to: String,
         from: String? = null
     ): Translator.Result {
-        val target = mapTarget(to) ?: targetLanguage(context)
+        val target = TranslateLanguages.mlkit(to) ?: targetLanguage(context)
             ?: return Translator.Result(null, "offline_unsupported")
-        val source = mapSource(from.orEmpty())
+        val source = TranslateLanguages.mlkit(from.orEmpty())
             ?: return Translator.Result(null, "offline_source_unknown")
         if (source == target) return Translator.Result(text)
         val key = "$source-$target"
         val cacheKey = "$key|$text"
         synchronized(cache) { cache[cacheKey] }?.let { return Translator.Result(it) }
-        if (!isReady(context)) return Translator.Result(null, "offline_model_missing")
+        if (!isReady(context, listOf(source, target))) {
+            return Translator.Result(null, "offline_model_missing")
+        }
         val client = synchronized(clients) {
             clients.getOrPut(key) {
                 Translation.getClient(

@@ -245,28 +245,39 @@ class SettingsDetailFragment : Fragment() {
     // ---- 通用 ----
 
     /** 语言预设（存储仍是 language() 的字符串 tag；空 = 跟随系统）。 */
-    private val languagePresets = listOf(
-        "" to "跟随系统",
-        "zh-CN" to "简体中文",
-        "en" to "English"
-    )
-
     private fun showLanguageDialog() {
         val current = settings.language().orEmpty()
-        val labels = languagePresets.map { it.second }.toTypedArray()
-        val customIndex = languagePresets.size
-        val selected = languagePresets.indexOfFirst { it.first == current }
-            .takeIf { it >= 0 } ?: customIndex
-        val items = labels + getString(R.string.settings_language_custom)
+        val entries = com.sii.browser.data.UiLanguages.ALL
+        val labels = entries.map { entry ->
+            val name = if (entry.tag.isEmpty()) {
+                getString(R.string.settings_language_follow)
+            } else {
+                entry.label
+            }
+            if (entry.translated) name else name + getString(R.string.settings_language_in_progress)
+        }.toMutableList()
+        val selected = entries.indexOfFirst { it.tag == current }.takeIf { it >= 0 } ?: 0
+        val customIndex = entries.size
+        labels.add(getString(R.string.settings_language_custom))
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.settings_language)
-            .setSingleChoiceItems(items, selected) { dialog, which ->
-                dialog.dismiss()
+            .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
                 if (which == customIndex) {
+                    dialog.dismiss()
                     showLanguageCustomInput()
-                } else {
-                    applyLanguage(languagePresets[which].first)
+                    return@setSingleChoiceItems
                 }
+                val entry = entries[which]
+                if (!entry.translated) {
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.settings_language_in_progress,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@setSingleChoiceItems
+                }
+                dialog.dismiss()
+                applyLanguage(entry.tag)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -318,9 +329,11 @@ class SettingsDetailFragment : Fragment() {
         container.addView(CardList.sectionTitle(requireContext(), getString(resId)))
     }
 
-    private fun languageLabel(tag: String): String =
-        languagePresets.firstOrNull { it.first == tag }?.second
-            ?: tag.ifBlank { languagePresets.first().second }
+    private fun languageLabel(tag: String): String {
+        if (tag.isBlank()) return getString(R.string.settings_language_follow)
+        val entry = com.sii.browser.data.UiLanguages.ALL.firstOrNull { it.tag == tag }
+        return entry?.label ?: tag
+    }
 
     private fun buildGeneral() {
         sectionTitle(R.string.settings_section_search)
@@ -435,19 +448,10 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_translate_custom),
                 enabled = mode == 1 && settings.translateProvider() == 3
             ) { open(VIEW_V2_TRANSLATE_CUSTOM) },
-            choiceRow(
+            navRow(
                 getString(R.string.settings_translate_target),
-                TRANSLATE_TARGET_NAMES,
-                translateTargetIndex(settings.translateTarget())
-            ) { index ->
-                settings.setTranslateTarget(
-                    when (index) {
-                        1 -> "zh-CN"
-                        2 -> "en"
-                        else -> ""
-                    }
-                )
-            },
+                translateTargetLabel()
+            ) { showTranslateTargetDialog() },
             switchRow(
                 getString(R.string.settings_translate_detect),
                 settings.translateDetect(),
@@ -504,25 +508,27 @@ class SettingsDetailFragment : Fragment() {
 
     private fun buildV2TranslateOffline() {
         val context = requireContext()
-        val downloading = com.sii.browser.core.webview.OfflineTranslator.downloading
+        val translator = com.sii.browser.core.webview.OfflineTranslator
+        val downloading = translator.downloading
         val status = TextView(context).apply {
             setTextSize(13f)
             setTextColor(context.getColor(R.color.text_secondary))
-            text = when {
-                downloading -> getString(
+            text = if (downloading) {
+                getString(
                     R.string.settings_translate_offline_progress,
-                    com.sii.browser.core.webview.OfflineTranslator.progressPercent,
-                    com.sii.browser.core.webview.OfflineTranslator.progressIndex,
-                    com.sii.browser.core.webview.OfflineTranslator.progressCount
+                    translator.progressPercent,
+                    translator.progressIndex,
+                    translator.progressCount
                 )
-                else -> getString(R.string.settings_translate_offline_checking)
+            } else {
+                getString(R.string.settings_translate_offline_checking)
             }
         }
         val progress = android.widget.ProgressBar(
             context, null, android.R.attr.progressBarStyleHorizontal
         ).apply {
             max = 100
-            progress = com.sii.browser.core.webview.OfflineTranslator.progressPercent
+            progress = translator.progressPercent
             progressTintList = android.content.res.ColorStateList.valueOf(
                 ThemeAccent.color(context)
             )
@@ -542,45 +548,90 @@ class SettingsDetailFragment : Fragment() {
                 ).apply { topMargin = dpToPx(6) }
             )
         }
+        card(statusBox)
+
+        val valueViews = mutableMapOf<String, TextView>()
+        val rows = com.sii.browser.core.webview.TranslateLanguages.ALL.map { lang ->
+            val value = valueView("…")
+            valueViews[lang.tag] = value
+            CardList.row(context).apply {
+                addView(titleView(lang.label), weightParams())
+                addView(value)
+                setOnClickListener { onOfflineLanguageClick(lang) }
+                setOnLongClickListener {
+                    confirmDeleteLanguage(lang)
+                    true
+                }
+            }
+        }
+        card(*rows.toTypedArray())
         card(
-            statusBox,
-            navRow(getString(R.string.settings_translate_offline_download)) {
-                downloadOfflineModels()
-            },
-            navRow(getString(R.string.settings_translate_offline_delete)) {
-                deleteOfflineModels()
+            navRow(getString(R.string.settings_translate_offline_delete_all)) {
+                confirmDeleteAllLanguages()
             }
         )
         aboutText(R.string.settings_translate_offline_note)
-        if (!downloading) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val ready = runCatching {
-                    com.sii.browser.core.webview.OfflineTranslator.isReady(requireContext())
-                }.getOrDefault(false)
-                if (!isAdded || com.sii.browser.core.webview.OfflineTranslator.downloading) return@launch
-                offlineStatus?.text = getString(
-                    if (ready) R.string.settings_translate_offline_ready
-                    else R.string.settings_translate_offline_not_downloaded
-                )
-                if (ready) offlineProgress?.visibility = View.GONE
+        if (!downloading) refreshOfflineStatuses(valueViews)
+    }
+
+    private fun refreshOfflineStatuses(valueViews: Map<String, TextView>) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val translator = com.sii.browser.core.webview.OfflineTranslator
+            val languages = com.sii.browser.core.webview.TranslateLanguages.ALL
+            val states = languages.map { lang ->
+                lang.tag to translator.isModelReady(requireContext(), lang.mlkit)
             }
+            if (!isAdded) return@launch
+            var ready = 0
+            states.forEach { (tag, isReady) ->
+                if (isReady) ready++
+                valueViews[tag]?.apply {
+                    text = getString(
+                        if (isReady) R.string.settings_translate_offline_downloaded
+                        else R.string.settings_translate_offline_not_downloaded
+                    )
+                    setTextColor(
+                        if (isReady) ThemeAccent.color(requireContext())
+                        else requireContext().getColor(R.color.text_secondary)
+                    )
+                }
+            }
+            offlineStatus?.text = getString(
+                R.string.settings_translate_offline_status,
+                ready,
+                languages.size
+            )
         }
     }
 
-    private fun downloadOfflineModels() {
+    private fun onOfflineLanguageClick(lang: com.sii.browser.core.webview.TranslateLanguages.Lang) {
         if (com.sii.browser.core.webview.OfflineTranslator.downloading) {
-            Toast.makeText(requireContext(), R.string.settings_translate_offline_downloading, Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                R.string.settings_translate_offline_downloading,
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
-        offlineStatus?.text = getString(R.string.settings_translate_offline_progress, 0, 0, 7)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val ready = com.sii.browser.core.webview.OfflineTranslator
+                .isModelReady(requireContext(), lang.mlkit)
+            if (!isAdded) return@launch
+            if (ready) confirmDeleteLanguage(lang) else downloadLanguage(lang)
+        }
+    }
+
+    private fun downloadLanguage(lang: com.sii.browser.core.webview.TranslateLanguages.Lang) {
+        offlineStatus?.text = getString(R.string.settings_translate_offline_progress, 0, 0, 1)
         offlineProgress?.apply {
             progress = 0
             visibility = View.VISIBLE
         }
-        Toast.makeText(requireContext(), R.string.settings_translate_offline_downloading, Toast.LENGTH_SHORT).show()
         viewLifecycleOwner.lifecycleScope.launch {
-            val ok = com.sii.browser.core.webview.OfflineTranslator.downloadModels(requireContext()) {
-                    percent, index, count, _, _ ->
+            val ok = com.sii.browser.core.webview.OfflineTranslator.downloadModels(
+                requireContext(),
+                listOf(lang.mlkit)
+            ) { percent, index, count, _, _ ->
                 view?.post {
                     if (!isAdded) return@post
                     offlineProgress?.progress = percent
@@ -594,8 +645,6 @@ class SettingsDetailFragment : Fragment() {
             if (!ok) {
                 offlineProgress?.visibility = View.GONE
                 offlineStatus?.text = getString(R.string.settings_translate_offline_download_failed)
-            } else {
-                offlineProgress?.progress = 100
             }
             Toast.makeText(
                 requireContext(),
@@ -607,16 +656,48 @@ class SettingsDetailFragment : Fragment() {
         }
     }
 
-    private fun deleteOfflineModels() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            com.sii.browser.core.webview.OfflineTranslator.deleteModels(requireContext())
-            Toast.makeText(
-                requireContext(),
-                R.string.settings_translate_offline_deleted,
-                Toast.LENGTH_SHORT
-            ).show()
-            if (isAdded) build()
-        }
+    private fun confirmDeleteLanguage(lang: com.sii.browser.core.webview.TranslateLanguages.Lang) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.settings_translate_offline_delete_one, lang.label))
+            .setPositiveButton(R.string.delete) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    com.sii.browser.core.webview.OfflineTranslator.deleteModels(
+                        requireContext(), listOf(lang.mlkit)
+                    )
+                    if (!isAdded) return@launch
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.settings_translate_offline_deleted,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    build()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmDeleteAllLanguages() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_translate_offline_delete_all)
+            .setMessage(R.string.settings_translate_offline_delete_all_confirm)
+            .setPositiveButton(R.string.delete) { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    com.sii.browser.core.webview.OfflineTranslator.deleteModels(
+                        requireContext(),
+                        com.sii.browser.core.webview.TranslateLanguages.ALL.map { it.mlkit }
+                    )
+                    if (!isAdded) return@launch
+                    Toast.makeText(
+                        requireContext(),
+                        R.string.settings_translate_offline_deleted,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    build()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun buildV2TranslateParams() {
@@ -2856,7 +2937,6 @@ class SettingsDetailFragment : Fragment() {
         private val TOOLBAR_ACTION_NAMES =
             arrayOf("无", "刷新", "主页", "新建标签", "菜单", "后退", "前进")
         private val OPEN_APP_POLICY_NAMES = arrayOf("每次询问", "始终允许", "禁止")
-        private val TRANSLATE_TARGET_NAMES = arrayOf("跟随界面", "简体中文", "English")
         private val HOME_GRID_COLUMNS_NAMES = arrayOf("4 列", "5 列", "6 列")
         private val HOME_ICON_SIZE_NAMES = arrayOf("小", "中", "大")
         private val HOME_ICON_SHAPE_NAMES = arrayOf("圆形", "圆角方形")
@@ -3951,10 +4031,33 @@ class SettingsDetailFragment : Fragment() {
             .show()
     }
 
-    private fun translateTargetIndex(value: String): Int = when {
-        value.isBlank() -> 0
-        value.startsWith("zh") -> 1
-        else -> 2
+    private fun translateTargetLabel(): String {
+        val tag = settings.translateTarget()
+        return if (tag.isBlank()) getString(R.string.settings_translate_target_follow)
+        else com.sii.browser.core.webview.TranslateLanguages.label(tag)
+    }
+
+    private fun showTranslateTargetDialog() {
+        val current = settings.translateTarget()
+        val labels = mutableListOf(getString(R.string.settings_translate_target_follow))
+        labels.addAll(
+            com.sii.browser.core.webview.TranslateLanguages.ALL.map { it.label }
+        )
+        val selected = if (current.isBlank()) 0 else
+            com.sii.browser.core.webview.TranslateLanguages.ALL.indexOfFirst {
+                it.tag.equals(current, true)
+            }.let { if (it >= 0) it + 1 else 0 }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_translate_target)
+            .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                settings.setTranslateTarget(
+                    if (which == 0) ""
+                    else com.sii.browser.core.webview.TranslateLanguages.ALL[which - 1].tag
+                )
+                dialog.dismiss()
+                build()
+            }
+            .show()
     }
 
     /** 退出时清理的类目多选。 */
