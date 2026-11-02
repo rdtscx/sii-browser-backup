@@ -79,6 +79,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private lateinit var tabManager: TabManager
     private var addressInput: EditText? = null
     private var siteInfoButton: View? = null
+    private var bookmarkCheckedUrl: String? = null
+    private var bookmarkChecked = false
+    private var bookmarkLoadingUrl: String? = null
     private var refreshButton: android.widget.ImageButton? = null
     private var toolbarIconColor: Int? = null
     private var addressIconColor: Int? = null
@@ -126,8 +129,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var sniffPrompt: View? = null
     private var sniffPromptResource: com.sii.browser.core.webview.SniffedResource? = null
     private var sniffPromptKey: Any? = null
-    private val sniffPrompted = java.util.WeakHashMap<Any, Boolean>()
-    private val sniffPromptDismissed = java.util.WeakHashMap<Any, Boolean>()
+    private val sniffPromptedUrls = java.util.HashSet<String>()
+    private val sniffPromptDismissedUrls = java.util.HashSet<String>()
     private var menuOverlay: View? = null
     private var menuToggles: LinearLayout? = null
     private var menuGrid: LinearLayout? = null
@@ -216,7 +219,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
         }
         view.post { restoreTranslateUi() }
-        siteInfoButton?.setOnClickListener { anchor -> showSiteInfoMenu(anchor) }
+        siteInfoButton?.setOnClickListener { toggleBookmarkForCurrent() }
+        siteInfoButton?.setOnLongClickListener { anchor ->
+            showSiteInfoMenu(anchor)
+            true
+        }
         progressBar = view.findViewById(R.id.progress_bar)
         tabStrip = view.findViewById(R.id.tab_strip)
         tabBar = view.findViewById(R.id.tab_bar)
@@ -4539,15 +4546,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!AppServices.settings.sniffEnabled()) return
         if (key !== tabManager.currentWebView) return
         if (homeContainer?.visibility == View.VISIBLE) return
-        if (sniffPrompted[key] == true || sniffPromptDismissed[key] == true) return
+        if (sniffPromptedUrls.contains(res.url) || sniffPromptDismissedUrls.contains(res.url)) return
+        if (sniffPrompt?.visibility == View.VISIBLE) return
         if (res.type != com.sii.browser.core.webview.SniffType.HLS &&
             res.type != com.sii.browser.core.webview.SniffType.VIDEO
         ) return
         if (res.type == com.sii.browser.core.webview.SniffType.VIDEO && isSniffSegment(res.url)) return
-        sniffPrompted[key] = true
+        sniffPromptedUrls.add(res.url)
         view?.postDelayed({
             if (!isAdded || key !== tabManager.currentWebView) return@postDelayed
-            if (sniffPrompted[key] != true) return@postDelayed
+            if (!sniffPromptedUrls.contains(res.url)) return@postDelayed
             val list = com.sii.browser.core.webview.SniffStore.list(key)
             val best = list.firstOrNull { it.type == com.sii.browser.core.webview.SniffType.HLS }
                 ?: list.firstOrNull {
@@ -4588,7 +4596,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun dismissSniffPrompt() {
-        sniffPromptKey?.let { sniffPromptDismissed[it] = true }
+        sniffPromptResource?.url?.let { sniffPromptDismissedUrls.add(it) }
         hideSniffPrompt()
     }
 
@@ -6653,6 +6661,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 无痕时左侧固定图标换成无痕图标，点击行为不变。 */
     private fun updateSiteInfoIcon() {
+        scheduleBookmarkCheck()
         val button = siteInfoButton as? android.widget.ImageButton ?: return
         val tab = tabManager.current
         val incognito = currentIncognito()
@@ -6687,10 +6696,60 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             else -> {
                 button.setImageResource(R.drawable.ic_site_info)
-                button.imageTintList = android.content.res.ColorStateList.valueOf(
+                val tint = if (bookmarkChecked && bookmarkCheckedUrl == tab?.url) {
+                    ThemeAccent.color(requireContext())
+                } else {
                     addressIconColor ?: requireContext().getColor(R.color.icon_primary)
-                )
+                }
+                button.imageTintList = android.content.res.ColorStateList.valueOf(tint)
                 button.contentDescription = getString(R.string.site_info_title)
+            }
+        }
+    }
+
+    /** 点击地址栏熊猫头：切换当前站点收藏。 */
+    private fun toggleBookmarkForCurrent() {
+        val tab = tabManager.current ?: return
+        val url = tab.url
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return
+        val title = tab.title.ifEmpty {
+            runCatching { android.net.Uri.parse(url).host }.getOrNull() ?: url
+        }
+        lifecycleScope.launch {
+            val repo = AppServices.bookmarkRepository
+            val existing = runCatching { repo.findItemByUrl(url) }.getOrNull()
+            val added = existing == null
+            runCatching {
+                if (existing == null) repo.addItem(url, title, null)
+                else repo.deleteItem(existing.id)
+            }
+            bookmarkCheckedUrl = url
+            bookmarkChecked = added
+            bookmarkLoadingUrl = null
+            if (tabManager.current?.url == url) updateSiteInfoIcon()
+            Toast.makeText(
+                requireContext(),
+                if (added) R.string.bookmark_added_site else R.string.bookmark_removed_site,
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /** 异步查询当前 URL 是否已收藏，避免在主线程查 Room。 */
+    private fun scheduleBookmarkCheck() {
+        val url = tabManager.current?.url ?: return
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return
+        if (bookmarkCheckedUrl == url || bookmarkLoadingUrl == url) return
+        bookmarkLoadingUrl = url
+        lifecycleScope.launch {
+            val exists = runCatching {
+                AppServices.bookmarkRepository.findItemByUrl(url) != null
+            }.getOrDefault(false)
+            if (bookmarkLoadingUrl == url) bookmarkLoadingUrl = null
+            if (tabManager.current?.url == url) {
+                bookmarkCheckedUrl = url
+                bookmarkChecked = exists
+                updateSiteInfoIcon()
             }
         }
     }
@@ -7846,8 +7905,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             homeForwardAvailable = false
             webView?.let {
-                sniffPrompted.remove(it)
-                sniffPromptDismissed.remove(it)
+                sniffPromptedUrls.clear()
+                sniffPromptDismissedUrls.clear()
                 if (sniffPromptKey === it) hideSniffPrompt()
             }
             markPageLoading(webView)
@@ -7926,10 +7985,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             // 新页面开始：清掉上一页的网站主题色。
             webView?.let { themeColors[it] = null }
             if (webView === tabManager.currentWebView) applySiteThemeColor(null)
-            // 新页面开始：清空该标签的嗅探结果（采集脚本在页面完成时注入一次）
-            if (url.startsWith("http")) {
-                webView?.let { com.sii.browser.core.webview.SniffStore.remove(it) }
-            }
+            // 保留已嗅探结果，由列表页手动清空；否则重定向/换集会让列表瞬间变空。
             webView?.readerMode = false
             gmBridges[webView]?.clearIfNavigated(url)
             passwordBridges[webView]?.let { bridge ->

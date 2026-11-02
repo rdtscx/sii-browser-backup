@@ -596,6 +596,8 @@
     <string name="menu_incognito">Incognito</string>
     <string name="menu_privacy_protection">Privacy protection</string>
     <string name="menu_doh">DoH</string>
+    <string name="bookmark_added_site">Added to bookmarks</string>
+    <string name="bookmark_removed_site">Removed from bookmarks</string>
     <string name="doh_toast_on">In-app DoH enabled</string>
     <string name="doh_toast_off">In-app DoH disabled</string>
     <string name="doh_toast_unsupported">This WebView does not support the DoH proxy</string>

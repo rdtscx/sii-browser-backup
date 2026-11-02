@@ -596,6 +596,8 @@
     <string name="menu_incognito">无痕</string>
     <string name="menu_privacy_protection">隐私保护</string>
     <string name="menu_doh">DoH</string>
+    <string name="bookmark_added_site">已加入书签</string>
+    <string name="bookmark_removed_site">已取消收藏</string>
     <string name="doh_toast_on">应用内 DoH 已开启</string>
     <string name="doh_toast_off">应用内 DoH 已关闭</string>
     <string name="doh_toast_unsupported">当前 WebView 不支持 DoH 代理</string>

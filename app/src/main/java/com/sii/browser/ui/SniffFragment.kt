@@ -278,17 +278,21 @@ class SniffFragment : Fragment() {
             .show()
     }
 
-    /** 用外部播放器打开嗅探到的视频/音频/流媒体。 */
+    /** 用内建播放器打开嗅探到的视频/音频/流媒体，带上当前页面的 Referer/UA。 */
     private fun play(res: SniffedResource) {
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-            setDataAndType(android.net.Uri.parse(res.url), mimeOf(res))
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val player = AppServices.settings.videoPlayer()
-        if (!player.isNullOrBlank()) intent.setPackage(player)
-        runCatching { startActivity(intent) }.onFailure {
-            Toast.makeText(requireContext(), R.string.sniff_no_player, Toast.LENGTH_SHORT).show()
-        }
+        val target = AppServices.sniffTarget
+        parentFragmentManager.beginTransaction()
+            .replace(
+                R.id.shell_root,
+                PlayerFragment.newInstance(
+                    res.url,
+                    res.type == SniffType.HLS,
+                    target?.url,
+                    target?.settings?.userAgentString
+                )
+            )
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun mimeOf(res: SniffedResource): String {

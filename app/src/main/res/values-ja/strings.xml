@@ -596,6 +596,8 @@
     <string name="menu_incognito">シークレット</string>
     <string name="menu_privacy_protection">プライバシー保護</string>
     <string name="menu_doh">DoH</string>
+    <string name="bookmark_added_site">ブックマークに追加しました</string>
+    <string name="bookmark_removed_site">ブックマークから削除しました</string>
     <string name="doh_toast_on">アプリ内 DoH を有効にしました</string>
     <string name="doh_toast_off">アプリ内 DoH を無効にしました</string>
     <string name="doh_toast_unsupported">この WebView は DoH プロキシ非対応です</string>
