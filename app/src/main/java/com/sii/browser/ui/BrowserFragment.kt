@@ -107,7 +107,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
     private val installingScripts = mutableSetOf<String>()
-    private val scriptInstallClient by lazy { OkHttpClient() }
+    private val scriptInstallClient by lazy {
+        OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
+    }
     private var permissionDialogShowing = false
     private var homeContainer: FrameLayout? = null
     private var tabsOverlay: View? = null
@@ -1519,7 +1521,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     if (DataUriTools.isDataImage(url)) {
                         DataUriTools.bitmap(url)
                     } else {
-                        val client = okhttp3.OkHttpClient()
+                        val client = okhttp3.OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
                         val request = okhttp3.Request.Builder().url(url).build()
                         client.newCall(request).execute().use { response ->
                             response.body?.byteStream()?.let {
@@ -6251,6 +6253,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .connectTimeout(800, java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(800, java.util.concurrent.TimeUnit.MILLISECONDS)
             .callTimeout(1200, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .dns(com.sii.browser.core.dns.DohDns)
             .build()
     }
 

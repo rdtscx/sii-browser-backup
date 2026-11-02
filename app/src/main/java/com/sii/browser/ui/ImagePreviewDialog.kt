@@ -43,7 +43,7 @@ object ImagePreviewDialog {
                     if (DataUriTools.isDataImage(url)) {
                         DataUriTools.bitmap(url)
                     } else {
-                        val client = okhttp3.OkHttpClient()
+                        val client = okhttp3.OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
                         val request = okhttp3.Request.Builder().url(url).build()
                         client.newCall(request).execute().use { response ->
                             response.body?.byteStream()?.let { BitmapFactory.decodeStream(it) }

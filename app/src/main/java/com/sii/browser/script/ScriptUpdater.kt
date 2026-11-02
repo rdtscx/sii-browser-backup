@@ -13,7 +13,7 @@ import okhttp3.Request
 
 /** 用户脚本自动更新：按 @downloadURL/@updateURL 拉取，内容变化时覆盖本地脚本。 */
 object ScriptUpdater {
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
 
     suspend fun check(): Int = withContext(Dispatchers.IO) {
         val repository = AppServices.scriptRepository

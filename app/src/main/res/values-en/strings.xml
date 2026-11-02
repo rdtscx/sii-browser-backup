@@ -959,7 +959,7 @@
     <string name="settings_doh_status_unsupported">Not supported by this WebView</string>
     <string name="settings_doh_status_failed">Failed to start</string>
     <string name="settings_doh_status_pending">Pending</string>
-    <string name="settings_doh_note">Applies to WebView pages only; downloads and updates still use system DNS. Local/intranet hosts connect directly. SNI/IP blocking is not bypassed.</string>
+    <string name="settings_doh_note">When on, WebView pages and requests made by Sii (downloads, updates, translation) use DoH first; failures or local hosts fall back to system DNS. SNI/IP blocking is not bypassed.</string>
     <string name="settings_private_dns_copied">Copied %1$s</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

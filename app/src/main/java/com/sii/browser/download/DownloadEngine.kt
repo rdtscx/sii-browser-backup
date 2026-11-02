@@ -130,6 +130,7 @@ class DownloadEngine(
                     maxRequestsPerHost = 8
                 }
             )
+            .dns(com.sii.browser.core.dns.DohDns)
             .build()
 
         /** 网络类型自适应段数：Wi-Fi/以太网 8 段，移动网络与 VPN 4 段。 */

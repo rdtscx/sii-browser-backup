@@ -47,7 +47,9 @@ class GmApiBridge(private val context: Context) {
     private fun isAllowed(): Boolean = allowed && allowedUrl?.startsWith("http") == true
 
     private val prefs = context.getSharedPreferences("sii_gm_values", Context.MODE_PRIVATE)
-    private val gmClient by lazy { okhttp3.OkHttpClient() }
+    private val gmClient by lazy {
+        okhttp3.OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
+    }
 
     @JavascriptInterface
     fun getValue(key: String, defaultValue: String?): String? =

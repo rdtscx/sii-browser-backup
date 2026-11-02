@@ -23,6 +23,7 @@ object HlsDownloader {
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .dns(com.sii.browser.core.dns.DohDns)
         .build()
 
     data class Progress(val total: Int, val done: Int, val bytes: Long)

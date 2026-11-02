@@ -960,7 +960,7 @@
     <string name="settings_doh_status_unsupported">目前 WebView 不支援</string>
     <string name="settings_doh_status_failed">啟動失敗</string>
     <string name="settings_doh_status_pending">等待生效</string>
-    <string name="settings_doh_note">僅作用於 WebView 網頁；下載、更新等請求仍走系統 DNS。內網與本機網域自動直連；無法突破 SNI/IP 封鎖。</string>
+    <string name="settings_doh_note">開啟後 WebView 網頁與應用程式自身的網路請求（下載、更新、翻譯等）都優先走 DoH；解析失敗或內網網域回退系統解析。無法突破 SNI/IP 封鎖。</string>
     <string name="settings_private_dns_copied">已複製 %1$s</string>
     <string name="settings_private_dns_provider_ali">阿里 DNS</string>
     <string name="settings_private_dns_provider_tencent">騰訊 DNS</string>

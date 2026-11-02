@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
  */
 class RuleRepository(
     private val dao: RuleDao,
-    private val client: OkHttpClient = OkHttpClient()
+    private val client: OkHttpClient = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
 ) {
 
     /** 隐私规则包体积较大（EasyPrivacy 约 2MB），默认 10 秒读超时在慢网络下会被切断。 */

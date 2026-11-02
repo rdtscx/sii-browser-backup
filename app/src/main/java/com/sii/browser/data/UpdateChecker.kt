@@ -32,6 +32,7 @@ object UpdateChecker {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .dns(com.sii.browser.core.dns.DohDns)
         .build()
 
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {

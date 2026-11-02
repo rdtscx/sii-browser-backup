@@ -21,7 +21,7 @@ import java.io.File
 object SiteIconCache {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     private val memory = object : LruCache<String, Bitmap>(8 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int =
             (value.byteCount / 1024).coerceAtLeast(1)

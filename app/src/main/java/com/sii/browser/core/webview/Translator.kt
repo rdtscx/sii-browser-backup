@@ -20,7 +20,7 @@ object Translator {
 
     data class Result(val text: String?, val error: String? = null)
 
-    private val client = OkHttpClient.Builder().build()
+    private val client = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
 
     /** 目标语言：用户设置优先，否则跟随界面语言。 */
     fun targetLang(context: Context): String {

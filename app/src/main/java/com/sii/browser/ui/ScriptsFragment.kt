@@ -35,7 +35,7 @@ class ScriptsFragment : Fragment() {
 
     private lateinit var listContainer: LinearLayout
     private var scripts: List<ScriptEntity> = emptyList()
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
 
     private val importLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()

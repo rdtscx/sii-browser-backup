@@ -11,7 +11,7 @@ import okhttp3.Request
 
 /** @require 依赖缓存：首次注入时后台下载，之后优先使用本地缓存。 */
 object ScriptRequireCache {
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     private val downloading = ConcurrentHashMap<String, Boolean>()
 
     private fun dir(context: Context): File =

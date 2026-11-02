@@ -960,7 +960,7 @@
     <string name="settings_doh_status_unsupported">この WebView は非対応</string>
     <string name="settings_doh_status_failed">起動に失敗</string>
     <string name="settings_doh_status_pending">反映待ち</string>
-    <string name="settings_doh_note">WebView のページのみに適用され、ダウンロードや更新はシステム DNS を使います。ローカル/社内ホストは直接接続し、SNI/IP 遮断は回避できません。</string>
+    <string name="settings_doh_note">オンにすると WebView のページと Sii 自身の通信（ダウンロード・更新・翻訳など）が DoH を優先します。失敗時やローカルホストはシステム DNS にフォールバックします。SNI/IP 遮断は回避できません。</string>
     <string name="settings_private_dns_copied">%1$s をコピーしました</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>
