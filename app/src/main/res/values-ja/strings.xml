@@ -940,7 +940,16 @@
     <string name="settings_private_dns_desc">キャリアの DNS 汚染でサイトが開けない場合、暗号化 DNS で改善できることがあります</string>
     <string name="settings_private_dns_copy">コピー</string>
     <string name="settings_private_dns_manual_row">手動設定の手順</string>
-    <string name="settings_private_dns_find_hint">システム設定を開きました。「ネットワークとインターネット」で「プライベート DNS」を探してください</string>
+    <string name="settings_private_dns_no_page">プライベート DNS のページが見つかりません。次の経路で開いてください：</string>
+    <string name="settings_private_dns_open_settings">システム設定を開く</string>
+    <string name="settings_private_dns_copy_path">経路をコピー</string>
+    <string name="settings_private_dns_path_copied">経路をコピーしました</string>
+    <string name="settings_private_dns_path_coloros">設定 → モバイルネットワーク → その他の接続設定 → プライベート DNS（旧 ColorOS は「接続と共有 → プライベート DNS」）</string>
+    <string name="settings_private_dns_path_hyperos">設定 → その他の接続方法（一部バージョンは「接続と共有」）→ プライベート DNS</string>
+    <string name="settings_private_dns_path_oneui">設定 → 接続 → その他の接続設定 → プライベート DNS</string>
+    <string name="settings_private_dns_path_harmony">設定 → 無線とネットワーク → その他 → プライベート DNS（機種によりモバイルネットワーク内）</string>
+    <string name="settings_private_dns_path_aosp">設定 → ネットワークとインターネット → プライベート DNS</string>
+    <string name="settings_private_dns_path_generic">システム設定の「ネットワーク / 接続」関連ページで「プライベート DNS」を探してください</string>
     <string name="settings_private_dns_copied">%1$s をコピーしました</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

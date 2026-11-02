@@ -940,7 +940,16 @@
     <string name="settings_private_dns_desc">运营商 DNS 污染导致网址打不开时，改用加密 DNS 可解决一部分</string>
     <string name="settings_private_dns_copy">复制</string>
     <string name="settings_private_dns_manual_row">手动开启步骤</string>
-    <string name="settings_private_dns_find_hint">已打开系统设置，请在「网络和互联网」中找到「私人 DNS」</string>
+    <string name="settings_private_dns_no_page">未找到私人 DNS 页面，请按以下路径进入：</string>
+    <string name="settings_private_dns_open_settings">打开系统设置</string>
+    <string name="settings_private_dns_copy_path">复制路径</string>
+    <string name="settings_private_dns_path_copied">路径已复制</string>
+    <string name="settings_private_dns_path_coloros">设置 → 移动网络 → 更多连接设置 → 私人 DNS（旧版 ColorOS 在「连接与共享 → 私人 DNS」）</string>
+    <string name="settings_private_dns_path_hyperos">设置 → 更多连接方式（部分版本为「连接与共享」）→ 私人 DNS</string>
+    <string name="settings_private_dns_path_oneui">设置 → 连接 → 更多连接设置 → 私人 DNS</string>
+    <string name="settings_private_dns_path_harmony">设置 → 无线和网络 → 更多 → 私人 DNS（部分机型在「移动网络」里）</string>
+    <string name="settings_private_dns_path_aosp">设置 → 网络和互联网 → 私人 DNS</string>
+    <string name="settings_private_dns_path_generic">在系统设置的「网络 / 连接」相关页面里找到「私人 DNS」</string>
     <string name="settings_private_dns_copied">已复制 %1$s</string>
     <string name="settings_private_dns_provider_ali">阿里 DNS</string>
     <string name="settings_private_dns_provider_tencent">腾讯 DNS</string>

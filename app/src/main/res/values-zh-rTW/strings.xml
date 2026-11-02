@@ -940,7 +940,16 @@
     <string name="settings_private_dns_desc">電信商 DNS 污染導致網址打不開時，改用加密 DNS 可改善一部分</string>
     <string name="settings_private_dns_copy">複製</string>
     <string name="settings_private_dns_manual_row">手動開啟步驟</string>
-    <string name="settings_private_dns_find_hint">已開啟系統設定，請在「網路和網際網路」中找到「私人 DNS」</string>
+    <string name="settings_private_dns_no_page">找不到私人 DNS 頁面，請依下列路徑進入：</string>
+    <string name="settings_private_dns_open_settings">開啟系統設定</string>
+    <string name="settings_private_dns_copy_path">複製路徑</string>
+    <string name="settings_private_dns_path_copied">路徑已複製</string>
+    <string name="settings_private_dns_path_coloros">設定 → 行動網路 → 更多連線設定 → 私人 DNS（舊版 ColorOS 在「連線與分享 → 私人 DNS」）</string>
+    <string name="settings_private_dns_path_hyperos">設定 → 更多連線方式（部分版本為「連線與分享」）→ 私人 DNS</string>
+    <string name="settings_private_dns_path_oneui">設定 → 連線 → 更多連線設定 → 私人 DNS</string>
+    <string name="settings_private_dns_path_harmony">設定 → 無線與網路 → 更多 → 私人 DNS（部分機型在「行動網路」裡）</string>
+    <string name="settings_private_dns_path_aosp">設定 → 網路與網際網路 → 私人 DNS</string>
+    <string name="settings_private_dns_path_generic">在系統設定的「網路 / 連線」相關頁面裡找到「私人 DNS」</string>
     <string name="settings_private_dns_copied">已複製 %1$s</string>
     <string name="settings_private_dns_provider_ali">阿里 DNS</string>
     <string name="settings_private_dns_provider_tencent">騰訊 DNS</string>

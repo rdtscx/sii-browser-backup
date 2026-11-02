@@ -939,7 +939,16 @@
     <string name="settings_private_dns_desc">When carrier DNS poisoning blocks sites, encrypted DNS can help</string>
     <string name="settings_private_dns_copy">Copy</string>
     <string name="settings_private_dns_manual_row">Manual setup steps</string>
-    <string name="settings_private_dns_find_hint">System settings opened; find Private DNS under Network &amp; internet</string>
+    <string name="settings_private_dns_no_page">Private DNS page not found. Follow this path:</string>
+    <string name="settings_private_dns_open_settings">Open system settings</string>
+    <string name="settings_private_dns_copy_path">Copy path</string>
+    <string name="settings_private_dns_path_copied">Path copied</string>
+    <string name="settings_private_dns_path_coloros">Settings → Mobile network → More connection settings → Private DNS (older ColorOS: Connection &amp; sharing → Private DNS)</string>
+    <string name="settings_private_dns_path_hyperos">Settings → More connectivity options (Connection &amp; sharing on some versions) → Private DNS</string>
+    <string name="settings_private_dns_path_oneui">Settings → Connections → More connection settings → Private DNS</string>
+    <string name="settings_private_dns_path_harmony">Settings → Wireless &amp; networks → More → Private DNS (some models under Mobile network)</string>
+    <string name="settings_private_dns_path_aosp">Settings → Network &amp; internet → Private DNS</string>
+    <string name="settings_private_dns_path_generic">Look for Private DNS under the Network/Connection pages in system settings</string>
     <string name="settings_private_dns_copied">Copied %1$s</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

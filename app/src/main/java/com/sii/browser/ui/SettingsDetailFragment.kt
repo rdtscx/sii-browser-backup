@@ -2100,7 +2100,7 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_private_dns_desc)
             ) { openPrivateDnsSettings() },
             navRow(getString(R.string.settings_private_dns_manual_row)) {
-                showPrivateDnsManual()
+                showPrivateDnsHelp()
             }
         )
         card(*buildPrivateDnsRows())
@@ -2151,7 +2151,7 @@ class SettingsDetailFragment : Fragment() {
             android.content.Intent().setComponent(
                 android.content.ComponentName(
                     "com.android.settings",
-                    "com.android.settings.Settings\$PrivateDnsSettingsActivity"
+                    "com.android.settings.Settings" + '$' + "PrivateDnsSettingsActivity"
                 )
             ),
             android.content.Intent().setComponent(
@@ -2164,16 +2164,91 @@ class SettingsDetailFragment : Fragment() {
         for (intent in direct) {
             if (runCatching { startActivity(intent); true }.getOrDefault(false)) return
         }
-        val fallback = android.content.Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
-        if (runCatching { startActivity(fallback); true }.getOrDefault(false)) {
-            Toast.makeText(
-                requireContext(),
-                R.string.settings_private_dns_find_hint,
-                Toast.LENGTH_LONG
-            ).show()
-            return
+        if (openDiscoveredPrivateDns()) return
+        showPrivateDnsPathDialog()
+    }
+
+    /** 在设置 App 里找名字含 PrivateDns 的页面并直接打开（各家设置包名不同）。 */
+    private fun openDiscoveredPrivateDns(): Boolean {
+        val pm = requireContext().packageManager
+        val packages = listOf(
+            "com.android.settings",
+            "com.oplus.settings",
+            "com.coloros.settings",
+            "com.oneplus.settings"
+        )
+        packages.forEach { pkg ->
+            val info = runCatching {
+                pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_ACTIVITIES)
+            }.getOrNull() ?: return@forEach
+            val activities = info.activities ?: return@forEach
+            for (activity in activities) {
+                val name = activity.name
+                val matched = name.contains("privatedns", true) ||
+                    name.contains("private_dns", true)
+                if (!matched) continue
+                val intent = android.content.Intent().setComponent(
+                    android.content.ComponentName(pkg, name)
+                )
+                if (runCatching { startActivity(intent); true }.getOrDefault(false)) {
+                    return true
+                }
+            }
         }
-        showPrivateDnsManual()
+        return false
+    }
+
+    /** 找不到独立页面时，按品牌给出准确路径，可复制或直接打开系统设置。 */
+    private fun showPrivateDnsPathDialog() {
+        val path = privateDnsPathText()
+        val message = getString(R.string.settings_private_dns_no_page) + "\n\n" + path +
+            "\n\n" + getString(R.string.settings_private_dns_note)
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_private_dns_open)
+            .setMessage(message)
+            .setPositiveButton(R.string.settings_private_dns_open_settings) { _, _ ->
+                runCatching {
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
+                }
+            }
+            .setNeutralButton(R.string.settings_private_dns_copy_path) { _, _ ->
+                val clipboard = requireContext()
+                    .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dns_path", path))
+                Toast.makeText(
+                    requireContext(),
+                    R.string.settings_private_dns_path_copied,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun privateDnsPathText(): String {
+        val brand = (android.os.Build.BRAND + " " + android.os.Build.MANUFACTURER).lowercase()
+        return getString(
+            when {
+                brand.contains("oppo") || brand.contains("oneplus") || brand.contains("realme") ->
+                    R.string.settings_private_dns_path_coloros
+                brand.contains("xiaomi") || brand.contains("redmi") || brand.contains("poco") ->
+                    R.string.settings_private_dns_path_hyperos
+                brand.contains("samsung") -> R.string.settings_private_dns_path_oneui
+                brand.contains("huawei") || brand.contains("honor") ->
+                    R.string.settings_private_dns_path_harmony
+                brand.contains("google") -> R.string.settings_private_dns_path_aosp
+                else -> R.string.settings_private_dns_path_generic
+            }
+        )
+    }
+
+    private fun showPrivateDnsHelp() {
+        if (android.os.Build.VERSION.SDK_INT < 28) {
+            showPrivateDnsManual()
+        } else {
+            showPrivateDnsPathDialog()
+        }
     }
 
     private fun showPrivateDnsManual() {
