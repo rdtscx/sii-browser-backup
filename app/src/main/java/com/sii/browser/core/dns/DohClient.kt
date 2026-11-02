@@ -53,7 +53,13 @@ object DohClient {
         val key = "$provider|$host"
         val now = System.currentTimeMillis()
         cache[key]?.takeIf { it.expiresAt > now }?.let { return it.addresses }
-        val addresses = query(host, "A", provider).ifEmpty { query(host, "AAAA", provider) }
+        // 首选服务商失败（如阿里对个别域名返回 SERVFAIL）时自动换下一家。
+        val providers = listOf(provider, "tencent", "cloudflare", "google").distinct()
+        var addresses: List<InetAddress> = emptyList()
+        for (candidate in providers) {
+            addresses = query(host, "A", candidate).ifEmpty { query(host, "AAAA", candidate) }
+            if (addresses.isNotEmpty()) break
+        }
         cache[key] = Entry(addresses, now + 60_000)
         return addresses
     }
