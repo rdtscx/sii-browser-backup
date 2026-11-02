@@ -1447,6 +1447,10 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setPrivacyAllowedHosts(value: Set<String>) =
         putStr(SettingsKeys.PRIVACY_ALLOWED_HOSTS, value.map { it.lowercase() }.joinToString(","))
 
+    override fun privacyCompat(): Boolean = bool(SettingsKeys.PRIVACY_COMPAT, true)
+
+    override fun setPrivacyCompat(value: Boolean) = putBool(SettingsKeys.PRIVACY_COMPAT, value)
+
     override fun privacyCookies(): Boolean = bool(SettingsKeys.PRIVACY_COOKIES, false)
 
     override fun setPrivacyCookies(value: Boolean) = putBool(SettingsKeys.PRIVACY_COOKIES, value)
@@ -1809,6 +1813,7 @@ class DataStoreSettings(private val context: Context) : Settings {
         SettingsKeys.HIDDEN_MENUS, SettingsKeys.SEARCH_SHORTCUTS, SettingsKeys.TOOLBAR_ORDER,
         SettingsKeys.BOOKMARK_SORT, SettingsKeys.BOOKMARK_SIZE, SettingsKeys.BOOKMARK_ICON,
         SettingsKeys.UPDATE_IGNORED, SettingsKeys.UPDATE_LATEST,
-        SettingsKeys.PRIVACY_ALLOWED_HOSTS
+        SettingsKeys.PRIVACY_ALLOWED_HOSTS,
+        SettingsKeys.PRIVACY_COMPAT
     )
 }

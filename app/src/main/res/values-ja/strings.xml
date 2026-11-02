@@ -526,6 +526,9 @@
     <string name="privacy_custom">カスタム</string>
     <string name="privacy_stats">ブロック統計</string>
     <string name="privacy_stats_empty">ブロックの記録はありません</string>
+    <string name="privacy_compat">互換モード（標準）</string>
+    <string name="privacy_compat_desc">認証、第三者ログイン、支払い、サポートのドメインを許可します（広告ルールは有効）。</string>
+    <string name="privacy_breakage_hint">トラッカーをブロックすると、一部サイトでログイン・認証・コメント・再生が失敗することがあります。アドレスバーのパンダを長押しして「このサイトでプライバシー保護を一時停止」するか、下のブロックされたホストを許可してください。</string>
     <string name="privacy_tracking">トラッカー</string>
     <string name="site_privacy_pause">このサイトでプライバシー保護を一時停止</string>
     <string name="site_privacy_resume">このサイトでプライバシー保護を再開</string>

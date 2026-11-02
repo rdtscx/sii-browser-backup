@@ -526,6 +526,9 @@
     <string name="privacy_custom">自定义</string>
     <string name="privacy_stats">拦截统计</string>
     <string name="privacy_stats_empty">暂无拦截记录</string>
+    <string name="privacy_compat">兼容模式（标准档）</string>
+    <string name="privacy_compat_desc">放行人机验证、第三方登录、支付与客服等必要域名；广告规则仍然生效。</string>
+    <string name="privacy_breakage_hint">拦截跟踪器后，部分网站可能出现登录、验证码、评论或播放异常。可长按地址栏熊猫头选择「本站暂停隐私拦截」，或在下方放行被拦域名。</string>
     <string name="privacy_tracking">跟踪器</string>
     <string name="site_privacy_pause">本站暂停隐私拦截</string>
     <string name="site_privacy_resume">本站恢复隐私拦截</string>

@@ -1107,6 +1107,10 @@ interface WebPageSettings {
 
     fun setPrivacyAllowedHosts(value: Set<String>)
 
+    fun privacyCompat(): Boolean
+
+    fun setPrivacyCompat(value: Boolean)
+
     fun setPrivacyTracking(value: Boolean)
 
     fun privacySocial(): Boolean

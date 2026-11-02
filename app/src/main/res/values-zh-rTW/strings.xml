@@ -526,6 +526,9 @@
     <string name="privacy_custom">自訂</string>
     <string name="privacy_stats">攔截統計</string>
     <string name="privacy_stats_empty">暫無攔截記錄</string>
+    <string name="privacy_compat">相容模式（標準）</string>
+    <string name="privacy_compat_desc">放行人機驗證、第三方登入、支付與客服等必要網域；廣告規則仍生效。</string>
+    <string name="privacy_breakage_hint">攔截跟蹤器後，部分網站可能出現登入、驗證碼、留言或播放異常。可長按網址列熊貓頭選擇「本站暫停隱私攔截」，或在下方放行被封鎖網域。</string>
     <string name="privacy_tracking">跟蹤器</string>
     <string name="site_privacy_pause">本站暫停隱私攔截</string>
     <string name="site_privacy_resume">本站恢復隱私攔截</string>

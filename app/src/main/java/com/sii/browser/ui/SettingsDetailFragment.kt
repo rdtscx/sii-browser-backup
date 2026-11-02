@@ -1786,7 +1786,7 @@ class SettingsDetailFragment : Fragment() {
                 settings.setPrivacyAllowedHosts(
                     settings.privacyAllowedHosts() + blockedHost
                 )
-                AppServices.adBlock.setPrivacyAllowedHosts(settings.privacyAllowedHosts())
+                AppServices.syncPrivacyAllowlist()
                 build()
                 Toast.makeText(
                     requireContext(),
@@ -1809,6 +1809,26 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.privacy_level_desc)
             ) { applyPrivacyLevel(it) }
         )
+
+        card(
+            switchRow(
+                getString(R.string.privacy_compat),
+                settings.privacyCompat(),
+                getString(R.string.privacy_compat_desc),
+                enabled = level == 1
+            ) {
+                settings.setPrivacyCompat(it)
+                AppServices.syncPrivacyAllowlist()
+            }
+        )
+
+        card(android.widget.TextView(requireContext()).apply {
+            text = getString(R.string.privacy_breakage_hint)
+            setTextSize(12.5f)
+            setTextColor(requireContext().getColor(R.color.text_secondary))
+            setLineSpacing(dpToPx(3).toFloat(), 1.15f)
+            setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
+        })
 
         sectionTitle(R.string.privacy_stats)
         val rows = mutableListOf<View>()
@@ -1914,6 +1934,7 @@ class SettingsDetailFragment : Fragment() {
     private fun applyPrivacyLevel(level: Int) {
         val normalized = level.coerceIn(0, 3)
         PrivacyLevels.apply(settings, normalized)
+        AppServices.syncPrivacyAllowlist()
         AppServices.adBlock.resetPrivacyStats()
         build()
         if (normalized == 0) {

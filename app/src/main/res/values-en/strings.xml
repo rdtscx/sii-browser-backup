@@ -526,6 +526,9 @@
     <string name="privacy_custom">Custom</string>
     <string name="privacy_stats">Blocked</string>
     <string name="privacy_stats_empty">No blocked requests yet</string>
+    <string name="privacy_compat">Compatibility mode (Standard)</string>
+    <string name="privacy_compat_desc">Allows captcha, third-party sign-in, payment and support hosts; ad rules still apply.</string>
+    <string name="privacy_breakage_hint">After blocking trackers, some sites may fail at sign-in, captcha, comments or playback. Long-press the panda icon to pause privacy blocking for this site, or allow blocked hosts below.</string>
     <string name="privacy_tracking">Trackers</string>
     <string name="site_privacy_pause">Pause privacy blocking on this site</string>
     <string name="site_privacy_resume">Resume privacy blocking on this site</string>
