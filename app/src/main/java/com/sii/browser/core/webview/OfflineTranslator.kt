@@ -169,9 +169,10 @@ object OfflineTranslator {
         val source = mapSource(from.orEmpty())
             ?: return Translator.Result(null, "offline_source_unknown")
         if (source == target) return Translator.Result(text)
-        synchronized(cache) { cache[text] }?.let { return Translator.Result(it) }
-        if (!isReady(context)) return Translator.Result(null, "offline_model_missing")
         val key = "$source-$target"
+        val cacheKey = "$key|$text"
+        synchronized(cache) { cache[cacheKey] }?.let { return Translator.Result(it) }
+        if (!isReady(context)) return Translator.Result(null, "offline_model_missing")
         val client = synchronized(clients) {
             clients.getOrPut(key) {
                 Translation.getClient(
@@ -185,7 +186,7 @@ object OfflineTranslator {
         return runCatching { client.translate(text).awaitResult() }
             .fold(
                 onSuccess = {
-                    synchronized(cache) { cache[text] = it }
+                    synchronized(cache) { cache[cacheKey] = it }
                     Translator.Result(it)
                 },
                 onFailure = { Translator.Result(null, it.message ?: "offline_error") }

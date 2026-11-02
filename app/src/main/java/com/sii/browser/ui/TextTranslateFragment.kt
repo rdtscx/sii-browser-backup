@@ -20,6 +20,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.sii.browser.R
+import com.sii.browser.core.webview.LanguageId
 import com.sii.browser.core.webview.Translator
 import com.sii.browser.di.AppServices
 import kotlinx.coroutines.launch
@@ -383,43 +384,75 @@ class TextTranslateFragment : Fragment() {
             maybeShowCloudNotice { translateNow() }
             return
         }
-        if (engine == 0 && !localSupports(raw)) {
-            Toast.makeText(requireContext(), R.string.text_translate_local_only, Toast.LENGTH_LONG).show()
-            return
-        }
         translating = true
         translateButton.isEnabled = false
         translateButton.text = getString(R.string.text_translate_working)
         resultCard.visibility = View.VISIBLE
         resultText.text = getString(R.string.text_translate_working)
-        val from = when {
-            sourceTag.isNotBlank() -> sourceTag
-            engine == 0 -> if (raw.any { it.code in 0x4E00..0x9FFF }) "zh" else "en"
-            else -> null
-        }
         viewLifecycleOwner.lifecycleScope.launch {
-            val error = translateText(raw, from)
+            val detected = detectSource(raw)
             if (!isAdded) return@launch
-            translating = false
-            translateButton.isEnabled = true
-            translateButton.text = getString(R.string.text_translate_action)
-            if (error == null) {
-                resultCard.visibility = View.VISIBLE
-            } else {
+            if (detected != null && sameLanguage(detected)) {
+                finishTranslate()
+                resultCard.visibility = View.GONE
+                Toast.makeText(
+                    requireContext(), R.string.text_translate_same_language, Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+            if (engine == 0 && !localSupports(detected)) {
+                finishTranslate()
+                resultCard.visibility = View.GONE
+                Toast.makeText(
+                    requireContext(), R.string.text_translate_local_only, Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            val error = translateText(raw, detected)
+            if (!isAdded) return@launch
+            finishTranslate()
+            if (error != null) {
                 resultText.text = error
                 showErrorAction(error)
             }
         }
     }
 
-    private fun localSupports(raw: String): Boolean {
-        val sourceOk = sourceTag.isBlank() || sourceTag.startsWith("zh") || sourceTag.startsWith("en")
-        val targetOk = targetTag.startsWith("zh") || targetTag.startsWith("en")
-        val scriptOk = sourceTag.isNotBlank() || !raw.any {
-            it in '\u3040'..'\u30FF' || it in '\uAC00'..'\uD7AF' ||
-                it in '\u0600'..'\u06FF' || it in '\u0E00'..'\u0E7F'
+    private fun finishTranslate() {
+        translating = false
+        translateButton.isEnabled = true
+        translateButton.text = getString(R.string.text_translate_action)
+    }
+
+    /** 自动检测源语言：优先 ML Kit 语言识别，识别不出时按 CJK 字符回退。 */
+    private suspend fun detectSource(raw: String): String? {
+        if (sourceTag.isNotBlank()) return sourceTag
+        val identified = LanguageId.identify(requireContext(), raw)
+        val tag = identified?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let {
+            if (it.startsWith("zh")) "zh-CN" else it
+        } ?: if (raw.any { it.code in 0x4E00..0x9FFF }) "zh" else "en"
+        if (::sourceValue.isInitialized) {
+            sourceValue.text = "${getString(R.string.text_translate_auto)} · ${labelOfTag(tag)}"
         }
-        return sourceOk && targetOk && scriptOk
+        return tag
+    }
+
+    private fun labelOfTag(tag: String): String =
+        langs.firstOrNull { it.tag == tag }?.label
+            ?: langs.firstOrNull { it.tag.substringBefore('-') == tag.substringBefore('-') }?.label
+            ?: tag
+
+    private fun sameLanguage(source: String): Boolean {
+        val sourceOk = source.startsWith("zh") || source.startsWith("en")
+        val targetOk = targetTag.startsWith("zh") || targetTag.startsWith("en")
+        if (!sourceOk || !targetOk) return false
+        return source.take(2) == targetTag.take(2)
+    }
+
+    private fun localSupports(detected: String?): Boolean {
+        val sourceOk = detected == null || detected.startsWith("zh") || detected.startsWith("en")
+        val targetOk = targetTag.startsWith("zh") || targetTag.startsWith("en")
+        return sourceOk && targetOk
     }
 
     /** 逐行翻译（长行分段），成功时把译文写入结果卡并返回 null，否则返回错误文案。 */

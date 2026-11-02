@@ -207,6 +207,7 @@
     <string name="text_translate_empty_input">请输入要翻译的文本</string>
     <string name="text_translate_working">翻译中…</string>
     <string name="text_translate_local_only">本地翻译仅支持中文与英文</string>
+    <string name="text_translate_same_language">源语言与目标语言相同</string>
     <string name="text_translate_need_pack">本地语言包未下载</string>
     <string name="text_translate_go_download">去下载</string>
     <string name="text_translate_cloud_notice_title">使用云端翻译？</string>

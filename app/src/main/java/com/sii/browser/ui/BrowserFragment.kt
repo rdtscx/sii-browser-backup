@@ -9730,33 +9730,147 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
-    /** 站点提交账号密码后询问是否保存（含「不再提示」）。 */
+    /** 站点提交账号密码后询问是否保存：站点图标 + 可编辑用户名 + 掩码密码。 */
     private fun offerSavePassword(host: String, username: String, password: String) {
         if (!AppServices.settings.passwordEnabled() || AppServices.privacyManager.isIncognito) return
         val ignored = AppServices.settings.ignoredPasswordHosts().orEmpty()
             .split(",").filter { it.isNotEmpty() }.toSet()
         if (host.lowercase() in ignored) return
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle(R.string.pwd_save_title)
-            .setMessage("$host\n${username.ifEmpty { "-" }}")
-            .setPositiveButton(R.string.pwd_save) { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val saved = AppServices.passwordRepository.save(host, username, password)
-                    if (!saved) {
-                        Toast.makeText(
-                            requireContext(), R.string.password_save_failed, Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    Toast.makeText(requireContext(), R.string.pwd_saved, Toast.LENGTH_SHORT).show()
-                }
+        val context = requireContext()
+        val accent = ThemeAccent.color(context)
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), dp(4))
+        }
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(6))
+        }
+        val avatar = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(12) }
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = dp(11).toFloat()
+                setColor((accent and 0x00FFFFFF) or 0x22000000)
             }
-            .setNeutralButton(R.string.pwd_never) { _, _ ->
+            clipToOutline = true
+        }
+        val letter = TextView(context).apply {
+            text = host.take(1).uppercase()
+            setTextSize(17f)
+            setTextColor(accent)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        avatar.addView(letter)
+        val cachedIcon = com.sii.browser.data.SiteIconCache.cached(context, host)
+        if (cachedIcon != null) {
+            avatar.removeAllViews()
+            avatar.addView(ImageView(context).apply {
+                setImageBitmap(cachedIcon)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            })
+        }
+        header.addView(avatar)
+        header.addView(TextView(context).apply {
+            text = host
+            setTextSize(15f)
+            setTextColor(context.getColor(R.color.text_primary))
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        content.addView(header)
+
+        val nameInput = EditText(context).apply {
+            setText(username)
+            hint = getString(R.string.pwd_username)
+            setTextSize(14f)
+            setPadding(0, dp(6), 0, dp(6))
+            background = null
+            isSingleLine = true
+        }
+        val passInput = EditText(context).apply {
+            setText(password)
+            setTextSize(14f)
+            setPadding(0, dp(6), 0, dp(6))
+            background = null
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+        }
+        val showToggle = TextView(context).apply {
+            text = getString(R.string.pwd_show)
+            setTextSize(12.5f)
+            setTextColor(accent)
+            setPadding(dp(10), dp(8), dp(2), dp(8))
+            setOnClickListener {
+                val visible = passInput.transformationMethod == null
+                passInput.transformationMethod =
+                    if (visible) android.text.method.PasswordTransformationMethod.getInstance() else null
+                passInput.setSelection(passInput.text.length)
+                text = getString(if (visible) R.string.pwd_show else R.string.pwd_hide)
+            }
+        }
+        fun fieldRow(label: String, field: EditText, action: View?): View =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(TextView(context).apply {
+                    text = label
+                    setTextSize(13f)
+                    setTextColor(context.getColor(R.color.text_secondary))
+                    layoutParams = LinearLayout.LayoutParams(dp(56), ViewGroup.LayoutParams.WRAP_CONTENT)
+                })
+                field.layoutParams = LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                )
+                addView(field)
+                if (action != null) addView(action)
+            }
+        content.addView(fieldRow(getString(R.string.pwd_username), nameInput, null))
+        content.addView(fieldRow(getString(R.string.pwd_password), passInput, showToggle))
+
+        var dialog: android.app.AlertDialog? = null
+        val never = TextView(context).apply {
+            text = getString(R.string.pwd_never)
+            setTextSize(13f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setPadding(0, dp(12), 0, 0)
+            setOnClickListener {
                 AppServices.settings.setIgnoredPasswordHosts(
                     (ignored + host.lowercase()).joinToString(",")
                 )
+                dialog?.dismiss()
+            }
+        }
+        content.addView(never)
+
+        dialog = android.app.AlertDialog.Builder(context)
+            .setTitle(R.string.pwd_save_title)
+            .setView(content)
+            .setPositiveButton(R.string.pwd_save) { _, _ ->
+                val name = nameInput.text.toString().trim()
+                val secret = passInput.text.toString()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val saved = AppServices.passwordRepository.save(host, name, secret)
+                    Toast.makeText(
+                        requireContext(),
+                        if (saved) R.string.pwd_saved else R.string.password_save_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+        dialog?.show()
     }
 
     /** 简化 UA：去掉机型/系统版本细节，只保留 Chrome 主版本（隐私与兼容用）。 */

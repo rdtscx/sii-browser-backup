@@ -184,6 +184,7 @@
     <string name="text_translate_empty_input">Enter text first</string>
     <string name="text_translate_working">Translating…</string>
     <string name="text_translate_local_only">On-device translation supports Chinese and English only</string>
+    <string name="text_translate_same_language">Source and target languages are the same</string>
     <string name="text_translate_need_pack">Language pack not downloaded</string>
     <string name="text_translate_go_download">Download</string>
     <string name="text_translate_cloud_notice_title">Use cloud translation?</string>
