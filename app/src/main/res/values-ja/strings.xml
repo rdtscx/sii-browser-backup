@@ -1019,6 +1019,12 @@
     <string name="download_file_deleted">ファイルは削除されました</string>
     <string name="download_redownload">再ダウンロード</string>
     <string name="download_install">インストール</string>
+    <string name="install_confirm_title">アプリをインストールしますか？</string>
+    <string name="install_action">インストール</string>
+    <string name="install_version">バージョン %1$s</string>
+    <string name="install_unknown_title">不明なアプリのインストールを許可してください</string>
+    <string name="install_unknown_message">システム設定で Sii にアプリのインストールを許可してから、もう一度お試しください。</string>
+    <string name="install_go_settings">設定を開く</string>
     <string name="download_open">開く</string>
     <string name="download_open_with">他のアプリで開く</string>
     <string name="download_copy_url">ダウンロード URL をコピー</string>

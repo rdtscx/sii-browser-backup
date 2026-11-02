@@ -827,8 +827,9 @@ class DownloadFragment : Fragment() {
     private fun installApk(task: com.sii.browser.data.db.DownloadTask) {
         if (!isApk(task)) return
         val path = task.path ?: return
-        runCatching {
-            val uri = if (path.startsWith("content://")) {
+        val context = requireContext()
+        val uri = runCatching {
+            if (path.startsWith("content://")) {
                 android.net.Uri.parse(path)
             } else {
                 val file = java.io.File(path)
@@ -836,15 +837,123 @@ class DownloadFragment : Fragment() {
                     throw IllegalStateException("not an apk")
                 }
                 androidx.core.content.FileProvider.getUriForFile(
-                    requireContext(), "${requireContext().packageName}.fileprovider",
-                    file
+                    context, "${context.packageName}.fileprovider", file
                 )
             }
-            // 与系统安装器一致：INSTALL_PACKAGE + APK MIME，未授权未知来源时由安装器引导。
-            val intent = android.content.Intent("android.intent.action.INSTALL_PACKAGE")
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            startActivity(intent)
+        }.getOrElse {
+            Toast.makeText(context, R.string.download_file_missing, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 26 &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            android.app.AlertDialog.Builder(context)
+                .setTitle(R.string.install_unknown_title)
+                .setMessage(R.string.install_unknown_message)
+                .setPositiveButton(R.string.install_go_settings) { _, _ ->
+                    runCatching {
+                        startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        val archive = apkArchiveInfo(path)
+        val appName = archive?.label?.takeIf { it.isNotBlank() } ?: displayName(task)
+        val version = archive?.version
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(20), dp(14), dp(20), dp(2))
+        }
+        archive?.icon?.let { icon ->
+            content.addView(android.widget.ImageView(context).apply {
+                setImageDrawable(icon)
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                    marginEnd = dp(14)
+                }
+            })
+        }
+        val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(TextView(context).apply {
+            text = appName
+            setTextSize(15f)
+            setTextColor(context.getColor(R.color.text_primary))
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        if (!version.isNullOrBlank()) {
+            column.addView(TextView(context).apply {
+                text = getString(R.string.install_version, version)
+                setTextSize(12f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(0, dp(3), 0, 0)
+            })
+        }
+        column.addView(TextView(context).apply {
+            text = archive?.packageName.orEmpty()
+            setTextSize(11.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setPadding(0, dp(2), 0, 0)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        content.addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        android.app.AlertDialog.Builder(context)
+            .setTitle(R.string.install_confirm_title)
+            .setView(content)
+            .setPositiveButton(R.string.install_action) { _, _ -> launchInstaller(uri) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private data class ApkArchiveInfo(
+        val icon: android.graphics.drawable.Drawable?,
+        val label: String,
+        val version: String?,
+        val packageName: String
+    )
+
+    /** 解析 APK 的名称/版本/包名/图标，用于安装前确认。 */
+    private fun apkArchiveInfo(path: String): ApkArchiveInfo? {
+        val context = requireContext()
+        val pm = context.packageManager
+        var pfd: android.os.ParcelFileDescriptor? = null
+        return try {
+            val archivePath = if (path.startsWith("content://")) {
+                pfd = context.contentResolver
+                    .openFileDescriptor(android.net.Uri.parse(path), "r") ?: return null
+                "/proc/self/fd/${pfd!!.fd}"
+            } else {
+                path
+            }
+            val info = pm.getPackageArchiveInfo(archivePath, 0) ?: return null
+            val app = info.applicationInfo ?: return null
+            app.sourceDir = archivePath
+            app.publicSourceDir = archivePath
+            val label = runCatching { app.loadLabel(pm).toString() }.getOrDefault("")
+            val icon = runCatching { app.loadIcon(pm) }.getOrNull()
+            ApkArchiveInfo(icon, label, info.versionName, info.packageName)
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { pfd?.close() }
+        }
+    }
+
+    private fun launchInstaller(uri: android.net.Uri) {
+        runCatching {
+            startActivity(
+                android.content.Intent(android.content.Intent.ACTION_INSTALL_PACKAGE)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            )
         }.onFailure {
             Toast.makeText(requireContext(), R.string.download_file_missing, Toast.LENGTH_SHORT).show()
         }

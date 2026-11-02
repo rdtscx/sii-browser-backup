@@ -1019,6 +1019,12 @@
     <string name="download_file_deleted">檔案已刪除</string>
     <string name="download_redownload">重新下載</string>
     <string name="download_install">安裝</string>
+    <string name="install_confirm_title">安裝應用程式？</string>
+    <string name="install_action">安裝</string>
+    <string name="install_version">版本 %1$s</string>
+    <string name="install_unknown_title">需要允許安裝未知應用程式</string>
+    <string name="install_unknown_message">請先在系統設定中允許 Sii 安裝應用程式，然後重試。</string>
+    <string name="install_go_settings">前往設定</string>
     <string name="download_open">開啟</string>
     <string name="download_open_with">用其他應用開啟</string>
     <string name="download_copy_url">複製下載地址</string>
