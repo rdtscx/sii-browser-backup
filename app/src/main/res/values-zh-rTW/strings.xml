@@ -540,6 +540,15 @@
     <string name="privacy_allow_host_message">將 %1$s 加入隱私放行名單？該網域的隱私規則不再生效，廣告規則仍保留。</string>
     <string name="privacy_allow_host_confirm">放行</string>
     <string name="privacy_allow_host_toast">已放行 %1$s</string>
+    <string name="privacy_allowlist_title">已放行網域</string>
+    <string name="privacy_allowlist_desc">這些網域的隱私規則不生效，廣告規則仍生效。子網域同時生效。</string>
+    <string name="privacy_allowlist_add">新增網域</string>
+    <string name="privacy_allowlist_add_title">放行網域</string>
+    <string name="privacy_allowlist_hint">輸入網域，如 example.com</string>
+    <string name="privacy_allowlist_empty">還沒有放行的網域</string>
+    <string name="privacy_allowlist_invalid">網域格式不正確</string>
+    <string name="privacy_allowlist_added">已放行 %1$s</string>
+    <string name="privacy_allowlist_removed">已移除 %1$s</string>
     <string name="privacy_social">社交跟蹤器</string>
     <string name="privacy_miners">挖礦指令碼</string>
     <string name="privacy_fingerprint">已知指紋指令碼</string>

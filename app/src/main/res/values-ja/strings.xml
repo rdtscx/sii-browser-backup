@@ -540,6 +540,15 @@
     <string name="privacy_allow_host_message">%1$s をプライバシー許可リストに追加しますか？このホストにはプライバシールールを適用しません（広告ルールは有効のまま）。</string>
     <string name="privacy_allow_host_confirm">許可</string>
     <string name="privacy_allow_host_toast">%1$s を許可しました</string>
+    <string name="privacy_allowlist_title">許可済みドメイン</string>
+    <string name="privacy_allowlist_desc">これらのドメインにはプライバシールールを適用しません（広告ルールは有効）。サブドメインも対象です。</string>
+    <string name="privacy_allowlist_add">ドメインを追加</string>
+    <string name="privacy_allowlist_add_title">ドメインを許可</string>
+    <string name="privacy_allowlist_hint">example.com のようなドメインを入力</string>
+    <string name="privacy_allowlist_empty">許可済みのドメインはありません</string>
+    <string name="privacy_allowlist_invalid">ドメインの形式が正しくありません</string>
+    <string name="privacy_allowlist_added">%1$s を許可しました</string>
+    <string name="privacy_allowlist_removed">%1$s を削除しました</string>
     <string name="privacy_social">ソーシャルトラッカー</string>
     <string name="privacy_miners">マイニングスクリプト</string>
     <string name="privacy_fingerprint">既知のフィンガープリントスクリプト</string>

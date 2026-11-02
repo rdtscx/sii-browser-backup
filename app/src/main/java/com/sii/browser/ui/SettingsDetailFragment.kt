@@ -1830,6 +1830,13 @@ class SettingsDetailFragment : Fragment() {
             setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
         })
 
+        card(
+            navRow(
+                getString(R.string.privacy_allowlist_title),
+                settings.privacyAllowedHosts().size.toString()
+            ) { openFragment(PrivacyAllowlistFragment()) }
+        )
+
         sectionTitle(R.string.privacy_stats)
         val rows = mutableListOf<View>()
         AppServices.adBlock.blockedCategoryStats().forEach { (category, count) ->

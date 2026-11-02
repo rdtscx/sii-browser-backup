@@ -540,6 +540,15 @@
     <string name="privacy_allow_host_message">将 %1$s 加入隐私放行名单？该域名的隐私规则不再生效，广告规则仍然保留。</string>
     <string name="privacy_allow_host_confirm">放行</string>
     <string name="privacy_allow_host_toast">已放行 %1$s</string>
+    <string name="privacy_allowlist_title">已放行域名</string>
+    <string name="privacy_allowlist_desc">这些域名的隐私规则不生效，广告规则仍然生效。子域名同时生效。</string>
+    <string name="privacy_allowlist_add">添加域名</string>
+    <string name="privacy_allowlist_add_title">放行域名</string>
+    <string name="privacy_allowlist_hint">输入域名，如 example.com</string>
+    <string name="privacy_allowlist_empty">还没有放行的域名</string>
+    <string name="privacy_allowlist_invalid">域名格式不正确</string>
+    <string name="privacy_allowlist_added">已放行 %1$s</string>
+    <string name="privacy_allowlist_removed">已移除 %1$s</string>
     <string name="privacy_social">社交跟踪器</string>
     <string name="privacy_miners">挖矿脚本</string>
     <string name="privacy_fingerprint">已知指纹脚本</string>

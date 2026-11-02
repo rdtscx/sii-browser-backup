@@ -540,6 +540,15 @@
     <string name="privacy_allow_host_message">Add %1$s to the privacy allowlist? Privacy rules no longer apply to this host; ad rules still do.</string>
     <string name="privacy_allow_host_confirm">Allow</string>
     <string name="privacy_allow_host_toast">Allowed %1$s</string>
+    <string name="privacy_allowlist_title">Allowed hosts</string>
+    <string name="privacy_allowlist_desc">Privacy rules do not apply to these hosts; ad rules still do. Subdomains are included.</string>
+    <string name="privacy_allowlist_add">Add host</string>
+    <string name="privacy_allowlist_add_title">Allow host</string>
+    <string name="privacy_allowlist_hint">Enter a host, e.g. example.com</string>
+    <string name="privacy_allowlist_empty">No allowed hosts yet</string>
+    <string name="privacy_allowlist_invalid">Invalid host format</string>
+    <string name="privacy_allowlist_added">Allowed %1$s</string>
+    <string name="privacy_allowlist_removed">Removed %1$s</string>
     <string name="privacy_social">Social trackers</string>
     <string name="privacy_miners">Crypto miners</string>
     <string name="privacy_fingerprint">Known fingerprinters</string>

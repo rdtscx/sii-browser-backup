@@ -59,6 +59,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("本页请求", "隐私与安全", "requests 请求 记录 抓包"),
         SearchEntry("无痕", "隐私与安全", "incognito"),
         SearchEntry("隐私保护", "隐私与安全", "privacy"),
+        SearchEntry("已放行域名", "隐私与安全", "privacy allowlist 放行 白名单"),
         SearchEntry("密码库", "隐私与安全", "password"),
         SearchEntry("填充方式", "隐私与安全", "密码 自动填充 提示 询问 password autofill fill"),
         SearchEntry("清除数据", "隐私与安全", "clear data"),
