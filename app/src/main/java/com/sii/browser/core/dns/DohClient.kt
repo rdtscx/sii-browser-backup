@@ -6,6 +6,7 @@ import java.net.InetAddress
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -18,7 +19,27 @@ object DohClient {
 
     private data class Entry(val addresses: List<InetAddress>, val expiresAt: Long)
 
+    /** DoH 服务商的固定 IP：避开系统 DNS 引导，防止域名本身被污染。 */
+    private val bootstrap = mapOf(
+        "dns.alidns.com" to listOf("223.5.5.5", "223.6.6.6"),
+        "doh.pub" to listOf("1.12.12.12", "120.53.53.53"),
+        "cloudflare-dns.com" to listOf("1.1.1.1", "1.0.0.1"),
+        "dns.google" to listOf("8.8.8.8", "8.8.4.4")
+    )
+
     private val client = OkHttpClient.Builder()
+        .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+                val fixed = bootstrap[hostname]
+                if (fixed != null) {
+                    val addresses = fixed.mapNotNull { ip ->
+                        runCatching { InetAddress.getByName(ip) }.getOrNull()
+                    }
+                    if (addresses.isNotEmpty()) return addresses
+                }
+                return Dns.SYSTEM.lookup(hostname)
+            }
+        })
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
         .build()
