@@ -1091,6 +1091,16 @@ interface WebPageSettings {
 
     fun setPrivacyToggleState(value: Int)
 
+    /** 应用内 DoH 代理（只影响 WebView）。 */
+    fun dohProxyEnabled(): Boolean
+
+    fun setDohProxyEnabled(value: Boolean)
+
+    /** DoH 服务商：ali / tencent / cloudflare / google。 */
+    fun dohProvider(): String
+
+    fun setDohProvider(value: String)
+
     fun privacyTracking(): Boolean
 
     fun setPrivacyTracking(value: Boolean)

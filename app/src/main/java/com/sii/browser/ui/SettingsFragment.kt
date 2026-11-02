@@ -65,6 +65,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("浏览器标识", "高级", "UA user agent"),
         SearchEntry("网络", "高级", "network"),
         SearchEntry("私人 DNS", "高级", "dns doh 加密 解析 运营商 private dns"),
+        SearchEntry("应用内 DoH", "高级", "doh webview 代理 加密 dns"),
         SearchEntry("MCP 服务", "高级", "mcp ai 自动化 抓包 接口"),
         SearchEntry("导入导出", "高级", "import export"),
         SearchEntry("实验室", "高级", "lab"),

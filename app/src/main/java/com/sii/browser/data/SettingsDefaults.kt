@@ -134,6 +134,10 @@ object SettingsDefaults {
     /** 菜单隐私保护开关关闭前的快照（0 = 无）。 */
     const val PRIVACY_TOGGLE_STATE = 0
 
+    /** 应用内 DoH 代理：默认关。 */
+    const val DOH_PROXY_ENABLED = false
+    const val DOH_PROVIDER = "ali"
+
     /** 文本翻译引擎：0 本地 / 1 云端。 */
     const val TEXT_TRANSLATE_ENGINE = 0
 

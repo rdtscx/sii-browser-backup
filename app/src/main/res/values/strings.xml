@@ -950,6 +950,17 @@
     <string name="settings_private_dns_path_harmony">设置 → 无线和网络 → 更多 → 私人 DNS（部分机型在「移动网络」里）</string>
     <string name="settings_private_dns_path_aosp">设置 → 网络和互联网 → 私人 DNS</string>
     <string name="settings_private_dns_path_generic">在系统设置的「网络 / 连接」相关页面里找到「私人 DNS」</string>
+    <string name="settings_doh">应用内 DoH（实验）</string>
+    <string name="settings_doh_enable">应用内 DoH 代理</string>
+    <string name="settings_doh_desc">仅让 Sii 的网页通过加密 DNS 解析，不改系统设置、不需要 VPN</string>
+    <string name="settings_doh_provider">DoH 服务商</string>
+    <string name="settings_doh_status">状态</string>
+    <string name="settings_doh_status_off">未启用</string>
+    <string name="settings_doh_status_running">运行中</string>
+    <string name="settings_doh_status_unsupported">当前 WebView 不支持</string>
+    <string name="settings_doh_status_failed">启动失败</string>
+    <string name="settings_doh_status_pending">等待生效</string>
+    <string name="settings_doh_note">仅作用于 WebView 网页；下载、更新等请求仍走系统 DNS。内网与本地域名自动直连；无法突破 SNI/IP 封锁。</string>
     <string name="settings_private_dns_copied">已复制 %1$s</string>
     <string name="settings_private_dns_provider_ali">阿里 DNS</string>
     <string name="settings_private_dns_provider_tencent">腾讯 DNS</string>

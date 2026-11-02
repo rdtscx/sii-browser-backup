@@ -1404,6 +1404,18 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setPrivacyToggleState(value: Int) =
         putInt(SettingsKeys.PRIVACY_TOGGLE_STATE, value)
 
+    override fun dohProxyEnabled(): Boolean =
+        bool(SettingsKeys.DOH_PROXY_ENABLED, SettingsDefaults.DOH_PROXY_ENABLED)
+
+    override fun setDohProxyEnabled(value: Boolean) =
+        putBool(SettingsKeys.DOH_PROXY_ENABLED, value)
+
+    override fun dohProvider(): String =
+        str(SettingsKeys.DOH_PROVIDER, null) ?: SettingsDefaults.DOH_PROVIDER
+
+    override fun setDohProvider(value: String) =
+        putStr(SettingsKeys.DOH_PROVIDER, value)
+
     override fun privacyTracking(): Boolean = bool(SettingsKeys.PRIVACY_TRACKING, true)
 
     override fun setPrivacyTracking(value: Boolean) = putBool(SettingsKeys.PRIVACY_TRACKING, value)

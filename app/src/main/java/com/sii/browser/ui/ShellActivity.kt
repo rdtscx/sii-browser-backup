@@ -155,6 +155,11 @@ class ShellActivity : AppCompatActivity() {
 
         // MCP 开关开启时恢复监听；配置未变不会重启已运行的服务。
         runCatching { McpRuntime.sync(this) }
+        // 设置加载完成后再同步一次应用内 DoH（首次读取可能还是默认值）。
+        window.decorView.postDelayed(
+            { runCatching { com.sii.browser.core.dns.DohProxy.sync(this) } },
+            1200
+        )
 
         softInputAssist = SoftInputAssistObserver(this) { visible ->
             notifyFragments<SoftInputAware>().forEach { it.onSoftInputChanged(visible) }
@@ -455,6 +460,7 @@ class ShellActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        runCatching { com.sii.browser.core.dns.DohProxy.sync(this) }
         applyDialogTheme()
         // 任务被移除时由该服务接收 onTaskRemoved；只放后台不会清理。
         // 始终启动，才能区分「从最近任务划掉」（正常退出）与「被系统杀掉」（异常退出）。

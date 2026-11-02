@@ -36,6 +36,8 @@ object SettingsKeys {
     const val INCOG_CLEAN_TRANSLATION = "incognitocleantranslation"
     const val PRIVACY_LEVEL = "privacylevel"
     const val PRIVACY_TOGGLE_STATE = "privacytogglestate"
+    const val DOH_PROXY_ENABLED = "dohproxy"
+    const val DOH_PROVIDER = "dohprovider"
     const val PRIVACY_TRACKING = "privacytracking"
     const val PRIVACY_SOCIAL = "privacysocial"
     const val PRIVACY_MINERS = "privacyminers"

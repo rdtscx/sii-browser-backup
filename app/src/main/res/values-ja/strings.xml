@@ -950,6 +950,17 @@
     <string name="settings_private_dns_path_harmony">設定 → 無線とネットワーク → その他 → プライベート DNS（機種によりモバイルネットワーク内）</string>
     <string name="settings_private_dns_path_aosp">設定 → ネットワークとインターネット → プライベート DNS</string>
     <string name="settings_private_dns_path_generic">システム設定の「ネットワーク / 接続」関連ページで「プライベート DNS」を探してください</string>
+    <string name="settings_doh">アプリ内 DoH（実験）</string>
+    <string name="settings_doh_enable">アプリ内 DoH プロキシ</string>
+    <string name="settings_doh_desc">Sii のページだけ暗号化 DNS で名前解決します。システム設定も VPN も不要</string>
+    <string name="settings_doh_provider">DoH プロバイダー</string>
+    <string name="settings_doh_status">状態</string>
+    <string name="settings_doh_status_off">オフ</string>
+    <string name="settings_doh_status_running">稼働中</string>
+    <string name="settings_doh_status_unsupported">この WebView は非対応</string>
+    <string name="settings_doh_status_failed">起動に失敗</string>
+    <string name="settings_doh_status_pending">反映待ち</string>
+    <string name="settings_doh_note">WebView のページのみに適用され、ダウンロードや更新はシステム DNS を使います。ローカル/社内ホストは直接接続し、SNI/IP 遮断は回避できません。</string>
     <string name="settings_private_dns_copied">%1$s をコピーしました</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

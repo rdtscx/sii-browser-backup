@@ -949,6 +949,17 @@
     <string name="settings_private_dns_path_harmony">Settings → Wireless &amp; networks → More → Private DNS (some models under Mobile network)</string>
     <string name="settings_private_dns_path_aosp">Settings → Network &amp; internet → Private DNS</string>
     <string name="settings_private_dns_path_generic">Look for Private DNS under the Network/Connection pages in system settings</string>
+    <string name="settings_doh">In-app DoH (experimental)</string>
+    <string name="settings_doh_enable">In-app DoH proxy</string>
+    <string name="settings_doh_desc">Resolve Sii web pages through encrypted DNS only; no system changes, no VPN</string>
+    <string name="settings_doh_provider">DoH provider</string>
+    <string name="settings_doh_status">Status</string>
+    <string name="settings_doh_status_off">Off</string>
+    <string name="settings_doh_status_running">Running</string>
+    <string name="settings_doh_status_unsupported">Not supported by this WebView</string>
+    <string name="settings_doh_status_failed">Failed to start</string>
+    <string name="settings_doh_status_pending">Pending</string>
+    <string name="settings_doh_note">Applies to WebView pages only; downloads and updates still use system DNS. Local/intranet hosts connect directly. SNI/IP blocking is not bypassed.</string>
     <string name="settings_private_dns_copied">Copied %1$s</string>
     <string name="settings_private_dns_provider_ali">AliDNS</string>
     <string name="settings_private_dns_provider_tencent">DNSPod</string>

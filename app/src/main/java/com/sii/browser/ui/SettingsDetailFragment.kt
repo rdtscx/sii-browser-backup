@@ -2105,6 +2105,52 @@ class SettingsDetailFragment : Fragment() {
         )
         card(*buildPrivateDnsRows())
         aboutText(R.string.settings_private_dns_note)
+        sectionTitle(R.string.settings_doh)
+        card(
+            switchRow(
+                getString(R.string.settings_doh_enable),
+                settings.dohProxyEnabled(),
+                getString(R.string.settings_doh_desc)
+            ) { enabled ->
+                settings.setDohProxyEnabled(enabled)
+                if (enabled) {
+                    com.sii.browser.core.dns.DohProxy.sync(requireContext())
+                } else {
+                    com.sii.browser.core.dns.DohProxy.stop()
+                }
+                build()
+            },
+            choiceRow(
+                getString(R.string.settings_doh_provider),
+                DOH_PROVIDER_NAMES,
+                dohProviderIndex(),
+                enabled = settings.dohProxyEnabled()
+            ) { index ->
+                settings.setDohProvider(DOH_PROVIDER_TAGS[index])
+                if (settings.dohProxyEnabled()) {
+                    com.sii.browser.core.dns.DohProxy.restart(requireContext())
+                }
+                build()
+            },
+            infoRow(getString(R.string.settings_doh_status), dohStatusText())
+        )
+        aboutText(R.string.settings_doh_note)
+    }
+
+    private fun dohProviderIndex(): Int =
+        DOH_PROVIDER_TAGS.indexOf(settings.dohProvider()).takeIf { it >= 0 } ?: 0
+
+    private fun dohStatusText(): String {
+        val proxy = com.sii.browser.core.dns.DohProxy
+        return when {
+            !settings.dohProxyEnabled() -> getString(R.string.settings_doh_status_off)
+            !proxy.isSupported() -> getString(R.string.settings_doh_status_unsupported)
+            proxy.status == com.sii.browser.core.dns.DohProxy.Status.RUNNING ->
+                getString(R.string.settings_doh_status_running)
+            proxy.status == com.sii.browser.core.dns.DohProxy.Status.FAILED ->
+                getString(R.string.settings_doh_status_failed)
+            else -> getString(R.string.settings_doh_status_pending)
+        }
     }
 
     private fun buildPrivateDnsRows(): Array<View> {
@@ -3104,6 +3150,8 @@ class SettingsDetailFragment : Fragment() {
         private val DOUBLE_TAP_NAMES = arrayOf("无", "回到顶部", "刷新", "打开主页")
         internal val TRANSLATE_PROVIDER_NAMES =
             arrayOf("MyMemory（免费）", "LibreTranslate（免费）", "Google（非官方）", "自定义", "百度翻译")
+        private val DOH_PROVIDER_NAMES = arrayOf("阿里 DNS", "腾讯 DNS", "Cloudflare", "Google")
+        private val DOH_PROVIDER_TAGS = arrayOf("ali", "tencent", "cloudflare", "google")
         private val TRANSLATE_CUSTOM_METHOD_NAMES = arrayOf("GET", "POST")
         private val PERMISSION_DEFAULT_NAMES = arrayOf("询问", "允许", "拒绝")
         private val REDIRECT_POLICY_NAMES = arrayOf("询问", "允许", "拒绝")
