@@ -117,6 +117,11 @@
     <string name="backup_cat_site_configs">Site settings</string>
     <string name="backup_cat_adblock">Ad block rules</string>
     <string name="backup_cat_settings">Settings</string>
+    <string name="backup_import_mode_title">Import mode</string>
+    <string name="backup_import_mode_message">Merge: only fills in missing items, keeps local data.\n\nReplace: clears the selected categories first, then imports the backup. This cannot be undone.</string>
+    <string name="backup_import_merge">Merge</string>
+    <string name="backup_import_overwrite">Replace</string>
+    <string name="backup_import_overwrite_confirm">Replace local data? The selected categories will be cleared. This cannot be undone.</string>
     <string name="update_later">Later</string>
     <string name="update_size_text">Size %1$s</string>
     <string name="update_ignored">Version ignored</string>

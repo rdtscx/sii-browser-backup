@@ -3506,15 +3506,50 @@ class SettingsDetailFragment : Fragment() {
             .setPositiveButton(R.string.backup_import_confirm_button) { _, _ ->
                 val selected = cats.filterIndexed { index, _ -> checked[index] }
                     .map { it.first }.toSet()
-                if (selected.isNotEmpty()) performImport(root, selected)
+                if (selected.isEmpty()) return@setPositiveButton
+                android.app.AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.backup_import_mode_title)
+                    .setMessage(R.string.backup_import_mode_message)
+                    .setPositiveButton(R.string.backup_import_merge) { _, _ ->
+                        performImport(root, selected, overwrite = false)
+                    }
+                    .setNeutralButton(R.string.backup_import_overwrite) { _, _ ->
+                        android.app.AlertDialog.Builder(requireContext())
+                            .setTitle(R.string.backup_import_overwrite)
+                            .setMessage(R.string.backup_import_overwrite_confirm)
+                            .setPositiveButton(R.string.backup_import_overwrite) { _, _ ->
+                                performImport(root, selected, overwrite = true)
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun performImport(root: org.json.JSONObject, selected: Set<String>) {
+    private fun performImport(
+        root: org.json.JSONObject,
+        selected: Set<String>,
+        overwrite: Boolean
+    ) {
         viewLifecycleOwner.lifecycleScope.launch {
             val ok = runCatching {
+                if (overwrite) {
+                    if ("bookmarks" in selected) {
+                        AppServices.bookmarkRepository.allItemsOnce().forEach {
+                            AppServices.bookmarkRepository.deleteItem(it.id)
+                        }
+                    }
+                    if ("history" in selected) AppServices.historyRepository.clearAll()
+                    if ("favorites" in selected) AppServices.favoriteRepository.clearAll()
+                    if ("passwords" in selected) AppServices.passwordRepository.clearAll()
+                    if ("scripts" in selected) AppServices.scriptRepository.clearAll()
+                    if ("siteConfigs" in selected) AppServices.siteConfigRepository.clearAll()
+                    if ("adblock" in selected) AppServices.adBlock.clearCustomRules()
+                }
                 if ("bookmarks" in selected) root.optJSONArray("bookmarks")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue

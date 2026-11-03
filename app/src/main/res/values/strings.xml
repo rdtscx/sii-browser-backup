@@ -117,6 +117,11 @@
     <string name="backup_cat_site_configs">站点设置</string>
     <string name="backup_cat_adblock">广告规则</string>
     <string name="backup_cat_settings">设置</string>
+    <string name="backup_import_mode_title">导入方式</string>
+    <string name="backup_import_mode_message">合并：只补缺失内容，不删除本地数据。\n\n覆盖：先清空所选类别的本地数据，再写入备份，无法撤销。</string>
+    <string name="backup_import_merge">合并</string>
+    <string name="backup_import_overwrite">覆盖</string>
+    <string name="backup_import_overwrite_confirm">确定覆盖？所选类别的本地数据会被清空，此操作无法撤销。</string>
     <string name="update_later">稍后</string>
     <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略该版本</string>

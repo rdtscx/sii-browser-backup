@@ -117,6 +117,11 @@
     <string name="backup_cat_site_configs">サイト設定</string>
     <string name="backup_cat_adblock">広告ブロックルール</string>
     <string name="backup_cat_settings">設定</string>
+    <string name="backup_import_mode_title">インポート方法</string>
+    <string name="backup_import_mode_message">マージ：足りない項目だけを追加し、ローカルデータは削除しません。\n\n上書き：選択したカテゴリを先に消去してからバックアップを書き込みます。元に戻せません。</string>
+    <string name="backup_import_merge">マージ</string>
+    <string name="backup_import_overwrite">上書き</string>
+    <string name="backup_import_overwrite_confirm">上書きしますか？選択したカテゴリのローカルデータは削除され、元に戻せません。</string>
     <string name="update_later">後で</string>
     <string name="update_size_text">サイズ %1$s</string>
     <string name="update_ignored">このバージョンは無視しました</string>
