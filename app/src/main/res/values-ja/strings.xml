@@ -108,6 +108,15 @@
     <string name="backup_import_confirm">インポート：ブックマーク %1$d、履歴 %2$d、パスワード %3$d、スクリプト %4$d</string>
     <string name="backup_import_confirm_button">インポート</string>
     <string name="backup_passwords_skipped">パスワードはエクスポートされません。バックアップパスワードを設定してください</string>
+    <string name="backup_cat_bookmarks">ブックマーク</string>
+    <string name="backup_cat_history">履歴</string>
+    <string name="backup_cat_favorites">ホームのショートカット</string>
+    <string name="backup_cat_downloads">ダウンロード履歴</string>
+    <string name="backup_cat_passwords">パスワード</string>
+    <string name="backup_cat_scripts">ユーザースクリプト</string>
+    <string name="backup_cat_site_configs">サイト設定</string>
+    <string name="backup_cat_adblock">広告ブロックルール</string>
+    <string name="backup_cat_settings">設定</string>
     <string name="update_later">後で</string>
     <string name="update_size_text">サイズ %1$s</string>
     <string name="update_ignored">このバージョンは無視しました</string>

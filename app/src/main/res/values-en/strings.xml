@@ -108,6 +108,15 @@
     <string name="backup_import_confirm">Import bookmarks %1$d, history %2$d, passwords %3$d, scripts %4$d?</string>
     <string name="backup_import_confirm_button">Import</string>
     <string name="backup_passwords_skipped">Passwords were not exported: set a backup password to migrate them</string>
+    <string name="backup_cat_bookmarks">Bookmarks</string>
+    <string name="backup_cat_history">History</string>
+    <string name="backup_cat_favorites">Home shortcuts</string>
+    <string name="backup_cat_downloads">Downloads</string>
+    <string name="backup_cat_passwords">Passwords</string>
+    <string name="backup_cat_scripts">User scripts</string>
+    <string name="backup_cat_site_configs">Site settings</string>
+    <string name="backup_cat_adblock">Ad block rules</string>
+    <string name="backup_cat_settings">Settings</string>
     <string name="update_later">Later</string>
     <string name="update_size_text">Size %1$s</string>
     <string name="update_ignored">Version ignored</string>

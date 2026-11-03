@@ -108,6 +108,15 @@
     <string name="backup_import_confirm">將匯入：書籤 %1$d、歷史 %2$d、密碼 %3$d、腳本 %4$d</string>
     <string name="backup_import_confirm_button">匯入</string>
     <string name="backup_passwords_skipped">密碼庫未匯出：設定備份密碼後才能移轉</string>
+    <string name="backup_cat_bookmarks">書籤</string>
+    <string name="backup_cat_history">歷史</string>
+    <string name="backup_cat_favorites">首頁收藏</string>
+    <string name="backup_cat_downloads">下載記錄</string>
+    <string name="backup_cat_passwords">密碼庫</string>
+    <string name="backup_cat_scripts">使用者腳本</string>
+    <string name="backup_cat_site_configs">網站設定</string>
+    <string name="backup_cat_adblock">廣告規則</string>
+    <string name="backup_cat_settings">設定</string>
     <string name="update_later">稍後</string>
     <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略該版本</string>

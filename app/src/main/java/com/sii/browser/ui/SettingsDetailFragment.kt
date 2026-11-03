@@ -3476,70 +3476,97 @@ class SettingsDetailFragment : Fragment() {
         }
     }
 
-    /** 导入前先显示将要恢复的条目数。 */
+    /** 导入前先显示类别与条目数，可勾选要恢复的项。 */
     private fun previewAndImport(text: String) {
         val root = runCatching { org.json.JSONObject(text) }.getOrNull()
         if (root == null) {
             toast(R.string.rules_import_failed)
             return
         }
-        val bookmarks = root.optJSONArray("bookmarks")?.length() ?: 0
-        val history = root.optJSONArray("history")?.length() ?: 0
-        val passwords = root.optJSONArray("passwords")?.length() ?: 0
-        val scripts = root.optJSONArray("scripts")?.length() ?: 0
+        val cats = listOf(
+            Triple("bookmarks", R.string.backup_cat_bookmarks, root.optJSONArray("bookmarks")?.length() ?: 0),
+            Triple("history", R.string.backup_cat_history, root.optJSONArray("history")?.length() ?: 0),
+            Triple("favorites", R.string.backup_cat_favorites, root.optJSONArray("favorites")?.length() ?: 0),
+            Triple("downloads", R.string.backup_cat_downloads, root.optJSONArray("downloads")?.length() ?: 0),
+            Triple("passwords", R.string.backup_cat_passwords, root.optJSONArray("passwords")?.length() ?: 0),
+            Triple("scripts", R.string.backup_cat_scripts, root.optJSONArray("scripts")?.length() ?: 0),
+            Triple("siteConfigs", R.string.backup_cat_site_configs, root.optJSONArray("siteConfigs")?.length() ?: 0),
+            Triple("adblock", R.string.backup_cat_adblock, root.optJSONArray("adblock")?.length() ?: 0),
+            Triple("settings", R.string.backup_cat_settings, root.optJSONObject("settings")?.length() ?: 0)
+        ).filter { it.third > 0 }
+        if (cats.isEmpty()) {
+            toast(R.string.rules_import_empty)
+            return
+        }
+        val labels = cats.map { getString(it.second) + "（" + it.third + "）" }.toTypedArray()
+        val checked = BooleanArray(cats.size) { true }
         android.app.AlertDialog.Builder(requireContext())
             .setTitle(R.string.backup_import_title)
-            .setMessage(
-                getString(R.string.backup_import_confirm, bookmarks, history, passwords, scripts)
-            )
+            .setMultiChoiceItems(labels, checked) { _, which, value -> checked[which] = value }
             .setPositiveButton(R.string.backup_import_confirm_button) { _, _ ->
-                performImport(root)
+                val selected = cats.filterIndexed { index, _ -> checked[index] }
+                    .map { it.first }.toSet()
+                if (selected.isNotEmpty()) performImport(root, selected)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun performImport(root: org.json.JSONObject) {
+    private fun performImport(root: org.json.JSONObject, selected: Set<String>) {
         viewLifecycleOwner.lifecycleScope.launch {
             val ok = runCatching {
-                root.optJSONArray("bookmarks")?.let { arr ->
+                if ("bookmarks" in selected) root.optJSONArray("bookmarks")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.bookmarkRepository.addItem(
-                            item.optString("url"), item.optString("title"), null
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.bookmarkRepository.findItemByUrl(url) == null) {
+                            AppServices.bookmarkRepository.addItem(url, item.optString("title"), null)
+                        }
                     }
                 }
-                root.optJSONArray("history")?.let { arr ->
+                if ("history" in selected) root.optJSONArray("history")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.historyRepository.recordVisit(
-                            item.optString("url"), item.optString("title")
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.historyRepository.findByUrl(url) == null) {
+                            AppServices.historyRepository.recordVisit(url, item.optString("title"))
+                        }
                     }
                 }
-                root.optJSONArray("favorites")?.let { arr ->
+                if ("favorites" in selected) root.optJSONArray("favorites")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.favoriteRepository.add(
-                            item.optString("url"), item.optString("title")
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.favoriteRepository.findByUrl(url) == null) {
+                            AppServices.favoriteRepository.add(url, item.optString("title"))
+                        }
                     }
                 }
-                root.optJSONArray("scripts")?.let { arr ->
+                if ("scripts" in selected) root.optJSONArray("scripts")?.let { arr ->
+                    val existing = AppServices.scriptRepository.all().first()
+                    val names = existing.map { it.name }.toMutableSet()
+                    val urls = existing.mapNotNull { it.url?.takeIf { u -> u.isNotBlank() } }.toMutableSet()
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
+                        val name = item.optString("name")
+                        val url = item.optString("url")
+                        if (name in names || (url.isNotBlank() && url in urls)) continue
                         AppServices.scriptRepository.saveScript(
                             existing = null,
-                            name = item.optString("name"),
+                            name = name,
                             match = item.optString("match"),
                             runAt = item.optString("runAt"),
                             code = item.optString("code"),
-                            sourceUrl = item.optString("url").ifBlank { null }
+                            sourceUrl = url.ifBlank { null }
                         )
+                        if (name.isNotBlank()) names.add(name)
+                        if (url.isNotBlank()) urls.add(url)
                     }
                 }
-                root.optJSONArray("siteConfigs")?.let { arr ->
+                if ("siteConfigs" in selected) root.optJSONArray("siteConfigs")?.let { arr ->
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         for (i in 0 until arr.length()) {
                             val item = arr.optJSONObject(i) ?: continue
@@ -3549,12 +3576,17 @@ class SettingsDetailFragment : Fragment() {
                         }
                     }
                 }
-                root.optJSONArray("adblock")?.let { arr ->
+                if ("adblock" in selected) root.optJSONArray("adblock")?.let { arr ->
                     for (i in 0 until arr.length()) {
-                        AppServices.adBlock.addCustomRule(arr.optString(i))
+                        val line = arr.optString(i)
+                        if (line.isNotBlank() &&
+                            !AppServices.adBlock.hasCustomRule(line)
+                        ) {
+                            AppServices.adBlock.addCustomRule(line)
+                        }
                     }
                 }
-                root.optJSONObject("settings")?.let { obj ->
+                if ("settings" in selected) root.optJSONObject("settings")?.let { obj ->
                     val values = mutableMapOf<String, Any>()
                     obj.keys().forEach { key ->
                         when (val value = obj.get(key)) {
@@ -3565,7 +3597,7 @@ class SettingsDetailFragment : Fragment() {
                     }
                     AppServices.settings.restore(values)
                 }
-                root.optJSONArray("passwords")?.let { arr ->
+                if ("passwords" in selected) root.optJSONArray("passwords")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
                         val host = item.optString("host")

@@ -131,6 +131,13 @@ class AdBlockEngine {
     @Synchronized
     fun hasRules(): Boolean = customRules.isNotEmpty() || subscriptionRules.isNotEmpty()
 
+    /** 是否已存在同一条自定义规则（导入去重用）。 */
+    @Synchronized
+    fun hasCustomRule(line: String): Boolean {
+        val trimmed = line.trim()
+        return customRules.any { it.raw == trimmed }
+    }
+
     /** 单站覆盖：显式开启优先于显式关闭，更长域名优先于父域名。 */
     @Synchronized
     fun setSiteOverrides(enabledHosts: Set<String>, disabledHosts: Set<String>) {

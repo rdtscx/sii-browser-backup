@@ -108,6 +108,15 @@
     <string name="backup_import_confirm">将导入：书签 %1$d、历史 %2$d、密码 %3$d、脚本 %4$d</string>
     <string name="backup_import_confirm_button">导入</string>
     <string name="backup_passwords_skipped">密码库未导出：设置备份密码后才能迁移</string>
+    <string name="backup_cat_bookmarks">书签</string>
+    <string name="backup_cat_history">历史</string>
+    <string name="backup_cat_favorites">主页收藏</string>
+    <string name="backup_cat_downloads">下载记录</string>
+    <string name="backup_cat_passwords">密码库</string>
+    <string name="backup_cat_scripts">用户脚本</string>
+    <string name="backup_cat_site_configs">站点设置</string>
+    <string name="backup_cat_adblock">广告规则</string>
+    <string name="backup_cat_settings">设置</string>
     <string name="update_later">稍后</string>
     <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略该版本</string>
