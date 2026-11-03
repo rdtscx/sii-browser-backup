@@ -104,6 +104,10 @@
     <string name="update_prompt_off">关闭自动检查</string>
     <string name="update_prompt_startup">启动时提醒</string>
     <string name="update_ignore_version">忽略此版本</string>
+    <string name="backup_import_title">恢复备份</string>
+    <string name="backup_import_confirm">将导入：书签 %1$d、历史 %2$d、密码 %3$d、脚本 %4$d</string>
+    <string name="backup_import_confirm_button">导入</string>
+    <string name="backup_passwords_skipped">密码库未导出：设置备份密码后才能迁移</string>
     <string name="update_later">稍后</string>
     <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略该版本</string>
@@ -851,7 +855,7 @@
     <string name="search_hint">搜索</string>
     <string name="search_no_match">无匹配结果</string>
     <string name="settings_export_data">导出数据</string>
-    <string name="settings_export_data_desc">书签 / 历史 / 常用网站 → Download 目录文件</string>
+    <string name="settings_export_data_desc">书签 / 历史 / 密码 / 脚本等打包为 zip；设密码后可跨设备恢复密码库</string>
     <string name="settings_import_data">导入数据</string>
     <string name="settings_import_data_desc">从文件（SAF）导入书签 / 历史 / 常用网站</string>
     <string name="data_exported">已复制到剪贴板</string>

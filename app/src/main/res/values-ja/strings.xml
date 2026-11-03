@@ -104,6 +104,10 @@
     <string name="update_prompt_off">自動確認をオフ</string>
     <string name="update_prompt_startup">起動時に通知</string>
     <string name="update_ignore_version">このバージョンを無視</string>
+    <string name="backup_import_title">バックアップを復元</string>
+    <string name="backup_import_confirm">インポート：ブックマーク %1$d、履歴 %2$d、パスワード %3$d、スクリプト %4$d</string>
+    <string name="backup_import_confirm_button">インポート</string>
+    <string name="backup_passwords_skipped">パスワードはエクスポートされません。バックアップパスワードを設定してください</string>
     <string name="update_later">後で</string>
     <string name="update_size_text">サイズ %1$s</string>
     <string name="update_ignored">このバージョンは無視しました</string>
@@ -851,7 +855,7 @@
     <string name="search_hint">検索</string>
     <string name="search_no_match">一致する結果がありません</string>
     <string name="settings_export_data">データを書き出す</string>
-    <string name="settings_export_data_desc">ブックマーク / 履歴 / よく使うサイト → Download フォルダのファイル</string>
+    <string name="settings_export_data_desc">ブックマーク / 履歴 / パスワード / スクリプトを zip にまとめます。パスワード設定で他端末に復元可能</string>
     <string name="settings_import_data">データを読み込む</string>
     <string name="settings_import_data_desc">ファイル（SAF）からブックマーク / 履歴 / よく使うサイトを読み込みます</string>
     <string name="data_exported">クリップボードにコピーしました</string>

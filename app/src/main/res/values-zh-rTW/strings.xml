@@ -104,6 +104,10 @@
     <string name="update_prompt_off">關閉自動檢查</string>
     <string name="update_prompt_startup">啟動時提醒</string>
     <string name="update_ignore_version">忽略此版本</string>
+    <string name="backup_import_title">還原備份</string>
+    <string name="backup_import_confirm">將匯入：書籤 %1$d、歷史 %2$d、密碼 %3$d、腳本 %4$d</string>
+    <string name="backup_import_confirm_button">匯入</string>
+    <string name="backup_passwords_skipped">密碼庫未匯出：設定備份密碼後才能移轉</string>
     <string name="update_later">稍後</string>
     <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略該版本</string>
@@ -851,7 +855,7 @@
     <string name="search_hint">搜尋</string>
     <string name="search_no_match">無匹配結果</string>
     <string name="settings_export_data">匯出資料</string>
-    <string name="settings_export_data_desc">書籤 / 歷史 / 常用網站 → Download 目錄檔案</string>
+    <string name="settings_export_data_desc">書籤 / 歷史 / 密碼 / 腳本等打包為 zip；設密碼後可跨裝置還原密碼庫</string>
     <string name="settings_import_data">匯入資料</string>
     <string name="settings_import_data_desc">從檔案（SAF）匯入書籤 / 歷史 / 常用網站</string>
     <string name="data_exported">已複製到剪貼簿</string>

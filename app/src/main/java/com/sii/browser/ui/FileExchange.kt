@@ -18,12 +18,20 @@ import java.io.File
 object FileExchange {
 
     /** 把文本写入 Download（返回展示用路径，失败返回 null）。 */
-    fun writeToDownloads(context: Context, fileName: String, content: String): String? = runCatching {
-        val bytes = content.toByteArray(Charsets.UTF_8)
+    fun writeToDownloads(context: Context, fileName: String, content: String): String? =
+        writeBytesToDownloads(context, fileName, "application/json", content.toByteArray(Charsets.UTF_8))
+
+    /** 把任意字节写入 Download（用于 zip 备份）。 */
+    fun writeBytesToDownloads(
+        context: Context,
+        fileName: String,
+        mime: String,
+        bytes: ByteArray
+    ): String? = runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                put(MediaStore.Downloads.MIME_TYPE, mime)
                 put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
             val resolver = context.contentResolver
@@ -39,7 +47,11 @@ object FileExchange {
     }.getOrNull()
 
     /** 读取 SAF 选中的文件文本。 */
-    fun readText(context: Context, uri: Uri): String? = runCatching {
-        context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+    fun readText(context: Context, uri: Uri): String? =
+        readBytes(context, uri)?.toString(Charsets.UTF_8)
+
+    /** 读取 SAF 选中的文件字节（zip 备份用）。 */
+    fun readBytes(context: Context, uri: Uri): ByteArray? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
     }.getOrNull()
 }

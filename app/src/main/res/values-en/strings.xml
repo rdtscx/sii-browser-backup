@@ -104,6 +104,10 @@
     <string name="update_prompt_off">Off (no auto check)</string>
     <string name="update_prompt_startup">On app launch</string>
     <string name="update_ignore_version">Ignore this version</string>
+    <string name="backup_import_title">Restore backup</string>
+    <string name="backup_import_confirm">Import bookmarks %1$d, history %2$d, passwords %3$d, scripts %4$d?</string>
+    <string name="backup_import_confirm_button">Import</string>
+    <string name="backup_passwords_skipped">Passwords were not exported: set a backup password to migrate them</string>
     <string name="update_later">Later</string>
     <string name="update_size_text">Size %1$s</string>
     <string name="update_ignored">Version ignored</string>
@@ -850,7 +854,7 @@
     <string name="search_hint">Search</string>
     <string name="search_no_match">No matching results</string>
     <string name="settings_export_data">Export data</string>
-    <string name="settings_export_data_desc">Bookmarks / history / home sites → file in Download</string>
+    <string name="settings_export_data_desc">Packages bookmarks / history / passwords / scripts into a zip; set a password to migrate passwords across devices</string>
     <string name="settings_import_data">Import data</string>
     <string name="settings_import_data_desc">Import bookmarks / history / home sites from a file (SAF)</string>
     <string name="data_exported">Copied to clipboard</string>
