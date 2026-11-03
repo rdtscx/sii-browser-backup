@@ -807,11 +807,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         bar.postDelayed(autoDismiss, 5000)
     }
 
-    /** 启动时的更新弹窗：只在主页、无浮层、无恢复提示时展示，展示后清空待处理标记。 */
+    /** 更新弹窗：显示版本、大小与说明，支持稍后/忽略。 */
     private fun maybeShowUpdatePrompt() {
         if (!isAdded || view == null) return
         val raw = AppServices.pendingUpdatePrompt ?: return
-        if (homeContainer?.visibility != View.VISIBLE) return
         if (addressEditing || homePanel?.isSearchActive() == true) return
         if (menuOverlay?.visibility == View.VISIBLE ||
             tabsOverlay?.visibility == View.VISIBLE
@@ -820,29 +819,57 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             view?.postDelayed({ maybeShowUpdatePrompt() }, 3000)
             return
         }
-        val parts = raw.split("|")
-        if (parts.size < 2) {
+        val json = runCatching { org.json.JSONObject(raw) }.getOrNull()
+        val name = json?.optString("name").orEmpty()
+        val url = json?.optString("url").orEmpty()
+        if (name.isBlank() || url.isBlank()) {
             AppServices.pendingUpdatePrompt = null
             return
         }
-        val name = parts[0]
-        val url = parts[1]
-        val summary = parts.getOrNull(2).orEmpty()
-            .trim()
-            .split("\n\n")
-            .firstOrNull()
-            .orEmpty()
-            .take(200)
+        val notes = json?.optString("notes").orEmpty().trim()
+        val size = json?.optLong("size", 0L) ?: 0L
         AppServices.pendingUpdatePrompt = null
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle(getString(R.string.update_available, name))
-            .setMessage(summary.ifBlank { getString(R.string.update_tap_to_download) })
-            .setPositiveButton(R.string.update_download) { _, _ -> loadUrlFor(url) }
-            .setNeutralButton(R.string.update_ignore_version) { _, _ ->
-                AppServices.settings.setUpdateIgnoredVersion(name)
-                AppServices.settings.setUpdateLatest(null)
+
+        val context = requireContext()
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(20), dpToPx(4), dpToPx(20), 0)
+        }
+        if (size > 0L) {
+            content.addView(TextView(context).apply {
+                text = getString(
+                    R.string.update_size_text,
+                    android.text.format.Formatter.formatShortFileSize(context, size)
+                )
+                setTextSize(12.5f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(0, 0, 0, dpToPx(8))
+            })
+        }
+        if (notes.isNotEmpty()) {
+            val notesView = TextView(context).apply {
+                text = notes
+                setTextSize(13f)
+                setTextColor(context.getColor(R.color.text_primary))
+                setLineSpacing(dpToPx(3).toFloat(), 1.15f)
+                setTextIsSelectable(true)
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            val scroll = android.widget.ScrollView(context).apply {
+                addView(notesView)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(220)
+                )
+            }
+            content.addView(scroll)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle(getString(R.string.update_available, name))
+            .setView(content)
+            .setPositiveButton(R.string.update_download) { _, _ -> loadUrlFor(url) }
+            .setNeutralButton(R.string.update_later, null)
+            .setNegativeButton(R.string.update_ignore_version) { _, _ ->
+                AppServices.settings.setUpdateIgnoredVersion(name)
+            }
             .show()
     }
 
@@ -9394,6 +9421,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 回到浏览器即结束密码库本次解锁，下次打开重新验证。
         AppServices.passwordUnlockedAt = 0L
         (activity as? ShellActivity)?.refreshDialogTheme()
+        AppServices.checkUpdatesOnForeground(
+            requireContext().applicationContext as android.app.Application
+        )
+        view?.postDelayed({ maybeShowUpdatePrompt() }, 2000)
         applyKeepScreenOn()
         applyIncognitoBadge()
         applyTabActionLayout()

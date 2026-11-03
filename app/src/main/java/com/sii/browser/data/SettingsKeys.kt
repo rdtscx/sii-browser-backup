@@ -73,6 +73,7 @@ object SettingsKeys {
     const val WEBRTC_PROTECT = "webrtcprotect"
     const val UPDATE_AUTO = "updateauto"
     const val UPDATE_LAST_NOTIFIED = "updatelastnotified"
+    const val UPDATE_NOTIFIED_VERSION = "updatenotifiedversion"
     const val UPDATE_PROMPT = "updateprompt"
     const val UPDATE_IGNORED = "updateignored"
     const val UPDATE_LAST_CHECK = "updatelastcheck"

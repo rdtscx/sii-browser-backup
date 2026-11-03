@@ -1340,8 +1340,12 @@ interface WebPageSettings {
 
     /** 上次提醒过的版本号（避免重复提醒）。 */
     fun updateLastNotified(): Long
-
     fun setUpdateLastNotified(value: Long)
+
+    /** 上次弹窗提示的版本号，用于“同一版本 12 小时内只弹一次”。 */
+    fun updateNotifiedVersion(): String?
+
+    fun setUpdateNotifiedVersion(value: String?)
 
     /** 密码库指纹锁。 */
     fun passwordBiometric(): Boolean

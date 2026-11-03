@@ -104,6 +104,8 @@
     <string name="update_prompt_off">关闭自动检查</string>
     <string name="update_prompt_startup">启动时提醒</string>
     <string name="update_ignore_version">忽略此版本</string>
+    <string name="update_later">稍后</string>
+    <string name="update_size_text">大小 %1$s</string>
     <string name="update_ignored">已忽略该版本</string>
     <string name="settings_pull_refresh">下拉刷新</string>
     <string name="settings_keep_on">屏幕常亮</string>
