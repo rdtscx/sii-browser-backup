@@ -276,8 +276,11 @@ object AppServices {
     /** 自动检查更新：12 小时一次，成功才落时间；发现新版本按版本去重弹窗。 */
     private suspend fun autoCheckUpdate(app: Application) {
         if (settings.updatePrompt() <= 0) return
+        val debuggable = app.applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         val now = System.currentTimeMillis()
-        if (now - settings.updateLastCheck() < updateIntervalMs) return
+        // 测试包跳过 12 小时间隔，方便直接验证弹窗。
+        if (!debuggable && now - settings.updateLastCheck() < updateIntervalMs) return
         val info = com.sii.browser.data.UpdateChecker.check()
         if (info == null) {
             // 失败不占用完整间隔：5 分钟后可重试。
@@ -292,7 +295,7 @@ object AppServices {
             packageInfo.versionName.orEmpty() to code
         }.getOrNull() ?: return
         // 测试包：假装本地是 1.4.0，便于验证更新弹窗与下载流程。
-        if (app.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+        if (debuggable) {
             local = "1.4.0" to 10L
         }
         if (!com.sii.browser.data.UpdateChecker.isUpdate(info, local.first, local.second)) {
