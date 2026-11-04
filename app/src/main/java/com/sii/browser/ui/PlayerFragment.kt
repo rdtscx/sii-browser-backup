@@ -311,10 +311,17 @@ class PlayerFragment : Fragment() {
                 }
                 if (child is ViewGroup) {
                     for (j in 0 until child.childCount) {
-                        child.getChildAt(j).layoutParams = FrameLayout.LayoutParams(
+                        val inner = child.getChildAt(j)
+                        inner.layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        // 快退/快进圈里的数字：原样式靠底居中，缩小后偏到左上，改成正中。
+                        (inner as? TextView)?.apply {
+                            gravity = android.view.Gravity.CENTER
+                            setPadding(0, 0, 0, 0)
+                            includeFontPadding = false
+                        }
                     }
                 }
             }
