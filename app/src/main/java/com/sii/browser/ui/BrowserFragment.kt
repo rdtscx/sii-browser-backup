@@ -4573,30 +4573,37 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!AppServices.settings.sniffEnabled()) return
         if (key !== tabManager.currentWebView) return
         if (homeContainer?.visibility == View.VISIBLE) return
-        if (sniffPromptedUrls.contains(res.url) || sniffPromptDismissedUrls.contains(res.url)) return
-        if (sniffPrompt?.visibility == View.VISIBLE) return
         if (res.type != com.sii.browser.core.webview.SniffType.HLS &&
             res.type != com.sii.browser.core.webview.SniffType.VIDEO
         ) return
-        if (res.type == com.sii.browser.core.webview.SniffType.VIDEO && isSniffSegment(res.url)) return
+        if (com.sii.browser.core.webview.SniffStore.isSegment(res.url)) return
+        if (sniffPromptedUrls.contains(res.url) || sniffPromptDismissedUrls.contains(res.url)) return
         sniffPromptedUrls.add(res.url)
         view?.postDelayed({
             if (!isAdded || key !== tabManager.currentWebView) return@postDelayed
             if (!sniffPromptedUrls.contains(res.url)) return@postDelayed
-            val list = com.sii.browser.core.webview.SniffStore.list(key)
-            val best = list.firstOrNull { it.type == com.sii.browser.core.webview.SniffType.HLS }
-                ?: list.firstOrNull {
-                    it.type == com.sii.browser.core.webview.SniffType.VIDEO &&
-                        !isSniffSegment(it.url)
-                }
-                ?: return@postDelayed
+            val shown = sniffPromptResource
+            if (sniffPrompt?.visibility == View.VISIBLE && shown != null) {
+                // 同一段视频的 mp4/m3u8 会在同一批到达，只提示一次；更早的资源不覆盖新提示。
+                if (res.addedAt - shown.addedAt < SNIFF_PROMPT_BURST_MS) return@postDelayed
+            }
+            val best = preferStream(key, res)
+            sniffPromptedUrls.add(best.url)
             showSniffPrompt(key, best)
         }, 1200L)
     }
 
-    private fun isSniffSegment(url: String): Boolean {
-        val path = url.substringBefore('?').substringBefore('#').lowercase()
-        return path.endsWith(".ts") || path.endsWith(".m4s")
+    /** 同一次播放会同时出现 mp4 与 m3u8，能取同页流媒体就不给渐进式文件。 */
+    private fun preferStream(
+        key: Any,
+        res: com.sii.browser.core.webview.SniffedResource
+    ): com.sii.browser.core.webview.SniffedResource {
+        if (res.type == com.sii.browser.core.webview.SniffType.HLS) return res
+        return com.sii.browser.core.webview.SniffStore.list(key).firstOrNull {
+            it.type == com.sii.browser.core.webview.SniffType.HLS &&
+                com.sii.browser.core.webview.SniffStore.samePage(it.pageUrl, res.pageUrl) &&
+                kotlin.math.abs(it.addedAt - res.addedAt) < SNIFF_PROMPT_BURST_MS
+        } ?: res
     }
 
     private fun showSniffPrompt(key: Any, res: com.sii.browser.core.webview.SniffedResource) {
@@ -11335,6 +11342,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressTextProgrammatic = false
 
     private companion object {
+        /** 同一次播放触发的资源归为一批的时间窗。 */
+        private const val SNIFF_PROMPT_BURST_MS = 1500L
         const val KEY_URL = "sii_browser_url"
         const val KEY_TABS = "sii_browser_tabs"
         /** 固定栏默认项：夜间/隐身/无图/电脑模式。 */
