@@ -181,6 +181,10 @@
     <string name="sniff_prompt_found">動画を検出しました</string>
     <string name="sniff_prompt_close">閉じる</string>
     <string name="player_play_failed">このプレーヤーでは再生できません。ダウンロードして再生してください</string>
+    <string name="player_volume">音量 %1$d%%</string>
+    <string name="player_brightness">明るさ %1$d%%</string>
+    <string name="player_prev">前の動画</string>
+    <string name="player_next">次の動画</string>
     <string name="menu_sniff">メディア検出</string>
     <string name="menu_print">印刷 / PDF</string>
     <string name="menu_close_others">他のタブを閉じる</string>

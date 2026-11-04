@@ -362,6 +362,10 @@
     <string name="sniff_prompt_found">Video found</string>
     <string name="sniff_prompt_close">Close</string>
     <string name="player_play_failed">This player cannot play the video; download it instead</string>
+    <string name="player_volume">Volume %1$d%%</string>
+    <string name="player_brightness">Brightness %1$d%%</string>
+    <string name="player_prev">Previous video</string>
+    <string name="player_next">Next video</string>
     <string name="sniff_all">All</string>
     <string name="sniff_current_page">Current page</string>
     <string name="sniff_all_pages">All pages</string>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.sii.browser.ui.SwipeFrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.sii.browser.ui.PlayerGestureLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -11,6 +11,13 @@
         android:layout_height="match_parent"
         app:resize_mode="fit"
         app:show_buffering="always" />
+
+    <View
+        android:id="@+id/player_dim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#FF000000" />
 
     <LinearLayout
         android:id="@+id/player_top"
@@ -46,6 +53,29 @@
             android:textColor="#FFFFFFFF"
             android:textSize="15sp" />
 
+        <ImageButton
+            android:id="@+id/player_prev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_prev"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_back"
+            android:tint="#FFFFFFFF" />
+
+        <ImageButton
+            android:id="@+id/player_next"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_next"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:scaleX="-1"
+            android:src="@drawable/ic_back"
+            android:tint="#FFFFFFFF" />
+
         <TextView
             android:id="@+id/player_count"
             android:layout_width="wrap_content"
@@ -67,4 +97,13 @@
             android:src="@drawable/ic_m_download"
             android:tint="#FFFFFFFF" />
     </LinearLayout>
-</com.sii.browser.ui.SwipeFrameLayout>
+
+    <TextView
+        android:id="@+id/player_osd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textColor="#FFFFFFFF"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</com.sii.browser.ui.PlayerGestureLayout>

@@ -181,6 +181,10 @@
     <string name="sniff_prompt_found">发现视频</string>
     <string name="sniff_prompt_close">关闭</string>
     <string name="player_play_failed">当前播放器无法播放该视频，请下载后播放</string>
+    <string name="player_volume">音量 %1$d%%</string>
+    <string name="player_brightness">亮度 %1$d%%</string>
+    <string name="player_prev">上一个视频</string>
+    <string name="player_next">下一个视频</string>
     <string name="menu_sniff">资源嗅探</string>
     <string name="menu_print">打印/PDF</string>
     <string name="menu_close_others">关闭其它标签</string>

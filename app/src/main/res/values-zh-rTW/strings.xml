@@ -181,6 +181,10 @@
     <string name="sniff_prompt_found">發現影片</string>
     <string name="sniff_prompt_close">關閉</string>
     <string name="player_play_failed">當前播放器無法播放該影片，請下載後播放</string>
+    <string name="player_volume">音量 %1$d%%</string>
+    <string name="player_brightness">亮度 %1$d%%</string>
+    <string name="player_prev">上一個影片</string>
+    <string name="player_next">下一個影片</string>
     <string name="menu_sniff">資源嗅探</string>
     <string name="menu_print">列印/PDF</string>
     <string name="menu_close_others">關閉其它分頁</string>
