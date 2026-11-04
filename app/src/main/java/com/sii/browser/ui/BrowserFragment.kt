@@ -4636,14 +4636,19 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun playSniffResource() {
         val res = sniffPromptResource ?: return
-        val isHls = res.type == com.sii.browser.core.webview.SniffType.HLS
+        val key = sniffPromptKey ?: tabManager.currentWebView
         hideSniffPrompt()
+        val pageUrl = res.pageUrl ?: tabManager.current?.url
+        val items = (key?.let {
+            com.sii.browser.core.webview.SniffStore.playable(it, pageUrl)
+        }).orEmpty().ifEmpty { listOf(res) }
+        val index = items.indexOfFirst { it.url == res.url }.coerceAtLeast(0)
         parentFragmentManager.beginTransaction()
             .replace(
                 R.id.shell_root,
                 PlayerFragment.newInstance(
-                    res.url,
-                    isHls,
+                    items,
+                    index,
                     tabManager.current?.url,
                     tabManager.currentWebView?.settings?.userAgentString
                 )

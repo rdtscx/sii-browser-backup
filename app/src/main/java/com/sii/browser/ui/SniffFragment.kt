@@ -119,20 +119,8 @@ class SniffFragment : Fragment() {
             if (AppServices.settings.sniffEnabled()) View.GONE else View.VISIBLE
         renderChips()
         container.removeAllViews()
-        val target = key()
-        val all = target?.let { SniffStore.list(it) }.orEmpty()
-        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
-        var visible = if (showAllPages || current.isNullOrEmpty()) {
-            all
-        } else {
-            all.filter { samePage(it.pageUrl, current) }
-        }
-        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
-        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
-            showAllPages = true
-            visible = all
-        }
-        val items = if (filter == null) visible else visible.filter { it.type == filter }
+        val all = key()?.let { SniffStore.list(it) }.orEmpty()
+        val items = displayedItems()
         if (items.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
                 text = getString(if (all.isEmpty()) R.string.sniff_empty else R.string.search_no_match)
@@ -147,13 +135,22 @@ class SniffFragment : Fragment() {
         container.addView(card)
     }
 
-    /** 两个 URL 是否属于同一文档：忽略 query/hash 与末尾斜杠，任一缺失时视为同页。 */
-    private fun samePage(a: String?, b: String?): Boolean {
-        if (a.isNullOrBlank() || b.isNullOrBlank()) return true
-        val ua = runCatching { android.net.Uri.parse(a) }.getOrNull() ?: return true
-        val ub = runCatching { android.net.Uri.parse(b) }.getOrNull() ?: return true
-        if (ua.host != ub.host || ua.scheme != ub.scheme) return false
-        return ua.path.orEmpty().trimEnd('/') == ub.path.orEmpty().trimEnd('/')
+    /** 当前列表实际展示的资源（当前页/全部页面 + 类型筛选），播放器左右切换也用这份顺序。 */
+    private fun displayedItems(): List<SniffedResource> {
+        val target = key()
+        val all = target?.let { SniffStore.list(it) }.orEmpty()
+        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
+        var visible = if (showAllPages || current.isNullOrEmpty()) {
+            all
+        } else {
+            all.filter { SniffStore.samePage(it.pageUrl, current) }
+        }
+        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
+        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
+            showAllPages = true
+            visible = all
+        }
+        return if (filter == null) visible else visible.filter { it.type == filter }
     }
 
     private fun renderChips() {
@@ -236,8 +233,7 @@ class SniffFragment : Fragment() {
             setTextSize(11.5f)
             setTextColor(requireContext().getColor(R.color.text_secondary))
         }
-        val playable = res.type == SniffType.VIDEO ||
-            res.type == SniffType.HLS || res.type == SniffType.AUDIO
+        val playable = SniffStore.isPlayable(res.type)
         val mse = res.type == SniffType.MSE
         val actions = TextView(requireContext()).apply {
             text = when {
@@ -287,8 +283,7 @@ class SniffFragment : Fragment() {
 
     /** 长按资源：播放 / 下载 / 复制 / 新标签打开。 */
     private fun showActions(res: SniffedResource) {
-        val playable = res.type == SniffType.VIDEO ||
-            res.type == SniffType.HLS || res.type == SniffType.AUDIO
+        val playable = SniffStore.isPlayable(res.type)
         val mse = res.type == SniffType.MSE
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         if (!mse) {
@@ -319,12 +314,16 @@ class SniffFragment : Fragment() {
     /** 用内建播放器打开嗅探到的视频/音频/流媒体，带上当前页面的 Referer/UA。 */
     private fun play(res: SniffedResource) {
         val target = AppServices.sniffTarget
+        val items = displayedItems()
+            .filter { SniffStore.isPlayable(it.type) }
+            .ifEmpty { listOf(res) }
+        val index = items.indexOfFirst { it.url == res.url }.coerceAtLeast(0)
         parentFragmentManager.beginTransaction()
             .replace(
                 R.id.shell_root,
                 PlayerFragment.newInstance(
-                    res.url,
-                    res.type == SniffType.HLS,
+                    items,
+                    index,
                     target?.url,
                     target?.settings?.userAgentString
                 )
