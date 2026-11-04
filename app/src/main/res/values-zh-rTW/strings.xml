@@ -127,7 +127,7 @@
     <string name="update_ignored">已忽略該版本</string>
     <string name="settings_pull_refresh">下拉重新整理</string>
     <string name="settings_keep_on">螢幕常亮</string>
-    <string name="settings_video_gesture">播放器手勢（亮度/音量/進度）</string>
+    <string name="settings_video_gesture">影片手勢（左亮度/右音量）</string>
     <string name="settings_restore_closed_tabs">啟動時恢復上次分頁</string>
     <string name="settings_ua">瀏覽器標識 (UA)</string>
     <string name="settings_ua_preset">瀏覽器標識預設</string>
@@ -185,11 +185,6 @@
     <string name="player_brightness">亮度 %1$d%%</string>
     <string name="player_prev">上一個影片</string>
     <string name="player_next">下一個影片</string>
-    <string name="player_play">播放</string>
-    <string name="player_pause">暫停</string>
-    <string name="player_rotate">切換橫豎屏</string>
-    <string name="player_rewind">快退 10 秒</string>
-    <string name="player_forward">快進 10 秒</string>
     <string name="menu_sniff">資源嗅探</string>
     <string name="menu_print">列印/PDF</string>
     <string name="menu_close_others">關閉其它分頁</string>

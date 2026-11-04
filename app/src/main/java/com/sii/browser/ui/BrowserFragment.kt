@@ -8355,12 +8355,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             container.visibility = View.VISIBLE
             setBrowserChromeVisible(false)
             setVideoFullscreenSystemBars(true)
+            setupVideoGesture(container)
             activity?.requestedOrientation =
                 android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
 
         override fun onHideCustomView(): Boolean {
             fullscreenContainer?.removeAllViews()
+            fullscreenContainer?.setOnTouchListener(null)
             fullscreenContainer?.visibility = View.GONE
             fullscreenContainer?.elevation = 0f
             setBrowserChromeVisible(true)
@@ -9717,6 +9719,57 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             tabManager.tabs.forEach { it.webView.onPause() }
         }
         super.onPause()
+    }
+
+    /** 视频手势：全屏播放时左侧边缘上下滑调窗内亮度、右侧边缘调媒体音量（中间区域透传，不影响原生控件）。 */
+    private fun setupVideoGesture(container: View) {
+        if (!AppServices.settings.videoGesture()) return
+        val audio = requireContext().getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        var startY = 0f
+        var startVolume = 0
+        var startBrightness = -1f
+        var adjustVolume = false
+        var captured = false
+        container.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    val edge = v.width * 0.25f
+                    val inLeft = event.x < edge
+                    val inRight = event.x > v.width - edge
+                    captured = AppServices.settings.videoGesture() && (inLeft || inRight)
+                    if (captured) {
+                        startY = event.y
+                        adjustVolume = inRight
+                        startVolume = audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                        startBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
+                    }
+                    captured
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (!captured) return@setOnTouchListener false
+                    val delta = (startY - event.y) / (v.height.coerceAtLeast(1) / 2f)
+                    if (adjustVolume) {
+                        val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+                        val target = (startVolume + delta * max).toInt().coerceIn(0, max)
+                        audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, target, 0)
+                        Toast.makeText(requireContext(), "音量 $target", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val window = activity?.window ?: return@setOnTouchListener false
+                        val base = if (startBrightness < 0f) 0.5f else startBrightness
+                        val target = (base + delta).coerceIn(0.02f, 1f)
+                        window.attributes = window.attributes.apply { screenBrightness = target }
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    val wasCaptured = captured
+                    captured = false
+                    wasCaptured
+                }
+                else -> false
+            }
+        }
     }
 
     /** 无痕标识：地址栏提示切为「无痕」；否则恢复默认提示。 */

@@ -127,7 +127,7 @@
     <string name="update_ignored">已忽略该版本</string>
     <string name="settings_pull_refresh">下拉刷新</string>
     <string name="settings_keep_on">屏幕常亮</string>
-    <string name="settings_video_gesture">播放器手势（亮度/音量/进度）</string>
+    <string name="settings_video_gesture">视频手势（左亮度/右音量）</string>
     <string name="settings_restore_closed_tabs">启动时恢复上次标签</string>
     <string name="settings_ua">浏览器标识 (UA)</string>
     <string name="settings_ua_preset">浏览器标识预设</string>
@@ -185,11 +185,6 @@
     <string name="player_brightness">亮度 %1$d%%</string>
     <string name="player_prev">上一个视频</string>
     <string name="player_next">下一个视频</string>
-    <string name="player_play">播放</string>
-    <string name="player_pause">暂停</string>
-    <string name="player_rotate">切换横竖屏</string>
-    <string name="player_rewind">快退 10 秒</string>
-    <string name="player_forward">快进 10 秒</string>
     <string name="menu_sniff">资源嗅探</string>
     <string name="menu_print">打印/PDF</string>
     <string name="menu_close_others">关闭其它标签</string>

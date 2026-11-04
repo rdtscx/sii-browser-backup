@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:resize_mode="fit"
-        app:use_controller="false" />
+        app:show_buffering="always" />
 
     <View
         android:id="@+id/player_dim"
@@ -18,14 +18,6 @@
         android:layout_height="match_parent"
         android:alpha="0"
         android:background="#FF000000" />
-
-    <ProgressBar
-        android:id="@+id/player_buffering"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_gravity="center"
-        android:indeterminateTint="#FFFFFFFF"
-        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/player_top"
@@ -63,35 +55,36 @@
 
         <ImageButton
             android:id="@+id/player_prev"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_prev"
             android:padding="8dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_player_prev"
+            android:src="@drawable/ic_back"
+            android:tint="#FFFFFFFF" />
+
+        <ImageButton
+            android:id="@+id/player_next"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_next"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:scaleX="-1"
+            android:src="@drawable/ic_back"
             android:tint="#FFFFFFFF" />
 
         <TextView
             android:id="@+id/player_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="2dp"
-            android:paddingEnd="2dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="8dp"
             android:textColor="#B3FFFFFF"
             android:textSize="13sp"
             android:visibility="gone" />
-
-        <ImageButton
-            android:id="@+id/player_next"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_next"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_player_next"
-            android:tint="#FFFFFFFF" />
 
         <ImageButton
             android:id="@+id/player_download"
@@ -102,96 +95,6 @@
             android:padding="8dp"
             android:scaleType="centerInside"
             android:src="@drawable/ic_m_download"
-            android:tint="#FFFFFFFF" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/player_bottom"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="#B3000000"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
-
-        <ImageButton
-            android:id="@+id/player_play_pause"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_play"
-            android:padding="9dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_player_play"
-            android:tint="#FFFFFFFF" />
-
-        <ImageButton
-            android:id="@+id/player_rewind"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_rewind"
-            android:padding="9dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_player_rewind"
-            android:tint="#FFFFFFFF" />
-
-        <ImageButton
-            android:id="@+id/player_forward"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_forward"
-            android:padding="9dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_player_forward"
-            android:tint="#FFFFFFFF" />
-
-        <TextView
-            android:id="@+id/player_position"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:text="00:00"
-            android:textColor="#FFFFFFFF"
-            android:textSize="12sp" />
-
-        <SeekBar
-            android:id="@+id/player_progress"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:max="1000"
-            android:minHeight="24dp"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:progressBackgroundTint="#66FFFFFF"
-            android:progressTint="#FFFFFFFF"
-            android:splitTrack="false"
-            android:thumbTint="#FFFFFFFF" />
-
-        <TextView
-            android:id="@+id/player_duration"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="4dp"
-            android:text="00:00"
-            android:textColor="#FFFFFFFF"
-            android:textSize="12sp" />
-
-        <ImageButton
-            android:id="@+id/player_rotate"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_rotate"
-            android:padding="9dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_player_rotate"
             android:tint="#FFFFFFFF" />
     </LinearLayout>
 

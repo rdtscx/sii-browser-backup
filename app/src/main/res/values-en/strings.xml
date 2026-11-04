@@ -127,7 +127,7 @@
     <string name="update_ignored">Version ignored</string>
     <string name="settings_pull_refresh">Pull to refresh</string>
     <string name="settings_keep_on">Keep screen on</string>
-    <string name="settings_video_gesture">Player gestures (brightness / volume / seek)</string>
+    <string name="settings_video_gesture">Video gestures (left brightness / right volume)</string>
     <string name="settings_restore_closed_tabs">Restore last session tabs on startup</string>
     <string name="settings_ua">Browser identity (UA)</string>
     <string name="settings_ua_preset">Browser identity presets</string>
@@ -366,11 +366,6 @@
     <string name="player_brightness">Brightness %1$d%%</string>
     <string name="player_prev">Previous video</string>
     <string name="player_next">Next video</string>
-    <string name="player_play">Play</string>
-    <string name="player_pause">Pause</string>
-    <string name="player_rotate">Rotate screen</string>
-    <string name="player_rewind">Back 10 seconds</string>
-    <string name="player_forward">Forward 10 seconds</string>
     <string name="sniff_all">All</string>
     <string name="sniff_current_page">Current page</string>
     <string name="sniff_all_pages">All pages</string>
