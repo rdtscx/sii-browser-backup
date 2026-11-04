@@ -45,19 +45,23 @@ class SniffFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = LinearLayout(requireContext()).apply {
-        orientation = LinearLayout.VERTICAL
-        setBackgroundColor(requireContext().getColor(R.color.bg))
-        addView(PageHeader.build(
+    ): View {
+        val root = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(requireContext().getColor(R.color.bg))
+        }
+        val header = PageHeader.build(
             requireContext(),
             getString(R.string.menu_sniff),
             onBack = { parentFragmentManager.popBackStack() },
             onMenu = { _ -> confirmClear() }
-        ))
-        addView(View(requireContext()).apply {
+        )
+        root.addView(header)
+        val divider = View(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
             setBackgroundColor(requireContext().getColor(R.color.divider))
-        })
+        }
+        root.addView(divider)
         sniffHint = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(2))
@@ -81,18 +85,80 @@ class SniffFragment : Fragment() {
                 setOnClickListener { enableSniff() }
             })
         }
-        addView(sniffHint)
+        root.addView(sniffHint)
         chips = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(8), dp(12), dp(4))
         }
-        addView(chips)
+        // 分类按钮一屏放不下，横向可滚动，否则靠后的几项点不到。
+        val chipsHost = android.widget.HorizontalScrollView(requireContext()).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(
+                chips,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        root.addView(chipsHost)
         val content = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(8))
         }
-        addView(CardList.scroll(requireContext(), content), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        this@SniffFragment.container = content
+        val list = CardList.scroll(requireContext(), content)
+        root.addView(
+            list,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+        this.container = content
+        attachLayoutProbe(root, header, divider, chipsHost, list)
+        return root
+    }
+
+    /** 临时诊断（仅测试包）：量出分类行与列表之间那块空白到底被谁占位。定位后删除。 */
+    private fun attachLayoutProbe(
+        root: LinearLayout,
+        header: View,
+        divider: View,
+        chipsHost: View,
+        list: android.widget.ScrollView
+    ) {
+        val debuggable = (requireContext().applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (!debuggable) return
+        val probe = TextView(requireContext()).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setTextSize(8.5f)
+            setTextColor(0xFFC62828.toInt())
+            typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            text = "layout probe"
+        }
+        root.addView(probe)
+        root.postDelayed({
+            if (!isAdded || view == null) return@postDelayed
+            val child = list.getChildAt(0)
+            probe.text = buildString {
+                append("root=").append(root.height)
+                append(" hdr=").append(header.height)
+                append(" div=").append(divider.height)
+                append(" hint=").append(sniffHint?.height ?: -1)
+                append("/").append(sniffHint?.visibility ?: -1)
+                append(" chips=").append(chipsHost.top).append("..").append(chipsHost.bottom)
+                append(" list=").append(list.top).append("..").append(list.bottom)
+                append(" pt=").append(list.paddingTop)
+                append(" y=").append(list.scrollY)
+                append(" cTop=").append(child?.top ?: -1)
+                append(" cPad=").append((child as? View)?.paddingTop ?: -1)
+                append(" cH=").append(child?.height ?: -1)
+                append(" cKids=").append((child as? ViewGroup)?.childCount ?: -1)
+            }
+        }, 600L)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
