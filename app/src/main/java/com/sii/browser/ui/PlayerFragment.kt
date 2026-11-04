@@ -73,8 +73,6 @@ class PlayerFragment : Fragment() {
 
     private var tracking = false
     private var controlsVisible = true
-    private var longPressActive = false
-    private var speedBeforeLongPress = 1f
     private var resumeOnReturn = false
 
     private val hideOsd = Runnable { osd?.visibility = View.GONE }
@@ -200,27 +198,12 @@ class PlayerFragment : Fragment() {
             }
 
             override fun onTap() {
-                stopLongPressSpeed()
                 setControlsVisible(!controlsVisible)
             }
 
             override fun onDoubleTap(side: PlayerGestureLayout.Side) {
                 if (!gesturesEnabled()) return
-                seekBy(if (side == PlayerGestureLayout.Side.LEFT) -DOUBLE_TAP_MS else DOUBLE_TAP_MS)
-            }
-
-            override fun onLongPressStart() {
-                if (!gesturesEnabled() || longPressActive) return
-                val p = player ?: return
-                speedBeforeLongPress = p.playbackParameters.speed
-                if (speedBeforeLongPress >= LONG_PRESS_SPEED) speedBeforeLongPress = 1f
-                p.setPlaybackSpeed(LONG_PRESS_SPEED)
-                longPressActive = true
-                showOsd(LONG_PRESS_SPEED_LABEL)
-            }
-
-            override fun onLongPressEnd() {
-                stopLongPressSpeed()
+                seekBy(if (side == PlayerGestureLayout.Side.LEFT) -SEEK_STEP_MS else SEEK_STEP_MS)
             }
         }
 
@@ -253,6 +236,8 @@ class PlayerFragment : Fragment() {
             if (position < items.size - 1) load(position + 1)
         }
         view.findViewById<View>(R.id.player_rotate).setOnClickListener { toggleOrientation() }
+        view.findViewById<View>(R.id.player_rewind).setOnClickListener { seekBy(-SEEK_STEP_MS) }
+        view.findViewById<View>(R.id.player_forward).setOnClickListener { seekBy(SEEK_STEP_MS) }
         view.findViewById<View>(R.id.player_download).setOnClickListener { download() }
 
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -291,13 +276,6 @@ class PlayerFragment : Fragment() {
         scheduleHideOsd()
     }
 
-    private fun stopLongPressSpeed() {
-        if (!longPressActive) return
-        longPressActive = false
-        player?.setPlaybackSpeed(speedBeforeLongPress)
-        scheduleHideOsd()
-    }
-
     /** 切换播放项：Cookie/Referer 按该资源自身计算，否则防盗链站会 403。 */
     private fun load(index: Int) {
         val res = items.getOrNull(index) ?: return
@@ -310,9 +288,6 @@ class PlayerFragment : Fragment() {
         player.setMediaSource(
             DefaultMediaSourceFactory(httpDataSourceFactory(res)).createMediaSource(mediaItem)
         )
-        player.setPlaybackSpeed(1f)
-        longPressActive = false
-        speedBeforeLongPress = 1f
         player.prepare()
         player.playWhenReady = true
 
@@ -471,7 +446,6 @@ class PlayerFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
-        stopLongPressSpeed()
         resumeOnReturn = player?.playWhenReady == true
         player?.playWhenReady = false
     }
@@ -482,7 +456,6 @@ class PlayerFragment : Fragment() {
         host?.removeCallbacks(hideOsd)
         host?.removeCallbacks(hideControls)
         host?.findViewById<PlayerView>(R.id.player_view)?.player = null
-        stopLongPressSpeed()
         player?.release()
         player = null
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -511,9 +484,7 @@ class PlayerFragment : Fragment() {
 
         /** 横向滑满屏对应的进度跨度。 */
         private const val SEEK_SPAN_MS = 90_000f
-        private const val DOUBLE_TAP_MS = 10_000L
-        private const val LONG_PRESS_SPEED = 2f
-        private const val LONG_PRESS_SPEED_LABEL = "2×"
+        private const val SEEK_STEP_MS = 10_000L
         private const val CONTROLS_HIDE_DELAY_MS = 3_000L
         private const val OSD_HIDE_DELAY_MS = 700L
 

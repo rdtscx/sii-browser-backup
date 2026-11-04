@@ -188,6 +188,8 @@
     <string name="player_play">再生</string>
     <string name="player_pause">一時停止</string>
     <string name="player_rotate">画面を回転</string>
+    <string name="player_rewind">10 秒戻る</string>
+    <string name="player_forward">10 秒進む</string>
     <string name="menu_sniff">メディア検出</string>
     <string name="menu_print">印刷 / PDF</string>
     <string name="menu_close_others">他のタブを閉じる</string>

@@ -188,6 +188,8 @@
     <string name="player_play">播放</string>
     <string name="player_pause">暫停</string>
     <string name="player_rotate">切換橫豎屏</string>
+    <string name="player_rewind">快退 10 秒</string>
+    <string name="player_forward">快進 10 秒</string>
     <string name="menu_sniff">資源嗅探</string>
     <string name="menu_print">列印/PDF</string>
     <string name="menu_close_others">關閉其它分頁</string>
