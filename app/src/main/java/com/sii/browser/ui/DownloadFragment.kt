@@ -468,6 +468,29 @@ class DownloadFragment : Fragment() {
     ): View {
         val running = task.state == DownloadState.DOWNLOADING
         val style = progressStyle()
+        // 总大小未知时百分比永远是 0，换成不确定态动画条，至少看得出在下载。
+        if (running && task.totalSize <= 0L && style != 0) {
+            return android.widget.ProgressBar(
+                context, null, android.R.attr.progressBarStyleHorizontal
+            ).apply {
+                id = R.id.download_progress
+                isIndeterminate = true
+                indeterminateTintList = android.content.res.ColorStateList.valueOf(
+                    ThemeAccent.color(context)
+                )
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(
+                    0x33888888
+                )
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(4)
+                ).apply {
+                    topMargin = dp(8)
+                    bottomMargin = dp(2)
+                }
+                visibility = View.VISIBLE
+            }
+        }
         val bar: View = when (style) {
             1 -> LineProgressView(context).apply { setProgressPercent(progress) }
             2 -> SegmentProgressView(context).apply { setProgressPercent(progress) }

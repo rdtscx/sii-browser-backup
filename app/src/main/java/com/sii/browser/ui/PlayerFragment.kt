@@ -316,11 +316,27 @@ class PlayerFragment : Fragment() {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        // 快退/快进圈里的数字：原样式靠底居中，缩小后偏到左上，改成正中。
-                        (inner as? TextView)?.apply {
-                            gravity = android.view.Gravity.CENTER
-                            setPadding(0, 0, 0, 0)
-                            includeFontPadding = false
+                        if (inner is TextView) {
+                            // 原数字隐藏（不清文本，避免 Media3 刷新又写回），叠一个居中的数字。
+                            inner.setTextColor(Color.TRANSPARENT)
+                            child.post {
+                                val label = inner.text?.toString().orEmpty()
+                                if (label.isEmpty()) return@post
+                                val overlay = TextView(requireContext()).apply {
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    gravity = android.view.Gravity.CENTER
+                                    text = label
+                                    setTextSize(10f)
+                                    setTextColor(Color.WHITE)
+                                    includeFontPadding = false
+                                    isClickable = false
+                                    isFocusable = false
+                                }
+                                child.addView(overlay)
+                            }
                         }
                     }
                 }

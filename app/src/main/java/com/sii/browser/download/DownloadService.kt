@@ -163,18 +163,21 @@ class DownloadService : Service() {
             val probe = runCatching {
                 AppServices.downloadEngine.probe(url)
             }.getOrDefault(DownloadEngine.Probe(0L, false))
-            val total = if (probe.total > 0L && probe.rangeSupported) probe.total else 0L
+            // 总大小照实记录（即使服务器不支持 Range），进度才能按百分比画。
+            val total = probe.total.coerceAtLeast(0L)
+            val noRange = total > 0L && !probe.rangeSupported
+            val incognito = intent.getBooleanExtra(EXTRA_INCOGNITO, false) ||
+                AppServices.privacyManager.isIncognito
             val task = AppServices.downloadRepository.createTask(
                 url = url,
                 name = name,
                 mimetype = intent.getStringExtra(EXTRA_MIME),
                 totalSize = total,
-                chunkCount = if (total > 0) {
+                chunkCount = if (total > 0 && probe.rangeSupported) {
                     DownloadEngine.chunkCountForFile(this@DownloadService, total)
                 } else 1,
-                flags = if (intent.getBooleanExtra(EXTRA_INCOGNITO, false) ||
-                    AppServices.privacyManager.isIncognito
-                ) DownloadTaskFlags.INCOGNITO else 0
+                flags = (if (incognito) DownloadTaskFlags.INCOGNITO else 0) or
+                    (if (noRange) DownloadTaskFlags.NO_RANGE else 0)
             )
             activeTaskId = task.id
             activeChunks = task.chunks
@@ -223,6 +226,10 @@ class DownloadService : Service() {
                 val ok = HlsDownloader.download(url, referer, ua, file) { progress ->
                     val percent = if (progress.total > 0) progress.done * 100 / progress.total else 0
                     notifyHls(percent, progress.done, progress.total)
+                    // 下载列表按字节数展示，HLS 也要写回进度。
+                    scope.launch {
+                        AppServices.downloadRepository.updateProgress(taskId, progress.bytes)
+                    }
                 }
                 if (ok && file.length() > 0L) {
                     val mp4 = java.io.File(file.parentFile, file.nameWithoutExtension + ".mp4")
@@ -239,6 +246,7 @@ class DownloadService : Service() {
                         finalFile.absolutePath,
                         finalFile.length()
                     )
+                    AppServices.downloadRepository.updateProgress(taskId, finalFile.length())
                     AppServices.downloadRepository.setState(taskId, DownloadState.COMPLETED)
                     val finalTask = AppServices.downloadRepository.taskById(taskId)
                     notifyHlsDone(finalFile.name)

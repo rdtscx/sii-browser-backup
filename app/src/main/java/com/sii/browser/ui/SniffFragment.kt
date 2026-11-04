@@ -312,7 +312,7 @@ class SniffFragment : Fragment() {
             addView(image)
             addView(mark)
         }
-        if (res.type == SniffType.IMAGE) {
+        if (res.type == SniffType.IMAGE || res.type == SniffType.VIDEO) {
             thumbRows.add(ThumbRow(res, box, image, mark))
         }
         return box
@@ -331,11 +331,20 @@ class SniffFragment : Fragment() {
             if (!row.box.getGlobalVisibleRect(rect)) return@forEach
             val url = row.res.url
             row.image.tag = url
-            SniffThumbs.load(url, userAgent, row.res.pageUrl ?: target?.url) { bitmap ->
-                if (row.image.tag != url || bitmap == null) return@load
+            val onReady = ready@ { bitmap: android.graphics.Bitmap? ->
+                if (row.image.tag != url || bitmap == null) return@ready
                 row.image.setImageBitmap(bitmap)
                 row.image.visibility = View.VISIBLE
                 row.placeholder.visibility = View.GONE
+            }
+            when (row.res.type) {
+                SniffType.IMAGE -> SniffThumbs.load(
+                    url, userAgent, row.res.pageUrl ?: target?.url, onReady
+                )
+                SniffType.VIDEO -> SniffThumbs.loadVideoFrame(
+                    url, userAgent, row.res.pageUrl ?: target?.url, onReady
+                )
+                else -> Unit
             }
         }
     }
