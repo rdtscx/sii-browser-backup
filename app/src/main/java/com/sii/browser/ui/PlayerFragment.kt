@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -61,6 +62,8 @@ class PlayerFragment : Fragment() {
     private var osdText: TextView? = null
     private var osdBar: android.widget.ProgressBar? = null
     private var topBar: View? = null
+    private var playPause: ImageButton? = null
+    private var controllerPrepared = false
     private var speedButton: TextView? = null
     private var audioButton: TextView? = null
     private var listPopup: PopupWindow? = null
@@ -116,6 +119,12 @@ class PlayerFragment : Fragment() {
             }
             override fun onPlaybackParametersChanged(params: PlaybackParameters) {
                 updateSpeedButton()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playPause?.setImageResource(
+                    if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
+                )
             }
 
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -190,10 +199,10 @@ class PlayerFragment : Fragment() {
         playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 topBar?.visibility = visibility
+                if (visibility == View.VISIBLE) prepareController(playerView)
             }
         )
-        tuneController(playerView)
-        addSpeedAndAudioButtons(playerView)
+        prepareController(playerView)
         applyImmersive()
         load(position)
 
@@ -283,6 +292,15 @@ class PlayerFragment : Fragment() {
      * 默认控制器的两处修正：去掉全屏 60% 黑遮罩（点一下不再变暗），
      * 把正中间的播放/快进按钮移到底部条里，不再挡住画面。
      */
+    /** 控制器可能懒加载：等它存在后再替换控件，避免空操作。 */
+    private fun prepareController(playerView: PlayerView) {
+        if (controllerPrepared) return
+        if (playerView.findViewById<View>(androidx.media3.ui.R.id.exo_center_controls) == null) return
+        controllerPrepared = true
+        tuneController(playerView)
+        addSpeedAndAudioButtons(playerView)
+    }
+
     private fun tuneController(playerView: PlayerView) {
         playerView.findViewById<View>(androidx.media3.ui.R.id.exo_controls_background)
             ?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -294,44 +312,31 @@ class PlayerFragment : Fragment() {
         )
         val parent = center?.parent as? ViewGroup
         if (center != null && bottom != null && parent != null) {
-            // 上一个/下一个已经在顶部条，控制器里这两个会连同时间文字一起挤着，直接拿掉。
-            listOf(
-                androidx.media3.ui.R.id.exo_prev,
-                androidx.media3.ui.R.id.exo_next
-            ).forEach { id ->
-                center.findViewById<View>(id)?.let { button ->
-                    (button.parent as? ViewGroup)?.removeView(button)
-                }
+            // 整组换成自绘控件：Media3 的 include 按钮无法稳定把数字放到圈心。
+            (center.parent as? ViewGroup)?.removeView(center)
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
             }
-            // 快退/快进改成自绘的 44dp 圆环按钮：图标用 Media3 的圆环矢量，
-            // 数字是独立 TextView，圆心与画布中心重合，不会再偏。
-            var seekIndex = 0
-            val children = (0 until center.childCount).map { center.getChildAt(it) }
-            children.forEach { child ->
-                if (child is ViewGroup) {
-                    val index = center.indexOfChild(child)
-                    val rewind = seekIndex == 0
-                    center.removeViewAt(index)
-                    val seek = SeekButtonView(requireContext()).apply {
-                        seconds = if (rewind) 5 else 15
-                        forward = !rewind
-                        layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                            gravity = android.view.Gravity.CENTER_VERTICAL
-                        }
-                        setBackgroundResource(android.R.drawable.list_selector_background)
-                        setOnClickListener { seekBy(if (rewind) -5_000L else 15_000L) }
-                    }
-                    center.addView(seek, index)
-                    seekIndex++
-                } else {
-                    child.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                    }
+            row.addView(buildSeekButton(5, forward = false) { seekBy(-5_000L) })
+            val play = ImageButton(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.WHITE)
                 }
+                setImageResource(R.drawable.ic_player_play)
+                imageTintList = android.content.res.ColorStateList.valueOf(Color.BLACK)
+                contentDescription = getString(R.string.player_play)
+                val pad = dp(10)
+                setPadding(pad, pad, pad, pad)
+                setOnClickListener { togglePlay() }
             }
-            parent.removeView(center)
+            playPause = play
+            row.addView(play)
+            row.addView(buildSeekButton(15, forward = true) { seekBy(15_000L) })
             bottom.addView(
-                center,
+                row,
                 FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -523,6 +528,20 @@ class PlayerFragment : Fragment() {
         }
     }
 
+    private fun buildSeekButton(seconds: Int, forward: Boolean, onClick: () -> Unit): View =
+        SeekButtonView(requireContext()).apply {
+            this.seconds = seconds
+            this.forward = forward
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            setOnClickListener { onClick() }
+        }
+
+    private fun togglePlay() {
+        val p = player ?: return
+        if (p.playWhenReady) p.pause() else p.play()
+    }
+
     private fun seekBy(deltaMs: Long) {
         val p = player ?: return
         val duration = p.duration
@@ -617,6 +636,8 @@ class PlayerFragment : Fragment() {
         osd = null
         osdText = null
         osdBar = null
+        playPause = null
+        controllerPrepared = false
         topBar = null
         speedButton = null
         audioButton = null

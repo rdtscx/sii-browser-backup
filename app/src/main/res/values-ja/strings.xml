@@ -182,6 +182,8 @@
     <string name="sniff_prompt_close">閉じる</string>
     <string name="player_play_failed">このプレーヤーでは再生できません。ダウンロードして再生してください</string>
     <string name="player_rotate">画面を回転</string>
+    <string name="player_play">再生</string>
+    <string name="player_pause">一時停止</string>
     <string name="player_speed">再生速度</string>
     <string name="player_audio">音声</string>
     <string name="player_audio_auto">自動</string>
