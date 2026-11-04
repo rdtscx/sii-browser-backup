@@ -312,12 +312,16 @@ class PlayerFragment : Fragment() {
                     val index = center.indexOfChild(child)
                     val rewind = seekIndex == 0
                     center.removeViewAt(index)
-                    center.addView(
-                        buildSeekButton(if (rewind) "5" else "15", mirror = !rewind) {
-                            seekBy(if (rewind) -5_000L else 15_000L)
-                        },
-                        index
-                    )
+                    val seek = SeekButtonView(requireContext()).apply {
+                        seconds = if (rewind) 5 else 15
+                        forward = !rewind
+                        layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                            gravity = android.view.Gravity.CENTER_VERTICAL
+                        }
+                        setBackgroundResource(android.R.drawable.list_selector_background)
+                        setOnClickListener { seekBy(if (rewind) -5_000L else 15_000L) }
+                    }
+                    center.addView(seek, index)
                     seekIndex++
                 } else {
                     child.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
@@ -516,43 +520,6 @@ class PlayerFragment : Fragment() {
                     )
                     .build()
             }
-        }
-    }
-
-    /** 自绘的快退/快进按钮：44dp 圆环 + 居中数字。前进方向把图标水平镜像。 */
-    private fun buildSeekButton(label: String, mirror: Boolean, onClick: () -> Unit): View {
-        val context = requireContext()
-        val icon = ImageView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            setImageResource(androidx.media3.ui.R.drawable.exo_ic_rewind)
-            imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            val pad = dp(4)
-            setPadding(pad, pad, pad, pad)
-            if (mirror) scaleX = -1f
-        }
-        val number = TextView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            gravity = android.view.Gravity.CENTER
-            text = label
-            setTextSize(10f)
-            setTextColor(Color.WHITE)
-            includeFontPadding = false
-        }
-        return FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                gravity = android.view.Gravity.CENTER_VERTICAL
-            }
-            setBackgroundResource(android.R.drawable.list_selector_background)
-            addView(icon)
-            addView(number)
-            setOnClickListener { onClick() }
         }
     }
 
