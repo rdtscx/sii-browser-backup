@@ -60,7 +60,7 @@ class SeekButtonView @JvmOverloads constructor(
         val cx = width / 2f
         val cy = height / 2f
         // 圆环比按钮本身小一圈，留出空白，不和中间播放键“顶满”。
-        val radius = minOf(width, height) / 2f - ring.strokeWidth - 3.5f * density
+        val radius = minOf(width, height) / 2f - ring.strokeWidth - 5.5f * density
         if (radius <= 0f) return
 
         val gap = 62f
@@ -89,8 +89,8 @@ class SeekButtonView @JvmOverloads constructor(
         val py = cy + radius * sinA
         val tangentX = if (clockwise) -sinA else sinA
         val tangentY = if (clockwise) cosA else -cosA
-        val length = 4.6f * density
-        val half = 3.0f * density
+        val length = 4.0f * density
+        val half = 2.6f * density
         val normalX = -tangentY
         val normalY = tangentX
         val path = Path().apply {
