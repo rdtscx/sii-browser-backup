@@ -842,6 +842,10 @@
     <string name="site_menu_cookies">查看 Cookies</string>
     <string name="site_menu_settings">当前网站设置</string>
     <string name="site_menu_settings_enabled">当前网站设置（已启用）</string>
+    <string name="site_menu_prompt_pause">本站不再提示发现视频</string>
+    <string name="site_menu_prompt_resume">本站恢复发现视频提示</string>
+    <string name="site_prompt_paused">本站已关闭发现视频提示</string>
+    <string name="site_prompt_resumed">本站已恢复发现视频提示</string>
     <string name="site_menu_scripts">查看脚本</string>
     <string name="site_menu_cookies_empty">当前页面没有 Cookies</string>
     <string name="site_menu_scripts_empty">当前页面没有匹配的脚本</string>

@@ -62,6 +62,7 @@ class PlayerFragment : Fragment() {
     private var osdText: TextView? = null
     private var osdBar: android.widget.ProgressBar? = null
     private var topBar: View? = null
+    private var playerViewRef: PlayerView? = null
     private var playPause: ImageButton? = null
     private var controllerPrepared = false
     private var speedButton: TextView? = null
@@ -105,6 +106,10 @@ class PlayerFragment : Fragment() {
         audio = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         val playerView = view.findViewById<PlayerView>(R.id.player_view)
+        playerViewRef = playerView
+        // 控制器不要跟着触摸自己切显隐，改由手势层的单击控制，拖动进度时不会一上一下。
+        playerView.setControllerHideOnTouch(false)
+        playerView.setControllerShowTimeoutMs(3000)
         topBar = view.findViewById(R.id.player_top)
         val player = ExoPlayer.Builder(requireContext()).build()
         this.player = player
@@ -132,7 +137,12 @@ class PlayerFragment : Fragment() {
             }
         })
 
-        (view as PlayerGestureLayout).listener = object : PlayerGestureLayout.Listener {
+        val gestureLayout = view as PlayerGestureLayout
+        gestureLayout.excluded = listOfNotNull(
+            topBar,
+            view.findViewById(androidx.media3.ui.R.id.exo_bottom_bar)
+        )
+        gestureLayout.listener = object : PlayerGestureLayout.Listener {
             override fun onVerticalStart(side: PlayerGestureLayout.Side) {
                 if (side == PlayerGestureLayout.Side.RIGHT) {
                     volumeStart = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -181,6 +191,11 @@ class PlayerFragment : Fragment() {
                 seekTarget = -1L
                 if (target >= 0L) player.seekTo(target)
                 scheduleHideOsd()
+            }
+
+            override fun onTap() {
+                val pv = playerViewRef ?: return
+                if (pv.isControllerFullyVisible) pv.hideController() else pv.showController()
             }
         }
 
@@ -637,6 +652,7 @@ class PlayerFragment : Fragment() {
         osdText = null
         osdBar = null
         playPause = null
+        playerViewRef = null
         controllerPrepared = false
         topBar = null
         speedButton = null

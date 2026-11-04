@@ -4,7 +4,9 @@ package com.sii.browser.ui
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.View
 import android.widget.FrameLayout
 import kotlin.math.abs
 
@@ -33,15 +35,32 @@ class PlayerGestureLayout @JvmOverloads constructor(
         fun onSeekMove(fraction: Float)
 
         fun onSeekEnd()
+
+        /** 单击画面：切换工具栏显隐（拖动手势不触发）。 */
+        fun onTap()
     }
 
     var listener: Listener? = null
+
+    /** 控制条等区域：落在这些视图范围内的触摸不参与手势与单击。 */
+    var excluded: List<View> = emptyList()
 
     private val slop = 12f * resources.displayMetrics.density
     private var downX = 0f
     private var downY = 0f
     private var mode = MODE_NONE
     private var side = Side.LEFT
+    private var ignored = false
+
+    private val detector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                listener?.onTap()
+                return true
+            }
+        }
+    )
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
@@ -50,9 +69,17 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 downY = ev.y
                 mode = MODE_NONE
                 side = if (ev.x < width / 3f) Side.LEFT else Side.RIGHT
+                ignored = excluded.any {
+                    it.visibility == View.VISIBLE &&
+                        ev.x >= it.left && ev.x <= it.right &&
+                        ev.y >= it.top && ev.y <= it.bottom
+                }
+                if (!ignored) detector.onTouchEvent(ev)
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (ignored) return super.dispatchTouchEvent(ev)
+                detector.onTouchEvent(ev)
                 val dx = ev.x - downX
                 val dy = ev.y - downY
                 if (mode == MODE_NONE) {
@@ -76,11 +103,13 @@ class PlayerGestureLayout @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!ignored) detector.onTouchEvent(ev)
                 when (mode) {
                     MODE_VERTICAL -> listener?.onVerticalEnd()
                     MODE_SEEK -> listener?.onSeekEnd()
                 }
                 mode = MODE_NONE
+                ignored = false
             }
         }
         return super.dispatchTouchEvent(ev)

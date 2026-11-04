@@ -4573,6 +4573,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!AppServices.settings.sniffEnabled()) return
         if (key !== tabManager.currentWebView) return
         if (homeContainer?.visibility == View.VISIBLE) return
+        val pageHost = runCatching {
+            android.net.Uri.parse(tabManager.current?.url.orEmpty()).host
+        }.getOrNull()
+        if (pageHost != null && !sitePromptEnabled(pageHost)) return
         if (res.type != com.sii.browser.core.webview.SniffType.HLS &&
             res.type != com.sii.browser.core.webview.SniffType.VIDEO
         ) return
@@ -6814,6 +6818,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 getString(if (sitePrivacyPaused(host)) R.string.site_privacy_resume
                 else R.string.site_privacy_pause) to { toggleSitePrivacyPause(host) }
             )
+            val promptOn = sitePromptEnabled(host)
+            entries.add(
+                getString(
+                    if (promptOn) R.string.site_menu_prompt_pause
+                    else R.string.site_menu_prompt_resume
+                ) to { toggleSitePrompt(host, promptOn) }
+            )
             entries.add(
                 getString(
                     if (siteSettingsEnabled(host)) R.string.site_menu_settings_enabled
@@ -6832,6 +6843,29 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             )
             showSiteInfoPopup(anchor, title, url, entries)
         }
+    }
+
+    /** 本站是否弹「发现视频」浮条：站点配置 vp=2 表示关闭。 */
+    private fun sitePromptEnabled(host: String): Boolean =
+        SiteConfig.tri(
+            SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host)),
+            "vp"
+        ) != 2
+
+    private fun toggleSitePrompt(host: String, currentlyOn: Boolean) {
+        val json = SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host))
+            ?: org.json.JSONObject().put("on", true)
+        if (currentlyOn) json.put("vp", 2) else json.remove("vp")
+        val text = json.toString()
+        AppServices.siteConfigRepository.cachePut(host, text)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            AppServices.siteConfigRepository.put(host, text)
+        }
+        Toast.makeText(
+            requireContext(),
+            if (currentlyOn) R.string.site_prompt_paused else R.string.site_prompt_resumed,
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun siteSettingsEnabled(host: String): Boolean {

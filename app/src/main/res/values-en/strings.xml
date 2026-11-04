@@ -841,6 +841,10 @@
     <string name="site_menu_cookies">View cookies</string>
     <string name="site_menu_settings">Current site settings</string>
     <string name="site_menu_settings_enabled">Current site settings (enabled)</string>
+    <string name="site_menu_prompt_pause">Stop video prompts on this site</string>
+    <string name="site_menu_prompt_resume">Resume video prompts on this site</string>
+    <string name="site_prompt_paused">Video prompts disabled for this site</string>
+    <string name="site_prompt_resumed">Video prompts restored for this site</string>
     <string name="site_menu_scripts">View scripts</string>
     <string name="site_menu_cookies_empty">No cookies on this page</string>
     <string name="site_menu_scripts_empty">No matching scripts on this page</string>
