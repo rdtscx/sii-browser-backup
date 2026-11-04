@@ -45,6 +45,7 @@ class SniffFragment : Fragment() {
 
     private class ThumbRow(
         val res: SniffedResource,
+        val box: View,
         val image: ImageView,
         val placeholder: TextView
     )
@@ -312,7 +313,7 @@ class SniffFragment : Fragment() {
             addView(mark)
         }
         if (res.type == SniffType.IMAGE) {
-            thumbRows.add(ThumbRow(res, image, mark))
+            thumbRows.add(ThumbRow(res, box, image, mark))
         }
         return box
     }
@@ -326,7 +327,8 @@ class SniffFragment : Fragment() {
         val rect = android.graphics.Rect()
         thumbRows.forEach { row ->
             if (row.image.tag != null) return@forEach
-            if (!row.image.getGlobalVisibleRect(rect)) return@forEach
+            // 用外层方框判断可见性：内部 ImageView 加载前是 GONE，永远不可见。
+            if (!row.box.getGlobalVisibleRect(rect)) return@forEach
             val url = row.res.url
             row.image.tag = url
             SniffThumbs.load(url, userAgent, row.res.pageUrl ?: target?.url) { bitmap ->

@@ -93,7 +93,7 @@ class PlayerFragment : Fragment() {
             setPadding(dp(16), dp(8), dp(16), dp(8))
             background = GradientDrawable().apply {
                 cornerRadius = dp(18).toFloat()
-                setColor(0xCC000000.toInt())
+                setColor(0x4D000000)
             }
         }
         osdText = view.findViewById(R.id.player_osd_text)
@@ -288,11 +288,11 @@ class PlayerFragment : Fragment() {
         val center = playerView.findViewById<ViewGroup>(
             androidx.media3.ui.R.id.exo_center_controls
         )
-        val basic = playerView.findViewById<LinearLayout>(
-            androidx.media3.ui.R.id.exo_basic_controls
+        val bottom = playerView.findViewById<FrameLayout>(
+            androidx.media3.ui.R.id.exo_bottom_bar
         )
         val parent = center?.parent as? ViewGroup
-        if (center != null && basic != null && parent != null) {
+        if (center != null && bottom != null && parent != null) {
             // 上一个/下一个已经在顶部条，控制器里这两个会连同时间文字一起挤着，直接拿掉。
             listOf(
                 androidx.media3.ui.R.id.exo_prev,
@@ -302,7 +302,7 @@ class PlayerFragment : Fragment() {
                     (button.parent as? ViewGroup)?.removeView(button)
                 }
             }
-            // 52dp 缩到 44dp，并靠右排到倍速按钮左侧，竖屏不再压住时间文字。
+            // 只缩小（52dp→44dp），位置保持原来的居中。
             val size = dp(44)
             for (i in 0 until center.childCount) {
                 val child = center.getChildAt(i)
@@ -319,15 +319,22 @@ class PlayerFragment : Fragment() {
                 }
             }
             parent.removeView(center)
-            basic.addView(
+            bottom.addView(
                 center,
-                0,
-                LinearLayout.LayoutParams(
+                FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                ).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.CENTER_HORIZONTAL
+                )
             )
         }
+        // 时间字号与内边距调小，给居中的按钮让出位置。
+        playerView.findViewById<TextView>(androidx.media3.ui.R.id.exo_position)
+            ?.setTextSize(12f)
+        playerView.findViewById<TextView>(androidx.media3.ui.R.id.exo_duration)
+            ?.setTextSize(12f)
+        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_time)
+            ?.setPadding(dp(4), 0, dp(4), 0)
     }
 
     /** 把齿轮里的「倍速 / 音轨」移成两个按钮；齿轮没有内容可放，直接移除。 */
