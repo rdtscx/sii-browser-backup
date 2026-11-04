@@ -59,6 +59,8 @@ class SniffJsBridge(private val webView: SiiWebView, private val key: Any) {
         /**
          * 采集脚本：DOM 媒体元素 + Resource Timing + hook fetch/XHR + MutationObserver。
          * 文档开始时注入（尽早 hook fetch/XHR），加载完成后重复扫描。
+         * DOM 变动只做轻量扫描（仅 video/audio/source），链接/资源时序/iframe 只在整页扫描时跑，
+         * 避免视频站每 300ms 全量扫 DOM 拖慢页面。
          */
         const val SNIFF_JS: String = "(function(){" +
             "if(window.__siiSniffInit){try{window.__siiSniffScan();}catch(e){}return;}" +
@@ -80,11 +82,12 @@ class SniffJsBridge(private val webView: SiiWebView, private val key: Any) {
             "return u;};}}catch(e){}" +
             "try{if(window.MediaSource&&MediaSource.prototype){var oas=MediaSource.prototype.addSourceBuffer;" +
             "MediaSource.prototype.addSourceBuffer=function(m){try{this.__siiMime=m;}catch(e){}return oas.apply(this,arguments);};}}catch(e){}" +
-            "window.__siiSniffScan=function(){" +
+            "window.__siiSniffScan=function(light){" +
             "try{document.querySelectorAll('video,audio,source').forEach(function(e){" +
             "if(e.src)push(e.src);if(e.currentSrc)push(e.currentSrc);" +
             "var ss=e.querySelectorAll?e.querySelectorAll('source[src]'):[];for(var i=0;i<ss.length;i++)push(ss[i].src,0,ss[i].type);" +
             "});}catch(e){}" +
+            "if(light)return;" +
             "try{document.querySelectorAll('a[href]').forEach(function(a){" +
             "var t=ext(a.href);if(a.hasAttribute('download')||DOCS.indexOf(t)>=0)push(a.href);" +
             "});}catch(e){}" +
@@ -108,7 +111,8 @@ class SniffJsBridge(private val webView: SiiWebView, private val key: Any) {
             "try{var x=this;x.addEventListener('loadend',function(){try{var m=x.getResponseHeader('content-type');if(m)push(x.__siiUrl,0,m);}catch(e){}});}catch(e){}" +
             "return os.apply(this,arguments);};}catch(e){}" +
             "window.__siiSniffScan();" +
-            "var pend=false;function sch(){if(pend)return;pend=true;setTimeout(function(){pend=false;try{window.__siiSniffScan();}catch(e){}},300);}" +
+            "var t=null,last=0;function sch(){if(t)return;t=setTimeout(function(){t=null;" +
+            "if(Date.now()-last<1300){sch();return;}last=Date.now();try{window.__siiSniffScan(true);}catch(e){}},700);}" +
             "try{new MutationObserver(sch).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}" +
             "})();"
     }
