@@ -54,6 +54,9 @@ class SiiWebView @JvmOverloads constructor(
     /** 手指按下网页：清掉上一次的滚动累计，避免触摸瞬间的回弹误判方向。 */
     var onTouchDown: (() -> Unit)? = null
 
+    /** 手指离开网页（抬起/取消）：用于把被按住的工具栏显示动作放出来。 */
+    var onTouchUp: (() -> Unit)? = null
+
     private var lastTouchDownAt = 0L
 
     /** 双击网页回调（动作由浏览器按设置决定）。 */
@@ -126,10 +129,14 @@ class SiiWebView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
-            lastTouchPoint = android.graphics.PointF(event.x, event.y)
-            lastTouchDownAt = android.os.SystemClock.uptimeMillis()
-            onTouchDown?.invoke()
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                lastTouchPoint = android.graphics.PointF(event.x, event.y)
+                lastTouchDownAt = android.os.SystemClock.uptimeMillis()
+                onTouchDown?.invoke()
+            }
+            android.view.MotionEvent.ACTION_UP,
+            android.view.MotionEvent.ACTION_CANCEL -> onTouchUp?.invoke()
         }
         doubleTapDetector.onTouchEvent(event)
         return super.onTouchEvent(event)

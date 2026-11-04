@@ -7671,11 +7671,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             onScrollDy = { dy -> handleToolbarAutoHide(dy) }
             onTouchDown = {
                 // 触摸网页时清掉之前的滚动累计与待执行方向，防止回弹把隐藏的工具栏弹回来。
+                this@BrowserFragment.webTouching = true
                 this@BrowserFragment.scrollAccum = 0
                 this@BrowserFragment.scrollDir = 0
                 this@BrowserFragment.pendingScrollDir = 0
                 this@BrowserFragment.view?.removeCallbacks(this@BrowserFragment.applyScrollDirection)
             }
+            onTouchUp = { this@BrowserFragment.webTouching = false }
             onDoubleTap = {
                 if (!AppServices.settings.gameMode()) {
                     when (AppServices.settings.gestureDoubleTap()) {
@@ -7980,6 +7982,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 revealToolbarOnNavigate()
             }
             homeForwardAvailable = false
+            // 导航会打断触摸流，抬手回调可能收不到，这里兜底复位。
+            webTouching = false
             webView?.let {
                 sniffPromptedUrls.clear()
                 sniffPromptDismissedUrls.clear()
@@ -10879,6 +10883,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var pendingScrollDir = 0
     private var lastToggleAt = 0L
     private var scrollDir = 0
+
+    /** 手指是否还按在网页上：按着时只收起、不显示工具栏。 */
+    private var webTouching = false
     private val applyScrollDirection: Runnable = Runnable {
         val dir = pendingScrollDir
         pendingScrollDir = 0
@@ -10907,6 +10914,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         scrollDir = dir
         scrollAccum += rawDy
         val show = dir < 0
+        // 手指还按着时不显示：松手后继续往该方向滚才会出现。
+        if (show && webTouching) {
+            scrollAccum = 0
+            return
+        }
         // 目标状态已经达成：清掉累计，避免状态变化后拿着旧累计直接触发。
         if (show != toolbarHidden) {
             scrollAccum = 0
