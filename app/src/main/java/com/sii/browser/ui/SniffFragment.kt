@@ -172,7 +172,7 @@ class SniffFragment : Fragment() {
             }
         })
         val options = listOf<SniffType?>(
-            null, SniffType.VIDEO, SniffType.HLS, SniffType.AUDIO,
+            null, SniffType.HLS, SniffType.VIDEO, SniffType.AUDIO,
             SniffType.IMAGE, SniffType.DOC, SniffType.MSE, SniffType.OTHER
         )
         options.forEach { type ->
