@@ -131,6 +131,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var sniffPromptKey: Any? = null
     private val sniffPromptedUrls = java.util.HashSet<String>()
     private val sniffPromptDismissedUrls = java.util.HashSet<String>()
+
+    /** 浮条 5 秒无操作自动收起。 */
+    private val autoHideSniffPrompt = Runnable { hideSniffPrompt() }
     private var menuOverlay: View? = null
     private var menuToggles: LinearLayout? = null
     private var menuGrid: LinearLayout? = null
@@ -1301,11 +1304,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         currentPageHost()?.let { host ->
             if (!siteSniffEnabled(host)) {
                 setSiteSniffEnabled(host, true)
+                // 先清掉上一个站的旧条目，避免打开列表时看到别的站点资源。
+                tabManager.currentWebView?.let {
+                    com.sii.browser.core.webview.SniffStore.clear(it)
+                }
                 tabManager.currentWebView?.injectJavaScript(
                     com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
                 )
                 Toast.makeText(
-                    requireContext(), R.string.site_prompt_resumed, Toast.LENGTH_SHORT
+                    requireContext(), R.string.site_prompt_enabled, Toast.LENGTH_SHORT
                 ).show()
             }
         }
@@ -4638,9 +4645,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             getString(R.string.sniff_prompt_found) + " · " + label + " · " + name
         prompt.bringToFront()
         prompt.visibility = View.VISIBLE
+        view?.removeCallbacks(autoHideSniffPrompt)
+        view?.postDelayed(autoHideSniffPrompt, 5000L)
     }
 
     private fun hideSniffPrompt() {
+        view?.removeCallbacks(autoHideSniffPrompt)
         sniffPrompt?.visibility = View.GONE
         sniffPromptKey = null
         sniffPromptResource = null
@@ -11148,6 +11158,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabsList = null
         pageLoadingCover = null
         com.sii.browser.core.webview.SniffStore.onResource = null
+        view?.removeCallbacks(autoHideSniffPrompt)
         sniffPrompt = null
         sniffPromptResource = null
         sniffPromptKey = null

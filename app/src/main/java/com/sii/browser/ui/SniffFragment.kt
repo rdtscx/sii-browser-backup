@@ -206,13 +206,16 @@ class SniffFragment : Fragment() {
         } else {
             all.filter { SniffStore.samePage(it.pageUrl, current) }
         }
-        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
+        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时只在**同站点**内兑底。
         if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
-            showAllPages = true
-            visible = all
+            val host = hostOf(current)
+            if (host != null) visible = all.filter { hostOf(it.pageUrl) == host }
         }
         return if (filter == null) visible else visible.filter { it.type == filter }
     }
+
+    private fun hostOf(url: String?): String? =
+        runCatching { android.net.Uri.parse(url.orEmpty()).host }.getOrNull()
 
     private fun renderChips() {
         chips.removeAllViews()
@@ -538,9 +541,9 @@ class SniffFragment : Fragment() {
                         lifecycleScope.launch(Dispatchers.IO) {
                             AppServices.siteConfigRepository.put(host, text)
                         }
-                        if (enabled) {
-                            target?.let { com.sii.browser.core.webview.SniffStore.clear(it) }
-                        } else {
+                        // 切换开关后都从零开始，避免看到旧站/旧条目。
+                        target?.let { com.sii.browser.core.webview.SniffStore.clear(it) }
+                        if (!enabled) {
                             target?.injectJavaScript(
                                 com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
                             )

@@ -848,6 +848,7 @@
     <string name="site_menu_prompt_resume">恢复本站资源嗅探</string>
     <string name="site_prompt_paused">已忽略本站资源嗅探</string>
     <string name="site_prompt_resumed">已恢复本站资源嗅探</string>
+    <string name="site_prompt_enabled">已启用本站资源嗅探</string>
     <string name="site_menu_scripts">查看脚本</string>
     <string name="site_menu_cookies_empty">当前页面没有 Cookies</string>
     <string name="site_menu_scripts_empty">当前页面没有匹配的脚本</string>

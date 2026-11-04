@@ -52,9 +52,27 @@ class PlayerGestureLayout @JvmOverloads constructor(
     private var moved = false
     private var mode = MODE_NONE
     private var side = Side.LEFT
-    private var ignored = false
+    private var intercepting = false
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    private fun ignoredAt(x: Float, y: Float): Boolean = excluded.any {
+        it.visibility == View.VISIBLE &&
+            x >= it.left && x <= it.right && y >= it.top && y <= it.bottom
+    }
+
+    /** 视频区域的触摸由本层接管，不再下传给 PlayerView，避免它的控制器再切一次显隐。 */
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            intercepting = !ignoredAt(ev.x, ev.y)
+        }
+        return intercepting
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        handleTouch(ev)
+        return true
+    }
+
+    private fun handleTouch(ev: MotionEvent) {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
@@ -63,15 +81,9 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 moved = false
                 mode = MODE_NONE
                 side = if (ev.x < width / 3f) Side.LEFT else Side.RIGHT
-                ignored = excluded.any {
-                    it.visibility == View.VISIBLE &&
-                        ev.x >= it.left && ev.x <= it.right &&
-                        ev.y >= it.top && ev.y <= it.bottom
-                }
             }
 
             MotionEvent.ACTION_MOVE -> {
-                if (ignored) return super.dispatchTouchEvent(ev)
                 val dx = ev.x - downX
                 val dy = ev.y - downY
                 if (abs(dx) > tapSlop || abs(dy) > tapSlop) moved = true
@@ -96,9 +108,7 @@ class PlayerGestureLayout @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!ignored && !moved && mode == MODE_NONE &&
-                    ev.eventTime - downTime < 250L
-                ) {
+                if (!moved && mode == MODE_NONE && ev.eventTime - downTime < 250L) {
                     listener?.onTap()
                 }
                 when (mode) {
@@ -107,10 +117,9 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 }
                 mode = MODE_NONE
                 moved = false
-                ignored = false
+                intercepting = false
             }
         }
-        return super.dispatchTouchEvent(ev)
     }
 
     private companion object {
