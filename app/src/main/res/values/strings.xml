@@ -182,6 +182,10 @@
     <string name="sniff_prompt_close">关闭</string>
     <string name="player_play_failed">当前播放器无法播放该视频，请下载后播放</string>
     <string name="player_rotate">切换横竖屏</string>
+    <string name="player_speed">倍速</string>
+    <string name="player_audio">音轨</string>
+    <string name="player_audio_auto">自动</string>
+    <string name="player_audio_track">音轨 %1$d</string>
     <string name="player_volume">音量 %1$d%%</string>
     <string name="player_brightness">亮度 %1$d%%</string>
     <string name="player_prev">上一个视频</string>

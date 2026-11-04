@@ -55,10 +55,8 @@ class PlayerFragment : Fragment() {
     private var dim: View? = null
     private var osd: TextView? = null
     private var topBar: View? = null
-    private var speedToggle: TextView? = null
-
-    /** 齿轮里最近选过的非原速倍速；切换按钮在它与 1x 之间切换。 */
-    private var toggleSpeed = 2f
+    private var speedButton: TextView? = null
+    private var audioButton: TextView? = null
     private lateinit var audio: AudioManager
 
     /** 画面亮度 0.02..1，通过黑色遮罩实现，不改系统亮度。 */
@@ -108,8 +106,11 @@ class PlayerFragment : Fragment() {
                 ).show()
             }
             override fun onPlaybackParametersChanged(params: PlaybackParameters) {
-                if (kotlin.math.abs(params.speed - 1f) > 0.01f) toggleSpeed = params.speed
-                updateSpeedToggle()
+                updateSpeedButton()
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                updateAudioButton(tracks)
             }
         })
 
@@ -180,7 +181,7 @@ class PlayerFragment : Fragment() {
             }
         )
         tuneController(playerView)
-        addSpeedToggle(playerView)
+        addSpeedAndAudioButtons(playerView)
         applyImmersive()
         load(position)
 
@@ -206,6 +207,10 @@ class PlayerFragment : Fragment() {
         player.setMediaSource(
             DefaultMediaSourceFactory(httpDataSourceFactory(res)).createMediaSource(mediaItem)
         )
+        // 新视频的音轨表不一样，上一部的强制音轨不能沿用。
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+            .build()
         player.prepare()
         player.playWhenReady = true
 
@@ -283,11 +288,15 @@ class PlayerFragment : Fragment() {
         }
     }
 
-    /** 齿轮左边加一个倍速开关：在齿轮里选中的倍速与 1x 之间切换。 */
-    private fun addSpeedToggle(playerView: PlayerView) {
-        val basic = playerView.findViewById<LinearLayout>(androidx.media3.ui.R.id.exo_basic_controls)
-            ?: return
-        val toggle = TextView(requireContext()).apply {
+    /** 把齿轮里的「倍速 / 音轨」移成两个按钮；齿轮没有内容可放，直接移除。 */
+    private fun addSpeedAndAudioButtons(playerView: PlayerView) {
+        val basic = playerView.findViewById<LinearLayout>(
+            androidx.media3.ui.R.id.exo_basic_controls
+        ) ?: return
+        basic.findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.let { gear ->
+            (gear.parent as? ViewGroup)?.removeView(gear)
+        }
+        val speed = TextView(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -297,27 +306,101 @@ class PlayerFragment : Fragment() {
             setTextSize(13f)
             setTextColor(Color.WHITE)
             setBackgroundResource(android.R.drawable.list_selector_background)
-            setOnClickListener { togglePlaybackSpeed() }
+            setOnClickListener { showSpeedDialog() }
         }
-        basic.addView(toggle, 0)
-        speedToggle = toggle
-        updateSpeedToggle()
+        val track = TextView(requireContext()).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            text = getString(R.string.player_audio)
+            visibility = View.GONE
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0)
+            setTextSize(13f)
+            setTextColor(Color.WHITE)
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            setOnClickListener { showAudioDialog() }
+        }
+        basic.addView(speed)
+        basic.addView(track)
+        speedButton = speed
+        audioButton = track
+        updateSpeedButton()
     }
 
-    private fun togglePlaybackSpeed() {
-        val p = player ?: return
-        val target = if (kotlin.math.abs(p.playbackParameters.speed - 1f) < 0.01f) toggleSpeed else 1f
-        p.setPlaybackSpeed(target)
-        updateSpeedToggle()
+    private fun updateSpeedButton() {
+        speedButton?.text = speedLabel(player?.playbackParameters?.speed ?: 1f)
     }
 
-    private fun updateSpeedToggle() {
-        speedToggle?.text = speedLabel(player?.playbackParameters?.speed ?: 1f)
+    private fun updateAudioButton(tracks: androidx.media3.common.Tracks) {
+        val count = tracks.groups
+            .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+            .sumOf { it.length }
+        audioButton?.visibility = if (count > 1) View.VISIBLE else View.GONE
     }
 
     private fun speedLabel(speed: Float): String {
         val hundredths = (speed * 100).roundToInt()
         return if (hundredths % 10 == 0) "%.1fx".format(speed) else "%.2fx".format(speed)
+    }
+
+    /** 一层列表，点一下直接生效并关闭。 */
+    private fun showSpeedDialog() {
+        val p = player ?: return
+        val current = p.playbackParameters.speed
+        val checked = SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }
+            .coerceAtLeast(0)
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.player_speed)
+            .setSingleChoiceItems(SPEEDS.map { speedLabel(it) }.toTypedArray(), checked) { dialog, which ->
+                p.setPlaybackSpeed(SPEEDS[which])
+                updateSpeedButton()
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showAudioDialog() {
+        val p = player ?: return
+        val labels = mutableListOf(getString(R.string.player_audio_auto))
+        val tracks = mutableListOf<Pair<androidx.media3.common.Tracks.Group, Int>>()
+        var selected = 0
+        p.currentTracks.groups
+            .filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+            .forEach { group ->
+                for (i in 0 until group.length) {
+                    tracks.add(group to i)
+                    val format = group.getTrackFormat(i)
+                    labels.add(
+                        format.label?.takeIf { it.isNotBlank() }
+                            ?: format.language?.takeIf { it.isNotBlank() && it != "und" }
+                            ?: getString(R.string.player_audio_track, tracks.size)
+                    )
+                    if (group.isTrackSelected(i)) selected = tracks.size
+                }
+            }
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.player_audio)
+            .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
+                if (which == 0) {
+                    p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                        .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                        .build()
+                } else {
+                    val (group, index) = tracks[which - 1]
+                    p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                        .setOverrideForType(
+                            androidx.media3.common.TrackSelectionOverride(
+                                group.mediaTrackGroup,
+                                index
+                            )
+                        )
+                        .build()
+                }
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun toggleOrientation() {
@@ -400,7 +483,8 @@ class PlayerFragment : Fragment() {
         dim = null
         osd = null
         topBar = null
-        speedToggle = null
+        speedButton = null
+        audioButton = null
         activity?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
@@ -417,6 +501,9 @@ class PlayerFragment : Fragment() {
 
         /** 横向滑满屏对应的进度跨度。 */
         private const val SEEK_SPAN_MS = 90_000f
+
+        /** 倍速列表，最后一档 3.0 是 Media3 自带菜单没有的。 */
+        private val SPEEDS = floatArrayOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f)
 
         fun newInstance(
             items: List<SniffedResource>,

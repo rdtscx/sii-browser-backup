@@ -363,6 +363,10 @@
     <string name="sniff_prompt_close">Close</string>
     <string name="player_play_failed">This player cannot play the video; download it instead</string>
     <string name="player_rotate">Rotate screen</string>
+    <string name="player_speed">Speed</string>
+    <string name="player_audio">Audio</string>
+    <string name="player_audio_auto">Auto</string>
+    <string name="player_audio_track">Track %1$d</string>
     <string name="player_volume">Volume %1$d%%</string>
     <string name="player_brightness">Brightness %1$d%%</string>
     <string name="player_prev">Previous video</string>
