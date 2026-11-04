@@ -5,10 +5,13 @@ package com.sii.browser.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -38,6 +41,13 @@ class SniffFragment : Fragment() {
     private var rowCard: LinearLayout? = null
     private var pendingRows: List<SniffedResource> = emptyList()
     private var pendingIndex = 0
+    private val thumbRows = mutableListOf<ThumbRow>()
+
+    private class ThumbRow(
+        val res: SniffedResource,
+        val image: ImageView,
+        val placeholder: TextView
+    )
     private val storeListener: (Any) -> Unit = { key ->
         if (key === AppServices.sniffTarget) {
             view?.post { render() }
@@ -117,6 +127,7 @@ class SniffFragment : Fragment() {
         )
         list.setOnScrollChangeListener { v, _, _, _, _ ->
             if (!v.canScrollVertically(1)) appendRows()
+            loadVisibleThumbs()
         }
         this.container = content
         return root
@@ -139,6 +150,7 @@ class SniffFragment : Fragment() {
         rowCard = null
         pendingRows = emptyList()
         pendingIndex = 0
+        thumbRows.clear()
         super.onDestroyView()
     }
 
@@ -149,6 +161,7 @@ class SniffFragment : Fragment() {
             if (AppServices.settings.sniffEnabled()) View.GONE else View.VISIBLE
         renderChips()
         container.removeAllViews()
+        thumbRows.clear()
         val all = key()?.let { SniffStore.list(it) }.orEmpty()
         val items = displayedItems()
         if (items.isEmpty()) {
@@ -166,6 +179,7 @@ class SniffFragment : Fragment() {
         pendingIndex = 0
         appendRows()
         container.addView(card)
+        view?.post { loadVisibleThumbs() }
     }
 
     /** 分批建行：资源上百条时一次性构视图会让进入页面卡住。 */
@@ -178,6 +192,7 @@ class SniffFragment : Fragment() {
             card.addView(row(pendingRows[i]))
         }
         pendingIndex = end
+        view?.post { loadVisibleThumbs() }
     }
 
     /** 当前列表实际展示的资源（当前页/全部页面 + 类型筛选），播放器左右切换也用这份顺序。 */
@@ -262,6 +277,67 @@ class SniffFragment : Fragment() {
         SniffType.OTHER -> getString(R.string.sniff_other)
     }
 
+    /** 行首缩略图：图片类加载真实缩略图，其余类型显示类型首字占位。 */
+    private fun thumbBox(res: SniffedResource): View {
+        val context = requireContext()
+        val night = AppServices.settings.isNightMode()
+        val image = ImageView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+        }
+        val mark = TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = android.view.Gravity.CENTER
+            setTextSize(15f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            text = typeLabel(res.type).take(1)
+        }
+        val box = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                marginEnd = dp(10)
+            }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(if (night) 0x1FFFFFFF else 0x14000000)
+            }
+            clipToOutline = true
+            addView(image)
+            addView(mark)
+        }
+        if (res.type == SniffType.IMAGE) {
+            thumbRows.add(ThumbRow(res, image, mark))
+        }
+        return box
+    }
+
+    /** 只给可见行拉缩略图，避免一打开就同时下载上百张图。 */
+    private fun loadVisibleThumbs() {
+        if (thumbRows.isEmpty()) return
+        if (AppServices.privacyManager.isIncognito) return
+        val target = AppServices.sniffTarget
+        val userAgent = target?.settings?.userAgentString
+        val rect = android.graphics.Rect()
+        thumbRows.forEach { row ->
+            if (row.image.tag != null) return@forEach
+            if (!row.image.getGlobalVisibleRect(rect)) return@forEach
+            val url = row.res.url
+            row.image.tag = url
+            SniffThumbs.load(url, userAgent, row.res.pageUrl ?: target?.url) { bitmap ->
+                if (row.image.tag != url || bitmap == null) return@load
+                row.image.setImageBitmap(bitmap)
+                row.image.visibility = View.VISIBLE
+                row.placeholder.visibility = View.GONE
+            }
+        }
+    }
+
     private fun row(res: SniffedResource): View {
         val title = TextView(requireContext()).apply {
             text = fileName(res.url)
@@ -304,6 +380,7 @@ class SniffFragment : Fragment() {
             addView(LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(thumbBox(res))
                 addView(LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(title)

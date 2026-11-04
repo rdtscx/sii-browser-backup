@@ -56,7 +56,9 @@ class PlayerFragment : Fragment() {
     private var userAgent: String? = null
 
     private var dim: View? = null
-    private var osd: TextView? = null
+    private var osd: View? = null
+    private var osdText: TextView? = null
+    private var osdBar: android.widget.ProgressBar? = null
     private var topBar: View? = null
     private var speedButton: TextView? = null
     private var audioButton: TextView? = null
@@ -87,13 +89,15 @@ class PlayerFragment : Fragment() {
         userAgent = arguments?.getString(ARG_UA)
 
         dim = view.findViewById(R.id.player_dim)
-        osd = view.findViewById<TextView>(R.id.player_osd).apply {
+        osd = view.findViewById<View>(R.id.player_osd).apply {
             setPadding(dp(16), dp(8), dp(16), dp(8))
             background = GradientDrawable().apply {
                 cornerRadius = dp(18).toFloat()
                 setColor(0xCC000000.toInt())
             }
         }
+        osdText = view.findViewById(R.id.player_osd_text)
+        osdBar = view.findViewById(R.id.player_osd_bar)
         audio = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         val playerView = view.findViewById<PlayerView>(R.id.player_view)
@@ -156,7 +160,10 @@ class PlayerFragment : Fragment() {
                 val target = (seekStart + fraction * SEEK_SPAN_MS).toLong()
                     .coerceIn(0L, seekDuration)
                 seekTarget = target
-                showOsd(formatTime(target) + " / " + formatTime(seekDuration))
+                showOsdProgress(
+                    formatTime(target) + " / " + formatTime(seekDuration),
+                    target.toFloat() / seekDuration
+                )
             }
 
             override fun onSeekEnd() {
@@ -239,10 +246,21 @@ class PlayerFragment : Fragment() {
     private fun showOsd(text: String) {
         val view = view ?: return
         view.removeCallbacks(hideOsd)
-        osd?.apply {
-            this.text = text
+        osdText?.text = text
+        osdBar?.visibility = View.GONE
+        osd?.visibility = View.VISIBLE
+    }
+
+    /** 带进度条的提示：横滑/双击跳转时用，[ratio] 为目标位置占比。 */
+    private fun showOsdProgress(text: String, ratio: Float) {
+        val view = view ?: return
+        view.removeCallbacks(hideOsd)
+        osdText?.text = text
+        osdBar?.apply {
+            progress = (ratio.coerceIn(0f, 1f) * 1000).toInt()
             visibility = View.VISIBLE
         }
+        osd?.visibility = View.VISIBLE
     }
 
     private fun scheduleHideOsd() {
@@ -267,10 +285,14 @@ class PlayerFragment : Fragment() {
     private fun tuneController(playerView: PlayerView) {
         playerView.findViewById<View>(androidx.media3.ui.R.id.exo_controls_background)
             ?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        val center = playerView.findViewById<View>(androidx.media3.ui.R.id.exo_center_controls)
-        val bottom = playerView.findViewById<FrameLayout>(androidx.media3.ui.R.id.exo_bottom_bar)
+        val center = playerView.findViewById<ViewGroup>(
+            androidx.media3.ui.R.id.exo_center_controls
+        )
+        val basic = playerView.findViewById<LinearLayout>(
+            androidx.media3.ui.R.id.exo_basic_controls
+        )
         val parent = center?.parent as? ViewGroup
-        if (center != null && bottom != null && parent != null) {
+        if (center != null && basic != null && parent != null) {
             // 上一个/下一个已经在顶部条，控制器里这两个会连同时间文字一起挤着，直接拿掉。
             listOf(
                 androidx.media3.ui.R.id.exo_prev,
@@ -280,14 +302,30 @@ class PlayerFragment : Fragment() {
                     (button.parent as? ViewGroup)?.removeView(button)
                 }
             }
+            // 52dp 缩到 44dp，并靠右排到倍速按钮左侧，竖屏不再压住时间文字。
+            val size = dp(44)
+            for (i in 0 until center.childCount) {
+                val child = center.getChildAt(i)
+                child.layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+                if (child is ViewGroup) {
+                    for (j in 0 until child.childCount) {
+                        child.getChildAt(j).layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                }
+            }
             parent.removeView(center)
-            bottom.addView(
+            basic.addView(
                 center,
-                FrameLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.CENTER_HORIZONTAL
-                )
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
             )
         }
     }
@@ -546,6 +584,8 @@ class PlayerFragment : Fragment() {
         player = null
         dim = null
         osd = null
+        osdText = null
+        osdBar = null
         topBar = null
         speedButton = null
         audioButton = null
