@@ -399,7 +399,10 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_sniff),
                 settings.sniffEnabled(),
                 getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) }
+            ) { settings.setSniffEnabled(it) },
+            navRow(getString(R.string.settings_sniff_sites)) {
+                openFragment(SniffSitesFragment())
+            }
         )
         aboutText(R.string.about_general)
     }
@@ -1100,7 +1103,10 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_sniff),
                 settings.sniffEnabled(),
                 getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) }
+            ) { settings.setSniffEnabled(it) },
+            navRow(getString(R.string.settings_sniff_sites)) {
+                openFragment(SniffSitesFragment())
+            }
         )
     }
 

@@ -264,6 +264,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_play)?.setOnClickListener { playSniffResource() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_download)?.setOnClickListener { downloadSniffResource() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_close)?.setOnClickListener { dismissSniffPrompt() }
+        sniffPrompt?.findViewById<View>(R.id.sniff_prompt_ignore)?.setOnClickListener { ignoreSiteSniff() }
         com.sii.browser.core.webview.SniffStore.onResource = { key, res ->
             view?.post { maybeShowSniffPrompt(key, res) }
         }
@@ -1295,8 +1296,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
-    /** 资源嗅探列表（当前标签）。 */
-    private fun openSniff() {        NavAnim.apply(parentFragmentManager.beginTransaction())
+    /** 资源嗅探列表（当前标签）：未启用先启用本站再打开。 */
+    private fun openSniff() {
+        currentPageHost()?.let { host ->
+            if (!siteSniffEnabled(host)) {
+                setSiteSniffEnabled(host, true)
+                tabManager.currentWebView?.injectJavaScript(
+                    com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
+                )
+                Toast.makeText(
+                    requireContext(), R.string.site_prompt_resumed, Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, SniffFragment())
             .addToBackStack(null)
             .commit()
@@ -4576,7 +4589,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val pageHost = runCatching {
             android.net.Uri.parse(tabManager.current?.url.orEmpty()).host
         }.getOrNull()
-        if (pageHost != null && !sitePromptEnabled(pageHost)) return
+        if (pageHost == null || !siteSniffEnabled(pageHost)) return
         if (res.type != com.sii.browser.core.webview.SniffType.HLS &&
             res.type != com.sii.browser.core.webview.SniffType.VIDEO
         ) return
@@ -6818,13 +6831,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 getString(if (sitePrivacyPaused(host)) R.string.site_privacy_resume
                 else R.string.site_privacy_pause) to { toggleSitePrivacyPause(host) }
             )
-            val promptOn = sitePromptEnabled(host)
-            entries.add(
-                getString(
-                    if (promptOn) R.string.site_menu_prompt_pause
-                    else R.string.site_menu_prompt_resume
-                ) to { toggleSitePrompt(host, promptOn) }
-            )
             entries.add(
                 getString(
                     if (siteSettingsEnabled(host)) R.string.site_menu_settings_enabled
@@ -6845,27 +6851,29 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
-    /** 本站是否弹「发现视频」浮条：站点配置 vp=2 表示关闭。 */
-    private fun sitePromptEnabled(host: String): Boolean =
-        SiteConfig.tri(
-            SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host)),
-            "vp"
-        ) != 2
+    /** 本站是否启用了资源嗅探：站点配置 sn=1。缺省=未启用。 */
+    private fun siteSniffEnabled(host: String): Boolean =
+        SiteConfig.sniffEnabledRaw(AppServices.siteConfigRepository.cachedConfig(host))
 
-    private fun toggleSitePrompt(host: String, currentlyOn: Boolean) {
-        val json = SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host))
-            ?: org.json.JSONObject().put("on", true)
-        if (currentlyOn) json.put("vp", 2) else json.remove("vp")
-        val text = json.toString()
+    private fun setSiteSniffEnabled(host: String, enabled: Boolean) {
+        val text = SiteConfig.withSniffEnabled(
+            AppServices.siteConfigRepository.cachedConfig(host), enabled
+        )
         AppServices.siteConfigRepository.cachePut(host, text)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             AppServices.siteConfigRepository.put(host, text)
         }
-        Toast.makeText(
-            requireContext(),
-            if (currentlyOn) R.string.site_prompt_paused else R.string.site_prompt_resumed,
-            Toast.LENGTH_SHORT
-        ).show()
+    }
+
+    /** 浮条上的「忽略本站」：关闭本站嗅探，并清掉已记录的条目。 */
+    private fun ignoreSiteSniff() {
+        val host = currentPageHost() ?: return
+        setSiteSniffEnabled(host, false)
+        (sniffPromptKey ?: tabManager.currentWebView)?.let {
+            com.sii.browser.core.webview.SniffStore.clear(it)
+        }
+        hideSniffPrompt()
+        Toast.makeText(requireContext(), R.string.site_prompt_paused, Toast.LENGTH_SHORT).show()
     }
 
     private fun siteSettingsEnabled(host: String): Boolean {
@@ -8025,7 +8033,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             markPageLoading(webView)
             // 尽早 hook fetch/XHR，否则页面初始化阶段的媒体请求会错过。
-            if (AppServices.settings.sniffEnabled()) {
+            val sniffHost = runCatching { android.net.Uri.parse(url).host }.getOrNull()
+            if (AppServices.settings.sniffEnabled() &&
+                sniffHost != null && siteSniffEnabled(sniffHost)
+            ) {
                 webView?.injectJavaScript(com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS)
             }
             val startedUrl = url.ifBlank { webView?.url.orEmpty() }

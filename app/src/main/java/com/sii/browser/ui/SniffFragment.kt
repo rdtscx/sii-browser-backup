@@ -68,7 +68,7 @@ class SniffFragment : Fragment() {
             requireContext(),
             getString(R.string.menu_sniff),
             onBack = { parentFragmentManager.popBackStack() },
-            onMenu = { _ -> confirmClear() }
+            onMenu = { showHeaderMenu() }
         )
         root.addView(header)
         val divider = View(requireContext()).apply {
@@ -509,6 +509,52 @@ class SniffFragment : Fragment() {
             )
         }
         Toast.makeText(requireContext(), R.string.sniff_download_started, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showHeaderMenu() {
+        val target = key() as? com.sii.browser.core.webview.SiiWebView
+        val host = runCatching { android.net.Uri.parse(target?.url.orEmpty()).host }.getOrNull()
+        val enabled = host != null && com.sii.browser.data.SiteConfig.sniffEnabledRaw(
+            AppServices.siteConfigRepository.cachedConfig(host)
+        )
+        val labels = mutableListOf(getString(R.string.sniff_menu_clear))
+        if (host != null) {
+            labels.add(
+                getString(
+                    if (enabled) R.string.site_menu_prompt_pause
+                    else R.string.site_menu_prompt_resume
+                )
+            )
+        }
+        android.app.AlertDialog.Builder(requireContext())
+            .setItems(labels.toTypedArray()) { _, which ->
+                when {
+                    which == 0 -> confirmClear()
+                    host != null -> {
+                        val text = com.sii.browser.data.SiteConfig.withSniffEnabled(
+                            AppServices.siteConfigRepository.cachedConfig(host), !enabled
+                        )
+                        AppServices.siteConfigRepository.cachePut(host, text)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            AppServices.siteConfigRepository.put(host, text)
+                        }
+                        if (enabled) {
+                            target?.let { com.sii.browser.core.webview.SniffStore.clear(it) }
+                        } else {
+                            target?.injectJavaScript(
+                                com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
+                            )
+                        }
+                        Toast.makeText(
+                            requireContext(),
+                            if (enabled) R.string.site_prompt_paused else R.string.site_prompt_resumed,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        render()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun enableSniff() {

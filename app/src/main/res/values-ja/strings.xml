@@ -180,6 +180,8 @@
     <string name="download_hls_converting">MP4 に変換中…</string>
     <string name="sniff_prompt_found">動画を検出しました</string>
     <string name="sniff_prompt_close">閉じる</string>
+    <string name="sniff_prompt_ignore">このサイトを除外</string>
+    <string name="sniff_menu_clear">結果をクリア</string>
     <string name="player_play_failed">このプレーヤーでは再生できません。ダウンロードして再生してください</string>
     <string name="player_rotate">画面を回転</string>
     <string name="player_play">再生</string>
@@ -1174,7 +1176,11 @@
     <string name="download_bar_downloading">ファイルをダウンロード中：%1$s</string>
     <string name="history_load_more">さらに読み込む</string>
     <string name="settings_sniff">メディア検出</string>
-    <string name="settings_sniff_desc">ページ内の動画・音声・ダウンロードリンクを検出します</string>
+    <string name="settings_sniff_sites">検出を有効にしたサイト</string>
+    <string name="sniff_sites_empty">まだサイトが登録されていません。ページメニューの「メディア検出」で現在のサイトを有効にできます。</string>
+    <string name="sniff_sites_remove">削除</string>
+    <string name="sniff_sites_removed">このサイトの検出を解除しました</string>
+    <string name="settings_sniff_desc">既定では無効。ページメニューからサイトごとに有効化</string>
     <string name="download_already_exists">このファイルは既にダウンロードリストにあります</string>
     <string name="render_process_crashed">ページのレンダリングプロセスがクラッシュしたため、タブを閉じました</string>
     <string name="password_save_failed">パスワードの保存に失敗しました</string>

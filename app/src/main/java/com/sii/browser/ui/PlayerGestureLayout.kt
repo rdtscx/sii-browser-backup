@@ -4,7 +4,6 @@ package com.sii.browser.ui
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -46,27 +45,22 @@ class PlayerGestureLayout @JvmOverloads constructor(
     var excluded: List<View> = emptyList()
 
     private val slop = 12f * resources.displayMetrics.density
+    private val tapSlop = 6f * resources.displayMetrics.density
     private var downX = 0f
     private var downY = 0f
+    private var downTime = 0L
+    private var moved = false
     private var mode = MODE_NONE
     private var side = Side.LEFT
     private var ignored = false
-
-    private val detector = GestureDetector(
-        context,
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                listener?.onTap()
-                return true
-            }
-        }
-    )
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
                 downY = ev.y
+                downTime = ev.downTime
+                moved = false
                 mode = MODE_NONE
                 side = if (ev.x < width / 3f) Side.LEFT else Side.RIGHT
                 ignored = excluded.any {
@@ -74,14 +68,13 @@ class PlayerGestureLayout @JvmOverloads constructor(
                         ev.x >= it.left && ev.x <= it.right &&
                         ev.y >= it.top && ev.y <= it.bottom
                 }
-                if (!ignored) detector.onTouchEvent(ev)
             }
 
             MotionEvent.ACTION_MOVE -> {
                 if (ignored) return super.dispatchTouchEvent(ev)
-                detector.onTouchEvent(ev)
                 val dx = ev.x - downX
                 val dy = ev.y - downY
+                if (abs(dx) > tapSlop || abs(dy) > tapSlop) moved = true
                 if (mode == MODE_NONE) {
                     if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
                         mode = MODE_SEEK
@@ -103,12 +96,17 @@ class PlayerGestureLayout @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!ignored) detector.onTouchEvent(ev)
+                if (!ignored && !moved && mode == MODE_NONE &&
+                    ev.eventTime - downTime < 250L
+                ) {
+                    listener?.onTap()
+                }
                 when (mode) {
                     MODE_VERTICAL -> listener?.onVerticalEnd()
                     MODE_SEEK -> listener?.onSeekEnd()
                 }
                 mode = MODE_NONE
+                moved = false
                 ignored = false
             }
         }

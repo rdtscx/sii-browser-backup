@@ -41,6 +41,22 @@ object SiteConfig {
     fun text(config: JSONObject?, key: String): String? =
         config?.optString(key)?.takeIf { it.isNotBlank() && it != "null" }
 
+    /** 本站是否启用了资源嗅探（sn=1）。缺省=未启用。 */
+    fun sniffEnabled(config: JSONObject?): Boolean = tri(config, "sn") == 1
+
+    /** 快速判断：raw 里没有 sn 键就不解析 JSON，供拦截器/脚本桥每次请求调用。 */
+    fun sniffEnabledRaw(raw: String?): Boolean {
+        if (raw.isNullOrBlank() || !raw.contains("\"sn\"")) return false
+        return sniffEnabled(parse(raw))
+    }
+
+    /** 生成写入后的站点配置：enabled=true 写 sn=1，否则移除该键。 */
+    fun withSniffEnabled(raw: String?, enabled: Boolean): String {
+        val json = parse(raw) ?: JSONObject().put("on", true)
+        if (enabled) json.put("sn", 1) else json.remove("sn")
+        return json.toString()
+    }
+
     fun intOpt(config: JSONObject?, key: String): Int? {
         if (config == null || !config.has(key)) return null
         return config.optInt(key, 0).takeIf { it > 0 }

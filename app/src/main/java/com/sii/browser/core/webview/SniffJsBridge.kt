@@ -29,6 +29,14 @@ class SniffJsBridge(private val webView: SiiWebView, private val key: Any) {
     fun push(payload: String) {
         if (!AppServices.settings.sniffEnabled()) return
         if (payload.isBlank()) return
+        // 仅对已启用嗅探的站点记录。
+        val host = runCatching {
+            android.net.Uri.parse(webView.url.orEmpty()).host
+        }.getOrNull()
+        if (host == null || !com.sii.browser.data.SiteConfig.sniffEnabledRaw(
+                AppServices.siteConfigRepository.cachedConfig(host)
+            )
+        ) return
         val parsed = runCatching {
             val arr = JSONArray(payload)
             (0 until arr.length()).mapNotNull { i ->

@@ -78,6 +78,8 @@ class PlayerFragment : Fragment() {
     private var seekDuration = 0L
     private var seekTarget = -1L
 
+    private var controlsBeforeGesture = false
+
     private val hideOsd = Runnable { osd?.visibility = View.GONE }
 
     override fun onCreateView(
@@ -144,6 +146,7 @@ class PlayerFragment : Fragment() {
         )
         gestureLayout.listener = object : PlayerGestureLayout.Listener {
             override fun onVerticalStart(side: PlayerGestureLayout.Side) {
+                beginGesture()
                 if (side == PlayerGestureLayout.Side.RIGHT) {
                     volumeStart = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
                 } else {
@@ -165,10 +168,12 @@ class PlayerFragment : Fragment() {
             }
 
             override fun onVerticalEnd() {
+                endGesture()
                 scheduleHideOsd()
             }
 
             override fun onSeekStart() {
+                beginGesture()
                 val p = player
                 seekStart = p?.currentPosition ?: 0L
                 seekDuration = p?.duration?.coerceAtLeast(0L) ?: 0L
@@ -190,6 +195,7 @@ class PlayerFragment : Fragment() {
                 val target = seekTarget
                 seekTarget = -1L
                 if (target >= 0L) player.seekTo(target)
+                endGesture()
                 scheduleHideOsd()
             }
 
@@ -555,6 +561,22 @@ class PlayerFragment : Fragment() {
     private fun togglePlay() {
         val p = player ?: return
         if (p.playWhenReady) p.pause() else p.play()
+    }
+
+    /** 手势期间冻结控制条自动隐藏，松手后恢复原状态。 */
+    private fun beginGesture() {
+        val pv = playerViewRef ?: return
+        controlsBeforeGesture = pv.isControllerFullyVisible
+        if (controlsBeforeGesture) pv.setControllerShowTimeoutMs(0)
+    }
+
+    private fun endGesture() {
+        val pv = playerViewRef ?: return
+        if (controlsBeforeGesture) {
+            pv.setControllerShowTimeoutMs(3000)
+            pv.showController()
+        }
+        controlsBeforeGesture = false
     }
 
     private fun seekBy(deltaMs: Long) {

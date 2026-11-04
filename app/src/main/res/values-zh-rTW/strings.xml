@@ -180,6 +180,8 @@
     <string name="download_hls_converting">正在轉換為 MP4…</string>
     <string name="sniff_prompt_found">發現影片</string>
     <string name="sniff_prompt_close">關閉</string>
+    <string name="sniff_prompt_ignore">忽略本站</string>
+    <string name="sniff_menu_clear">清空嗅探結果</string>
     <string name="player_play_failed">當前播放器無法播放該影片，請下載後播放</string>
     <string name="player_rotate">切換橫豎屏</string>
     <string name="player_play">播放</string>
@@ -1174,7 +1176,11 @@
     <string name="download_bar_downloading">檔案正在下載：%1$s</string>
     <string name="history_load_more">載入更多</string>
     <string name="settings_sniff">資源嗅探</string>
-    <string name="settings_sniff_desc">在頁面中嗅探影片、音訊與下載連結</string>
+    <string name="settings_sniff_sites">已啟用嗅探的站點</string>
+    <string name="sniff_sites_empty">還沒有站點啟用資源嗅探。在網頁選單裡點「資源嗅探」即可為目前站點開啟。</string>
+    <string name="sniff_sites_remove">移除</string>
+    <string name="sniff_sites_removed">已移除本站嗅探</string>
+    <string name="settings_sniff_desc">預設不嗅探；在網頁選單裡按站點開啟</string>
     <string name="download_already_exists">該檔案已在下載列表中</string>
     <string name="render_process_crashed">頁面渲染進程已崩潰，分頁已關閉</string>
     <string name="password_save_failed">密碼儲存失敗</string>

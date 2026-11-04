@@ -361,6 +361,8 @@
     <string name="download_hls_converting">Converting to MP4…</string>
     <string name="sniff_prompt_found">Video found</string>
     <string name="sniff_prompt_close">Close</string>
+    <string name="sniff_prompt_ignore">Ignore site</string>
+    <string name="sniff_menu_clear">Clear results</string>
     <string name="player_play_failed">This player cannot play the video; download it instead</string>
     <string name="player_rotate">Rotate screen</string>
     <string name="player_play">Play</string>
@@ -841,10 +843,10 @@
     <string name="site_menu_cookies">View cookies</string>
     <string name="site_menu_settings">Current site settings</string>
     <string name="site_menu_settings_enabled">Current site settings (enabled)</string>
-    <string name="site_menu_prompt_pause">Stop video prompts on this site</string>
-    <string name="site_menu_prompt_resume">Resume video prompts on this site</string>
-    <string name="site_prompt_paused">Video prompts disabled for this site</string>
-    <string name="site_prompt_resumed">Video prompts restored for this site</string>
+    <string name="site_menu_prompt_pause">Ignore sniffing on this site</string>
+    <string name="site_menu_prompt_resume">Resume sniffing on this site</string>
+    <string name="site_prompt_paused">Sniffing ignored for this site</string>
+    <string name="site_prompt_resumed">Sniffing restored for this site</string>
     <string name="site_menu_scripts">View scripts</string>
     <string name="site_menu_cookies_empty">No cookies on this page</string>
     <string name="site_menu_scripts_empty">No matching scripts on this page</string>
@@ -1173,7 +1175,11 @@
     <string name="download_bar_downloading">Downloading: %1$s</string>
     <string name="history_load_more">Load more</string>
     <string name="settings_sniff">Resource sniffing</string>
-    <string name="settings_sniff_desc">Detect media and download links in pages</string>
+    <string name="settings_sniff_sites">Sites with sniffing enabled</string>
+    <string name="sniff_sites_empty">No sites enabled yet. Tap “Resource sniffing” in the page menu to enable it for the current site.</string>
+    <string name="sniff_sites_remove">Remove</string>
+    <string name="sniff_sites_removed">Sniffing removed for this site</string>
+    <string name="settings_sniff_desc">Off by default; enable per site from the page menu</string>
     <string name="download_already_exists">This file is already in downloads</string>
     <string name="render_process_crashed">Page renderer crashed; tab closed</string>
     <string name="password_save_failed">Failed to save password</string>

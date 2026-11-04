@@ -335,6 +335,17 @@
                 android:visibility="gone">
 
                 <TextView
+                    android:id="@+id/sniff_prompt_ignore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:paddingHorizontal="4dp"
+                    android:paddingVertical="6dp"
+                    android:text="@string/sniff_prompt_ignore"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <TextView
                     android:id="@+id/sniff_prompt_title"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
