@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
@@ -16,6 +18,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
@@ -57,6 +60,7 @@ class PlayerFragment : Fragment() {
     private var topBar: View? = null
     private var speedButton: TextView? = null
     private var audioButton: TextView? = null
+    private var listPopup: PopupWindow? = null
     private lateinit var audio: AudioManager
 
     /** 画面亮度 0.02..1，通过黑色遮罩实现，不改系统亮度。 */
@@ -302,11 +306,12 @@ class PlayerFragment : Fragment() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(8), 0, dp(8), 0)
-            setTextSize(13f)
+            setPadding(dp(10), 0, dp(10), 0)
+            setTextSize(15f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Color.WHITE)
             setBackgroundResource(android.R.drawable.list_selector_background)
-            setOnClickListener { showSpeedDialog() }
+            setOnClickListener { showSpeedPopup() }
         }
         val track = TextView(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -316,11 +321,11 @@ class PlayerFragment : Fragment() {
             text = getString(R.string.player_audio)
             visibility = View.GONE
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(8), 0, dp(8), 0)
-            setTextSize(13f)
+            setPadding(dp(10), 0, dp(10), 0)
+            setTextSize(14f)
             setTextColor(Color.WHITE)
             setBackgroundResource(android.R.drawable.list_selector_background)
-            setOnClickListener { showAudioDialog() }
+            setOnClickListener { showAudioPopup() }
         }
         basic.addView(speed)
         basic.addView(track)
@@ -345,24 +350,82 @@ class PlayerFragment : Fragment() {
         return if (hundredths % 10 == 0) "%.1fx".format(speed) else "%.2fx".format(speed)
     }
 
-    /** 一层列表，点一下直接生效并关闭。 */
-    private fun showSpeedDialog() {
-        val p = player ?: return
-        val current = p.playbackParameters.speed
-        val checked = SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }
-            .coerceAtLeast(0)
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle(R.string.player_speed)
-            .setSingleChoiceItems(SPEEDS.map { speedLabel(it) }.toTypedArray(), checked) { dialog, which ->
-                p.setPlaybackSpeed(SPEEDS[which])
-                updateSpeedButton()
-                dialog.dismiss()
+    /** 一层浮层，样式贴近 Media3 原来的齿轮弹层：深色圆角面板、当前项高亮。 */
+    private fun showListPopup(
+        anchor: View,
+        title: String,
+        items: List<String>,
+        selected: Int,
+        onPick: (Int) -> Unit
+    ) {
+        val context = requireContext()
+        val panel = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(0xF0202020.toInt())
             }
-            .show()
+        }
+        panel.addView(TextView(context).apply {
+            text = title
+            setTextSize(12f)
+            setTextColor(0xFFAAAAAA.toInt())
+            setPadding(dp(12), dp(4), dp(12), dp(6))
+        })
+        val accent = ThemeAccent.color(context)
+        items.forEachIndexed { index, label ->
+            panel.addView(TextView(context).apply {
+                text = label
+                setTextSize(14.5f)
+                setTextColor(if (index == selected) accent else Color.WHITE)
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                setBackgroundResource(android.R.drawable.list_selector_background)
+                setOnClickListener {
+                    onPick(index)
+                    listPopup?.dismiss()
+                }
+            })
+        }
+        val width = dp(170)
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val popup = PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            isOutsideTouchable = true
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            elevation = dp(10).toFloat()
+        }
+        listPopup?.dismiss()
+        listPopup = popup
+        popup.showAsDropDown(
+            anchor,
+            -(width - anchor.width),
+            -(panel.measuredHeight + anchor.height + dp(6))
+        )
     }
 
-    private fun showAudioDialog() {
+    private fun showSpeedPopup() {
         val p = player ?: return
+        val anchor = speedButton ?: return
+        val current = p.playbackParameters.speed
+        val selected = SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }
+            .coerceAtLeast(0)
+        showListPopup(
+            anchor,
+            getString(R.string.player_speed),
+            SPEEDS.map { speedLabel(it) },
+            selected
+        ) { which ->
+            p.setPlaybackSpeed(SPEEDS[which])
+            updateSpeedButton()
+        }
+    }
+
+    private fun showAudioPopup() {
+        val p = player ?: return
+        val anchor = audioButton ?: return
         val labels = mutableListOf(getString(R.string.player_audio_auto))
         val tracks = mutableListOf<Pair<androidx.media3.common.Tracks.Group, Int>>()
         var selected = 0
@@ -380,27 +443,28 @@ class PlayerFragment : Fragment() {
                     if (group.isTrackSelected(i)) selected = tracks.size
                 }
             }
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle(R.string.player_audio)
-            .setSingleChoiceItems(labels.toTypedArray(), selected) { dialog, which ->
-                if (which == 0) {
-                    p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                        .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
-                        .build()
-                } else {
-                    val (group, index) = tracks[which - 1]
-                    p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                        .setOverrideForType(
-                            androidx.media3.common.TrackSelectionOverride(
-                                group.mediaTrackGroup,
-                                index
-                            )
+        showListPopup(
+            anchor,
+            getString(R.string.player_audio),
+            labels,
+            selected
+        ) { which ->
+            if (which == 0) {
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                    .build()
+            } else {
+                val (group, index) = tracks[which - 1]
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setOverrideForType(
+                        androidx.media3.common.TrackSelectionOverride(
+                            group.mediaTrackGroup,
+                            index
                         )
-                        .build()
-                }
-                dialog.dismiss()
+                    )
+                    .build()
             }
-            .show()
+        }
     }
 
     private fun toggleOrientation() {
@@ -485,6 +549,8 @@ class PlayerFragment : Fragment() {
         topBar = null
         speedButton = null
         audioButton = null
+        listPopup?.dismiss()
+        listPopup = null
         activity?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
