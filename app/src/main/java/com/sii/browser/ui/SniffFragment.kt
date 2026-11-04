@@ -35,6 +35,9 @@ class SniffFragment : Fragment() {
     private var sniffHint: View? = null
     private var filter: SniffType? = null
     private var showAllPages = false
+    private var rowCard: LinearLayout? = null
+    private var pendingRows: List<SniffedResource> = emptyList()
+    private var pendingIndex = 0
     private val storeListener: (Any) -> Unit = { key ->
         if (key === AppServices.sniffTarget) {
             view?.post { render() }
@@ -112,53 +115,11 @@ class SniffFragment : Fragment() {
             list,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
-        this.container = content
-        attachLayoutProbe(root, header, divider, chipsHost, list)
-        return root
-    }
-
-    /** 临时诊断（仅测试包）：量出分类行与列表之间那块空白到底被谁占位。定位后删除。 */
-    private fun attachLayoutProbe(
-        root: LinearLayout,
-        header: View,
-        divider: View,
-        chipsHost: View,
-        list: android.widget.ScrollView
-    ) {
-        val debuggable = (requireContext().applicationInfo.flags and
-            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (!debuggable) return
-        val probe = TextView(requireContext()).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setTextSize(8.5f)
-            setTextColor(0xFFC62828.toInt())
-            typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            text = "layout probe"
+        list.setOnScrollChangeListener { v, _, _, _, _ ->
+            if (!v.canScrollVertically(1)) appendRows()
         }
-        root.addView(probe)
-        root.postDelayed({
-            if (!isAdded || view == null) return@postDelayed
-            val child = list.getChildAt(0)
-            probe.text = buildString {
-                append("root=").append(root.height)
-                append(" hdr=").append(header.height)
-                append(" div=").append(divider.height)
-                append(" hint=").append(sniffHint?.height ?: -1)
-                append("/").append(sniffHint?.visibility ?: -1)
-                append(" chips=").append(chipsHost.top).append("..").append(chipsHost.bottom)
-                append(" list=").append(list.top).append("..").append(list.bottom)
-                append(" pt=").append(list.paddingTop)
-                append(" y=").append(list.scrollY)
-                append(" cTop=").append(child?.top ?: -1)
-                append(" cPad=").append((child as? View)?.paddingTop ?: -1)
-                append(" cH=").append(child?.height ?: -1)
-                append(" cKids=").append((child as? ViewGroup)?.childCount ?: -1)
-            }
-        }, 600L)
+        this.container = content
+        return root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -175,6 +136,9 @@ class SniffFragment : Fragment() {
     override fun onDestroyView() {
         SniffStore.removeListener(storeListener)
         sniffHint = null
+        rowCard = null
+        pendingRows = emptyList()
+        pendingIndex = 0
         super.onDestroyView()
     }
 
@@ -197,8 +161,23 @@ class SniffFragment : Fragment() {
             return
         }
         val card = CardList.card(requireContext())
-        CardList.addRows(card, items.map { row(it) })
+        rowCard = card
+        pendingRows = items
+        pendingIndex = 0
+        appendRows()
         container.addView(card)
+    }
+
+    /** 分批建行：资源上百条时一次性构视图会让进入页面卡住。 */
+    private fun appendRows() {
+        val card = rowCard ?: return
+        if (pendingIndex >= pendingRows.size) return
+        val end = minOf(pendingIndex + ROW_CHUNK, pendingRows.size)
+        for (i in pendingIndex until end) {
+            if (i > 0) card.addView(CardList.styledDivider(requireContext()))
+            card.addView(row(pendingRows[i]))
+        }
+        pendingIndex = end
     }
 
     /** 当前列表实际展示的资源（当前页/全部页面 + 类型筛选），播放器左右切换也用这份顺序。 */
@@ -478,4 +457,9 @@ class SniffFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private companion object {
+        /** 每批渲染的行数，滚到底部再追加。 */
+        const val ROW_CHUNK = 30
+    }
 }
