@@ -848,7 +848,7 @@
     <string name="site_menu_prompt_resume">恢復本站資源嗅探</string>
     <string name="site_prompt_paused">已忽略本站資源嗅探</string>
     <string name="site_prompt_resumed">已恢復本站資源嗅探</string>
-    <string name="site_prompt_enabled">已啟用本站資源嗅探</string>
+    <string name="site_prompt_enabled_reload">已啟用本站資源嗅探，正在重新載入頁面</string>
     <string name="site_menu_scripts">檢視指令碼</string>
     <string name="site_menu_cookies_empty">當前頁面沒有 Cookies</string>
     <string name="site_menu_scripts_empty">當前頁面沒有匹配的指令碼</string>

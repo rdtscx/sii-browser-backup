@@ -1299,20 +1299,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
-    /** 资源嗅探列表（当前标签）：未启用先启用本站再打开。 */
+    /** 资源嗅探列表（当前标签）：未启用时先把本站加入嗅探（并重载一次），已启用则直接打开。 */
     private fun openSniff() {
         currentPageHost()?.let { host ->
             if (!siteSniffEnabled(host)) {
                 setSiteSniffEnabled(host, true)
                 // 先清掉上一个站的旧条目，避免打开列表时看到别的站点资源。
-                tabManager.currentWebView?.let {
-                    com.sii.browser.core.webview.SniffStore.clear(it)
+                tabManager.currentWebView?.let { webView ->
+                    com.sii.browser.core.webview.SniffStore.clear(webView)
+                    webView.injectJavaScript(
+                        com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
+                    )
+                    // 站点刚加入嗅探：重载一次，把已经错过的请求重新采集完整。
+                    webView.reload()
                 }
-                tabManager.currentWebView?.injectJavaScript(
-                    com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
-                )
                 Toast.makeText(
-                    requireContext(), R.string.site_prompt_enabled, Toast.LENGTH_SHORT
+                    requireContext(), R.string.site_prompt_enabled_reload, Toast.LENGTH_SHORT
                 ).show()
             }
         }

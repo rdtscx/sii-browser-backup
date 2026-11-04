@@ -847,7 +847,7 @@
     <string name="site_menu_prompt_resume">Resume sniffing on this site</string>
     <string name="site_prompt_paused">Sniffing ignored for this site</string>
     <string name="site_prompt_resumed">Sniffing restored for this site</string>
-    <string name="site_prompt_enabled">Sniffing enabled for this site</string>
+    <string name="site_prompt_enabled_reload">Sniffing enabled; reloading the page to capture everything</string>
     <string name="site_menu_scripts">View scripts</string>
     <string name="site_menu_cookies_empty">No cookies on this page</string>
     <string name="site_menu_scripts_empty">No matching scripts on this page</string>

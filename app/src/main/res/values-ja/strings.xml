@@ -848,7 +848,7 @@
     <string name="site_menu_prompt_resume">このサイトのメディア検出を再開</string>
     <string name="site_prompt_paused">このサイトのメディア検出を停止しました</string>
     <string name="site_prompt_resumed">このサイトのメディア検出を再開しました</string>
-    <string name="site_prompt_enabled">このサイトのメディア検出を有効にしました</string>
+    <string name="site_prompt_enabled_reload">このサイトのメディア検出を有効にしました。ページを再読み込みします</string>
     <string name="site_menu_scripts">スクリプトを表示</string>
     <string name="site_menu_cookies_empty">このページには Cookies がありません</string>
     <string name="site_menu_scripts_empty">このページに一致するスクリプトはありません</string>

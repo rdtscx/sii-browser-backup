@@ -547,10 +547,13 @@ class SniffFragment : Fragment() {
                             target?.injectJavaScript(
                                 com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
                             )
+                            // 站点刚加入嗅探：重载一次，把错过的请求重新采集。
+                            target?.reload()
                         }
                         Toast.makeText(
                             requireContext(),
-                            if (enabled) R.string.site_prompt_paused else R.string.site_prompt_resumed,
+                            if (enabled) R.string.site_prompt_paused
+                            else R.string.site_prompt_enabled_reload,
                             Toast.LENGTH_SHORT
                         ).show()
                         render()
