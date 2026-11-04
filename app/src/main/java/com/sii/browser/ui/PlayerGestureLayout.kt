@@ -3,10 +3,12 @@
 package com.sii.browser.ui
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import kotlin.math.abs
 
@@ -59,11 +61,22 @@ class PlayerGestureLayout @JvmOverloads constructor(
     private var side = Side.LEFT
     private var ignored = false
     private var longPressed = false
+    private var pressed = false
+    private var longPressEndedAt = 0L
+    private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+
+    /** 长按自己计时：系统手势检测器的长按回调可能在抬手后才到达，导致倍速卡住不恢复。 */
+    private val longPressRunnable = Runnable {
+        if (!pressed || longPressed || ignored) return@Runnable
+        longPressed = true
+        listener?.onLongPressStart()
+    }
 
     private val detector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                if (SystemClock.uptimeMillis() - longPressEndedAt < 400L) return true
                 listener?.onTap()
                 return true
             }
@@ -73,13 +86,8 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 else if (e.x > width * 2f / 3f) listener?.onDoubleTap(Side.RIGHT)
                 return true
             }
-
-            override fun onLongPress(e: MotionEvent) {
-                longPressed = true
-                listener?.onLongPressStart()
-            }
         }
-    )
+    ).apply { setIsLongpressEnabled(false) }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
@@ -87,12 +95,17 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 downX = ev.x
                 downY = ev.y
                 mode = MODE_NONE
+                pressed = true
                 longPressed = false
                 side = if (ev.x < width / 3f) Side.LEFT else Side.RIGHT
                 ignored = excluded.any {
                     it.visibility == View.VISIBLE && ev.y >= it.top && ev.y <= it.bottom
                 }
-                if (!ignored) detector.onTouchEvent(ev)
+                removeCallbacks(longPressRunnable)
+                if (!ignored) {
+                    detector.onTouchEvent(ev)
+                    postDelayed(longPressRunnable, longPressTimeout)
+                }
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -100,6 +113,9 @@ class PlayerGestureLayout @JvmOverloads constructor(
                 detector.onTouchEvent(ev)
                 val dx = ev.x - downX
                 val dy = ev.y - downY
+                if (!longPressed && (abs(dx) > slop || abs(dy) > slop)) {
+                    removeCallbacks(longPressRunnable)
+                }
                 if (mode == MODE_NONE && !longPressed) {
                     if (abs(dx) > slop && abs(dx) > abs(dy) * 1.2f) {
                         mode = MODE_SEEK
@@ -121,8 +137,11 @@ class PlayerGestureLayout @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                pressed = false
+                removeCallbacks(longPressRunnable)
                 if (longPressed) {
                     longPressed = false
+                    longPressEndedAt = SystemClock.uptimeMillis()
                     listener?.onLongPressEnd()
                 }
                 if (!ignored) detector.onTouchEvent(ev)

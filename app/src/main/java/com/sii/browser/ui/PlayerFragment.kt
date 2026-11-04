@@ -200,6 +200,7 @@ class PlayerFragment : Fragment() {
             }
 
             override fun onTap() {
+                stopLongPressSpeed()
                 setControlsVisible(!controlsVisible)
             }
 
@@ -209,9 +210,10 @@ class PlayerFragment : Fragment() {
             }
 
             override fun onLongPressStart() {
-                if (!gesturesEnabled()) return
+                if (!gesturesEnabled() || longPressActive) return
                 val p = player ?: return
                 speedBeforeLongPress = p.playbackParameters.speed
+                if (speedBeforeLongPress >= LONG_PRESS_SPEED) speedBeforeLongPress = 1f
                 p.setPlaybackSpeed(LONG_PRESS_SPEED)
                 longPressActive = true
                 showOsd(LONG_PRESS_SPEED_LABEL)
@@ -308,6 +310,9 @@ class PlayerFragment : Fragment() {
         player.setMediaSource(
             DefaultMediaSourceFactory(httpDataSourceFactory(res)).createMediaSource(mediaItem)
         )
+        player.setPlaybackSpeed(1f)
+        longPressActive = false
+        speedBeforeLongPress = 1f
         player.prepare()
         player.playWhenReady = true
 
@@ -466,6 +471,7 @@ class PlayerFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
+        stopLongPressSpeed()
         resumeOnReturn = player?.playWhenReady == true
         player?.playWhenReady = false
     }
@@ -476,6 +482,7 @@ class PlayerFragment : Fragment() {
         host?.removeCallbacks(hideOsd)
         host?.removeCallbacks(hideControls)
         host?.findViewById<PlayerView>(R.id.player_view)?.player = null
+        stopLongPressSpeed()
         player?.release()
         player = null
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
