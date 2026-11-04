@@ -51,6 +51,7 @@ class PlayerFragment : Fragment() {
 
     private var dim: View? = null
     private var osd: TextView? = null
+    private var topBar: View? = null
     private lateinit var audio: AudioManager
 
     /** 画面亮度 0.02..1，通过黑色遮罩实现，不改系统亮度。 */
@@ -87,6 +88,7 @@ class PlayerFragment : Fragment() {
         audio = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         val playerView = view.findViewById<PlayerView>(R.id.player_view)
+        topBar = view.findViewById(R.id.player_top)
         val player = ExoPlayer.Builder(requireContext()).build()
         this.player = player
         playerView.player = player
@@ -160,6 +162,12 @@ class PlayerFragment : Fragment() {
         }
         view.findViewById<View>(R.id.player_download).setOnClickListener { download() }
         view.findViewById<View>(R.id.player_rotate).setOnClickListener { toggleOrientation() }
+        // 顶部条跟随媒体控制器一起显隐，避免点击画面后上面那条一直杵着。
+        playerView.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                topBar?.visibility = visibility
+            }
+        )
         tuneController(playerView)
         applyImmersive()
         load(position)
@@ -242,6 +250,15 @@ class PlayerFragment : Fragment() {
         val bottom = playerView.findViewById<FrameLayout>(androidx.media3.ui.R.id.exo_bottom_bar)
         val parent = center?.parent as? ViewGroup
         if (center != null && bottom != null && parent != null) {
+            // 上一个/下一个已经在顶部条，控制器里这两个会连同时间文字一起挤着，直接拿掉。
+            listOf(
+                androidx.media3.ui.R.id.exo_prev,
+                androidx.media3.ui.R.id.exo_next
+            ).forEach { id ->
+                center.findViewById<View>(id)?.let { button ->
+                    (button.parent as? ViewGroup)?.removeView(button)
+                }
+            }
             parent.removeView(center)
             bottom.addView(
                 center,
@@ -333,6 +350,7 @@ class PlayerFragment : Fragment() {
         player = null
         dim = null
         osd = null
+        topBar = null
         activity?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())
