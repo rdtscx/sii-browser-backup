@@ -7672,6 +7672,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             onTouchDown = {
                 // 触摸网页时清掉之前的滚动累计与待执行方向，防止回弹把隐藏的工具栏弹回来。
                 this@BrowserFragment.scrollAccum = 0
+                this@BrowserFragment.scrollDir = 0
                 this@BrowserFragment.pendingScrollDir = 0
                 this@BrowserFragment.view?.removeCallbacks(this@BrowserFragment.applyScrollDirection)
             }
@@ -10877,6 +10878,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var scrollAccum = 0
     private var pendingScrollDir = 0
     private var lastToggleAt = 0L
+    private var scrollDir = 0
     private val applyScrollDirection: Runnable = Runnable {
         val dir = pendingScrollDir
         pendingScrollDir = 0
@@ -10895,23 +10897,28 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun handleToolbarAutoHide(rawDy: Int) {
         if (rawDy == 0) return
-        if ((rawDy > 0) != (scrollAccum > 0)) {
+        val dir = if (rawDy > 0) 1 else -1
+        // 方向必须单独记：累计值达标后会归零，不能再用它判断方向，否则同方向滚动会被当成反转。
+        if (scrollDir != 0 && scrollDir != dir) {
             scrollAccum = 0
-            // 方向反转：旧方向的待执行动作作废，按新方向重新判断。
             pendingScrollDir = 0
             view?.removeCallbacks(applyScrollDirection)
         }
+        scrollDir = dir
         scrollAccum += rawDy
-        val show = scrollAccum < 0
-        // 目标状态已经达成时不再排队，避免一直在滚动中的空转。
-        if (show != toolbarHidden) return
+        val show = dir < 0
+        // 目标状态已经达成：清掉累计，避免状态变化后拿着旧累计直接触发。
+        if (show != toolbarHidden) {
+            scrollAccum = 0
+            return
+        }
         val threshold = if (show) dp(SCROLL_SHOW_THRESHOLD_DP) else dp(SCROLL_HIDE_THRESHOLD_DP)
         if (kotlin.math.abs(scrollAccum) < threshold) return
-        val dir = if (show) -1 else 1
+        val pending = if (show) -1 else 1
         scrollAccum = 0
         // 同一方向已在排队时不再重复排期，否则持续滚动会把执行时间一直往后推。
-        if (pendingScrollDir == dir) return
-        pendingScrollDir = dir
+        if (pendingScrollDir == pending) return
+        pendingScrollDir = pending
         view?.removeCallbacks(applyScrollDirection)
         view?.postDelayed(
             applyScrollDirection,
