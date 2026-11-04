@@ -10877,28 +10877,46 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var scrollAccum = 0
     private var pendingScrollDir = 0
     private var lastToggleAt = 0L
-    private val applyScrollDirection = Runnable {
+    private val applyScrollDirection: Runnable = Runnable {
         val dir = pendingScrollDir
         pendingScrollDir = 0
         if (dir == 0) return@Runnable
-        // 同一方向的收展保持 220ms 冷却，避免滚动中反方向抖动。
-        val now = System.currentTimeMillis()
-        if (now - lastToggleAt < 220L) return@Runnable
-        lastToggleAt = now
+        // 冷却只用来抑制刚切换方向就来回横跳；命中时顺延到冷却结束，不丢动作。
+        val wait = SCROLL_TOGGLE_COOLDOWN_MS - (System.currentTimeMillis() - lastToggleAt)
+        if (wait > 0L) {
+            pendingScrollDir = dir
+            view?.postDelayed(applyScrollDirection, wait)
+            return@Runnable
+        }
+        lastToggleAt = System.currentTimeMillis()
         handleQuickEngineAutoHide(dir * 10)
         applyToolbarScrollHidden(dir * 10)
     }
 
     private fun handleToolbarAutoHide(rawDy: Int) {
         if (rawDy == 0) return
-        // 累计 40dp 后短暂停顿（60ms）即执行，兼顾跟手与去抖。
-        if ((rawDy > 0) != (scrollAccum > 0)) scrollAccum = 0
+        if ((rawDy > 0) != (scrollAccum > 0)) {
+            scrollAccum = 0
+            // 方向反转：旧方向的待执行动作作废，按新方向重新判断。
+            pendingScrollDir = 0
+            view?.removeCallbacks(applyScrollDirection)
+        }
         scrollAccum += rawDy
-        if (kotlin.math.abs(scrollAccum) < 40) return
-        pendingScrollDir = if (scrollAccum > 0) 1 else -1
+        val show = scrollAccum < 0
+        // 目标状态已经达成时不再排队，避免一直在滚动中的空转。
+        if (show != toolbarHidden) return
+        val threshold = if (show) dp(SCROLL_SHOW_THRESHOLD_DP) else dp(SCROLL_HIDE_THRESHOLD_DP)
+        if (kotlin.math.abs(scrollAccum) < threshold) return
+        val dir = if (show) -1 else 1
         scrollAccum = 0
+        // 同一方向已在排队时不再重复排期，否则持续滚动会把执行时间一直往后推。
+        if (pendingScrollDir == dir) return
+        pendingScrollDir = dir
         view?.removeCallbacks(applyScrollDirection)
-        view?.postDelayed(applyScrollDirection, 60L)
+        view?.postDelayed(
+            applyScrollDirection,
+            if (show) SCROLL_SHOW_DELAY_MS else SCROLL_HIDE_DELAY_MS
+        )
     }
 
     private fun applyToolbarScrollHidden(dy: Int) {
@@ -10911,15 +10929,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             val hidden = (dock.height.takeIf { it > 0 } ?: dp(56)) + dp(12)
             if (dy > 0 && !toolbarHidden) {
                 toolbarHidden = true
-                dock.animate().translationY(hidden.toFloat()).setDuration(180)
+                dock.animate().translationY(hidden.toFloat()).setDuration(150)
                     .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
-                progressBar?.animate()?.translationY(hidden.toFloat())?.setDuration(180)
+                progressBar?.animate()?.translationY(hidden.toFloat())?.setDuration(150)
                     ?.setInterpolator(android.view.animation.DecelerateInterpolator())?.start()
             } else if (dy < 0 && toolbarHidden) {
                 toolbarHidden = false
-                dock.animate().translationY(0f).setDuration(180)
+                dock.animate().translationY(0f).setDuration(120)
                     .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
-                progressBar?.animate()?.translationY(0f)?.setDuration(180)
+                progressBar?.animate()?.translationY(0f)?.setDuration(120)
                     ?.setInterpolator(android.view.animation.DecelerateInterpolator())?.start()
             }
             return
@@ -10956,7 +10974,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
         }
         val animator = android.animation.ValueAnimator.ofFloat(if (show) 0f else 1f, if (show) 1f else 0f)
-        animator.duration = 180
+        animator.duration = if (show) 120L else 150L
         animator.addUpdateListener { animation ->
             val fraction = animation.animatedValue as Float
             views.forEach { target ->
@@ -11347,6 +11365,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressTextProgrammatic = false
 
     private companion object {
+        /** 滚动收展工具栏：向上显示 12dp 且立即执行，向下隐藏 24dp、32ms 防抖。 */
+        private const val SCROLL_SHOW_THRESHOLD_DP = 12
+        private const val SCROLL_HIDE_THRESHOLD_DP = 24
+        private const val SCROLL_SHOW_DELAY_MS = 0L
+        private const val SCROLL_HIDE_DELAY_MS = 32L
+        private const val SCROLL_TOGGLE_COOLDOWN_MS = 120L
+
         /** 同一次播放触发的资源归为一批的时间窗。 */
         private const val SNIFF_PROMPT_BURST_MS = 1500L
         const val KEY_URL = "sii_browser_url"
