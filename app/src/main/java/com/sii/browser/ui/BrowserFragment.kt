@@ -7731,7 +7731,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 this@BrowserFragment.pendingScrollDir = 0
                 this@BrowserFragment.view?.removeCallbacks(this@BrowserFragment.applyScrollDirection)
             }
-            onTouchUp = { this@BrowserFragment.webTouching = false }
+            onTouchUp = { this@BrowserFragment.settleRevealOnTouchUp() }
             onDoubleTap = {
                 if (!AppServices.settings.gameMode()) {
                     when (AppServices.settings.gestureDoubleTap()) {
@@ -10971,12 +10971,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         scrollDir = dir
         scrollAccum += rawDy
         val show = dir < 0
-        // 手指还按着时不显示：松手后继续往该方向滚才会出现。
-        if (show && webTouching) {
-            scrollAccum = 0
-            return
-        }
-        // 目标状态已经达成：清掉累计，避免状态变化后拿着旧累计直接触发。
+        // 目标状态已达成：清掉累计，避免状态变化后拿着旧累计直接触发。
         if (show != toolbarHidden) {
             scrollAccum = 0
             return
@@ -10988,11 +10983,21 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 同一方向已在排队时不再重复排期，否则持续滚动会把执行时间一直往后推。
         if (pendingScrollDir == pending) return
         pendingScrollDir = pending
+        // 按住时的“显示”先记下，松手时立即结算，不依赖松手后的惯性。
+        if (show && webTouching) return
         view?.removeCallbacks(applyScrollDirection)
         view?.postDelayed(
             applyScrollDirection,
             if (show) SCROLL_SHOW_DELAY_MS else SCROLL_HIDE_DELAY_MS
         )
+    }
+
+    /** 松手时结算：按住期间已经攒够的“显示”动作立即执行。 */
+    private fun settleRevealOnTouchUp() {
+        webTouching = false
+        if (pendingScrollDir != -1) return
+        view?.removeCallbacks(applyScrollDirection)
+        applyScrollDirection.run()
     }
 
     private fun applyToolbarScrollHidden(dy: Int) {
