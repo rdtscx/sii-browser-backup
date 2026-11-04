@@ -127,7 +127,7 @@
     <string name="update_ignored">このバージョンは無視しました</string>
     <string name="settings_pull_refresh">引っ張って更新</string>
     <string name="settings_keep_on">画面を常時点灯</string>
-    <string name="settings_video_gesture">動画ジェスチャー（左：明るさ / 右：音量）</string>
+    <string name="settings_video_gesture">プレーヤーのジェスチャー（明るさ / 音量 / シーク）</string>
     <string name="settings_restore_closed_tabs">起動時に前回のタブを復元</string>
     <string name="settings_ua">ユーザーエージェント (UA)</string>
     <string name="settings_ua_preset">ユーザーエージェントのプリセット</string>
@@ -185,6 +185,9 @@
     <string name="player_brightness">明るさ %1$d%%</string>
     <string name="player_prev">前の動画</string>
     <string name="player_next">次の動画</string>
+    <string name="player_play">再生</string>
+    <string name="player_pause">一時停止</string>
+    <string name="player_rotate">画面を回転</string>
     <string name="menu_sniff">メディア検出</string>
     <string name="menu_print">印刷 / PDF</string>
     <string name="menu_close_others">他のタブを閉じる</string>
