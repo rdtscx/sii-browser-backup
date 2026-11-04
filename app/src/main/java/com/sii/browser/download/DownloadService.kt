@@ -37,6 +37,9 @@ class DownloadService : Service() {
     /** 各任务最近一次进度（下载量与总量），多任务时用于通知聚合。 */
     private val progressByTask = java.util.concurrent.ConcurrentHashMap<Long, LongArray>()
     private var hlsActive = false
+    private var hlsJob: kotlinx.coroutines.Job? = null
+    private var hlsTaskId = -1L
+    private val hlsMeta = HashMap<Long, Pair<String?, String?>>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -197,7 +200,7 @@ class DownloadService : Service() {
             ?: url.substringAfterLast('/').substringBefore('?').ifEmpty { "video.ts" }
         val referer = intent.getStringExtra(EXTRA_REFERER)
         val ua = intent.getStringExtra(EXTRA_UA)
-        scope.launch {
+        hlsJob = scope.launch {
             hlsActive = true
             var taskId = -1L
             var partialFile: java.io.File? = null
@@ -215,11 +218,13 @@ class DownloadService : Service() {
                     mimetype = "video/mp2t",
                     totalSize = 0L,
                     chunkCount = 1,
-                    flags = if (AppServices.privacyManager.isIncognito) {
+                    flags = DownloadTaskFlags.HLS or (if (AppServices.privacyManager.isIncognito) {
                         DownloadTaskFlags.INCOGNITO
-                    } else 0
+                    } else 0)
                 )
                 taskId = task.id
+                hlsTaskId = taskId
+                hlsMeta[taskId] = referer to ua
                 AppServices.downloadRepository.updatePath(taskId, file.absolutePath)
                 AppServices.downloadRepository.setState(taskId, DownloadState.DOWNLOADING)
                 activeTaskId = taskId
@@ -230,6 +235,10 @@ class DownloadService : Service() {
                     scope.launch {
                         AppServices.downloadRepository.updateProgress(taskId, progress.bytes)
                     }
+                }
+                if (HlsDownloader.isCancelled) {
+                    AppServices.downloadRepository.setState(taskId, DownloadState.PAUSED)
+                    return@launch
                 }
                 if (ok && file.length() > 0L) {
                     val mp4 = java.io.File(file.parentFile, file.nameWithoutExtension + ".mp4")
@@ -259,13 +268,19 @@ class DownloadService : Service() {
                     notifyHlsFailed()
                 }
             } catch (e: Exception) {
-                partialFile?.delete()
-                if (taskId > 0L) {
-                    AppServices.downloadRepository.markFailed(taskId, e.message)
+                if (HlsDownloader.isCancelled && taskId > 0L) {
+                    AppServices.downloadRepository.setState(taskId, DownloadState.PAUSED)
+                } else {
+                    partialFile?.delete()
+                    if (taskId > 0L) {
+                        AppServices.downloadRepository.markFailed(taskId, e.message)
+                    }
+                    notifyHlsFailed(e.message)
                 }
-                notifyHlsFailed(e.message)
             } finally {
                 hlsActive = false
+                if (hlsTaskId == taskId) hlsTaskId = -1L
+                hlsJob = null
                 maybeStopIdle()
             }
         }
@@ -279,23 +294,48 @@ class DownloadService : Service() {
         return true
     }
 
-    private fun handleResume(intent: Intent) {        val id = intent.getLongExtra(EXTRA_TASK_ID, -1L)
+    private fun handleResume(intent: Intent) {
+        val id = intent.getLongExtra(EXTRA_TASK_ID, -1L)
         if (id <= 0) return
         if (blockedByNetwork()) return
-        activeTaskId = id
         scope.launch {
-            AppServices.downloadRepository.taskById(id)?.let { activeChunks = it.chunks }
+            val task = AppServices.downloadRepository.taskById(id) ?: return@launch
+            if (task.flags and DownloadTaskFlags.HLS != 0) {
+                restartHlsTask(task)
+            } else {
+                activeTaskId = id
+                activeChunks = task.chunks
+                AppServices.downloadEngine.start(id)
+            }
         }
-        AppServices.downloadEngine.start(id)
+    }
+
+    /** HLS 任务：v1 从头重下（不做分片级断点续传），先删旧任务与半成品。 */
+    private fun restartHlsTask(task: com.sii.browser.data.db.DownloadTask) {
+        val meta = hlsMeta[task.id]
+        val path = task.path
+        scope.launch { AppServices.downloadRepository.deleteTask(task.id) }
+        if (path != null) runCatching { java.io.File(path).delete() }
+        DownloadService.startHlsDownload(this, task.url, task.name, meta?.first, meta?.second)
     }
 
     private fun handlePause(intent: Intent) {
         val id = intent.getLongExtra(EXTRA_TASK_ID, -1L)
         if (id <= 0) return
-        AppServices.downloadEngine.pause(id)
         scope.launch {
-            kotlinx.coroutines.delay(1200)
-            maybeStopIdle()
+            val task = AppServices.downloadRepository.taskById(id)
+            if (task != null && task.flags and DownloadTaskFlags.HLS != 0) {
+                if (hlsTaskId == id) {
+                    HlsDownloader.cancel()
+                    hlsJob?.cancel()
+                }
+                AppServices.downloadRepository.setState(id, DownloadState.PAUSED)
+                maybeStopIdle()
+            } else {
+                AppServices.downloadEngine.pause(id)
+                kotlinx.coroutines.delay(1200)
+                maybeStopIdle()
+            }
         }
     }
 
@@ -305,6 +345,10 @@ class DownloadService : Service() {
         if (blockedByNetwork()) return
         scope.launch {
             val task = AppServices.downloadRepository.taskById(id) ?: return@launch
+            if (task.flags and DownloadTaskFlags.HLS != 0) {
+                restartHlsTask(task)
+                return@launch
+            }
             // 先停止旧任务，再重置分块进度重新下载
             AppServices.downloadEngine.cancelAndWait(id)
             AppServices.downloadRepository.deleteTask(id)
@@ -331,8 +375,18 @@ class DownloadService : Service() {
     }
 
     private suspend fun pauseAll() {
-        AppServices.downloadRepository.allTasks().first().forEach {
-            if (it.state == DownloadState.DOWNLOADING) AppServices.downloadEngine.pause(it.id)
+        AppServices.downloadRepository.allTasks().first().forEach { task ->
+            if (task.state == DownloadState.DOWNLOADING) {
+                if (task.flags and DownloadTaskFlags.HLS != 0) {
+                    if (hlsTaskId == task.id) {
+                        HlsDownloader.cancel()
+                        hlsJob?.cancel()
+                    }
+                    AppServices.downloadRepository.setState(task.id, DownloadState.PAUSED)
+                } else {
+                    AppServices.downloadEngine.pause(task.id)
+                }
+            }
         }
         kotlinx.coroutines.delay(1200)
         maybeStopIdle()
@@ -340,8 +394,14 @@ class DownloadService : Service() {
 
     private suspend fun resumeAll() {
         if (blockedByNetwork()) return
-        AppServices.downloadRepository.allTasks().first().forEach {
-            if (it.state == DownloadState.PAUSED) AppServices.downloadEngine.start(it.id)
+        AppServices.downloadRepository.allTasks().first().forEach { task ->
+            if (task.state == DownloadState.PAUSED) {
+                if (task.flags and DownloadTaskFlags.HLS != 0) {
+                    restartHlsTask(task)
+                } else {
+                    AppServices.downloadEngine.start(task.id)
+                }
+            }
         }
     }
 
@@ -351,6 +411,11 @@ class DownloadService : Service() {
             // 只恢复被中断的任务；新下载由 onStartCommand 创建，不能在这里提前停服务。
             val interrupted = AppServices.downloadRepository.allTasks().first()
                 .firstOrNull { it.state == DownloadState.DOWNLOADING } ?: return@launch
+            // HLS 任务没有断点信息，重启后置为暂停，由用户手动继续（从头重下）。
+            if (interrupted.flags and DownloadTaskFlags.HLS != 0) {
+                AppServices.downloadRepository.setState(interrupted.id, DownloadState.PAUSED)
+                return@launch
+            }
             activeTaskId = interrupted.id
             activeChunks = interrupted.chunks
             AppServices.downloadEngine.start(interrupted.id)

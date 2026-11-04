@@ -57,4 +57,7 @@ object DownloadTaskFlags {
 
     /** 服务器不支持 Range：总大小已知但只能单连接顺序下载。 */
     const val NO_RANGE = 1 shl 2
+
+    /** HLS（m3u8 合并）任务：暂停/续传走 HLS 专用路径。 */
+    const val HLS = 1 shl 3
 }
