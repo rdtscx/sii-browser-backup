@@ -87,6 +87,17 @@
             android:visibility="gone" />
 
         <ImageButton
+            android:id="@+id/player_rotate"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_rotate"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_player_rotate"
+            android:tint="#FFFFFFFF" />
+
+        <ImageButton
             android:id="@+id/player_download"
             android:layout_width="40dp"
             android:layout_height="40dp"

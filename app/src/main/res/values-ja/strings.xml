@@ -181,6 +181,7 @@
     <string name="sniff_prompt_found">動画を検出しました</string>
     <string name="sniff_prompt_close">閉じる</string>
     <string name="player_play_failed">このプレーヤーでは再生できません。ダウンロードして再生してください</string>
+    <string name="player_rotate">画面を回転</string>
     <string name="player_volume">音量 %1$d%%</string>
     <string name="player_brightness">明るさ %1$d%%</string>
     <string name="player_prev">前の動画</string>

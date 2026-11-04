@@ -3,6 +3,8 @@
 package com.sii.browser.ui
 
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
@@ -11,8 +13,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -153,6 +159,9 @@ class PlayerFragment : Fragment() {
             if (position < items.size - 1) load(position + 1)
         }
         view.findViewById<View>(R.id.player_download).setOnClickListener { download() }
+        view.findViewById<View>(R.id.player_rotate).setOnClickListener { toggleOrientation() }
+        tuneController(playerView)
+        applyImmersive()
         load(position)
 
         requireActivity().onBackPressedDispatcher.addCallback(
@@ -222,6 +231,56 @@ class PlayerFragment : Fragment() {
         else "%02d:%02d".format(minutes, seconds)
     }
 
+    /**
+     * 默认控制器的两处修正：去掉全屏 60% 黑遮罩（点一下不再变暗），
+     * 把正中间的播放/快进按钮移到底部条里，不再挡住画面。
+     */
+    private fun tuneController(playerView: PlayerView) {
+        playerView.findViewById<View>(androidx.media3.ui.R.id.exo_controls_background)
+            ?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        val center = playerView.findViewById<View>(androidx.media3.ui.R.id.exo_center_controls)
+        val bottom = playerView.findViewById<FrameLayout>(androidx.media3.ui.R.id.exo_bottom_bar)
+        val parent = center?.parent as? ViewGroup
+        if (center != null && bottom != null && parent != null) {
+            parent.removeView(center)
+            bottom.addView(
+                center,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.CENTER_HORIZONTAL
+                )
+            )
+        }
+    }
+
+    private fun toggleOrientation() {
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        requireActivity().requestedOrientation = if (landscape) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
+    /** 横屏时隐藏系统栏，竖屏恢复；方向按钮与设备旋转都走这里。 */
+    private fun applyImmersive() {
+        val window = activity?.window ?: return
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyImmersive()
+    }
+
     private fun httpDataSourceFactory(res: SniffedResource): DefaultHttpDataSource.Factory {
         val cookie = runCatching {
             android.webkit.CookieManager.getInstance().getCookie(res.url)
@@ -274,6 +333,11 @@ class PlayerFragment : Fragment() {
         player = null
         dim = null
         osd = null
+        activity?.window?.let { window ->
+            WindowCompat.getInsetsController(window, window.decorView)
+                .show(WindowInsetsCompat.Type.systemBars())
+        }
+        (activity as? ShellActivity)?.applyOrientation()
         super.onDestroyView()
     }
 
