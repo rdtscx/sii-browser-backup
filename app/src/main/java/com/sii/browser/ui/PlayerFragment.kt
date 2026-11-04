@@ -5,6 +5,7 @@ package com.sii.browser.ui
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
@@ -14,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
@@ -23,6 +25,7 @@ import androidx.fragment.app.Fragment
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -52,6 +55,10 @@ class PlayerFragment : Fragment() {
     private var dim: View? = null
     private var osd: TextView? = null
     private var topBar: View? = null
+    private var speedToggle: TextView? = null
+
+    /** 齿轮里最近选过的非原速倍速；切换按钮在它与 1x 之间切换。 */
+    private var toggleSpeed = 2f
     private lateinit var audio: AudioManager
 
     /** 画面亮度 0.02..1，通过黑色遮罩实现，不改系统亮度。 */
@@ -99,6 +106,10 @@ class PlayerFragment : Fragment() {
                     R.string.player_play_failed,
                     Toast.LENGTH_SHORT
                 ).show()
+            }
+            override fun onPlaybackParametersChanged(params: PlaybackParameters) {
+                if (kotlin.math.abs(params.speed - 1f) > 0.01f) toggleSpeed = params.speed
+                updateSpeedToggle()
             }
         })
 
@@ -169,6 +180,7 @@ class PlayerFragment : Fragment() {
             }
         )
         tuneController(playerView)
+        addSpeedToggle(playerView)
         applyImmersive()
         load(position)
 
@@ -271,6 +283,43 @@ class PlayerFragment : Fragment() {
         }
     }
 
+    /** 齿轮左边加一个倍速开关：在齿轮里选中的倍速与 1x 之间切换。 */
+    private fun addSpeedToggle(playerView: PlayerView) {
+        val basic = playerView.findViewById<LinearLayout>(androidx.media3.ui.R.id.exo_basic_controls)
+            ?: return
+        val toggle = TextView(requireContext()).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0)
+            setTextSize(13f)
+            setTextColor(Color.WHITE)
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            setOnClickListener { togglePlaybackSpeed() }
+        }
+        basic.addView(toggle, 0)
+        speedToggle = toggle
+        updateSpeedToggle()
+    }
+
+    private fun togglePlaybackSpeed() {
+        val p = player ?: return
+        val target = if (kotlin.math.abs(p.playbackParameters.speed - 1f) < 0.01f) toggleSpeed else 1f
+        p.setPlaybackSpeed(target)
+        updateSpeedToggle()
+    }
+
+    private fun updateSpeedToggle() {
+        speedToggle?.text = speedLabel(player?.playbackParameters?.speed ?: 1f)
+    }
+
+    private fun speedLabel(speed: Float): String {
+        val hundredths = (speed * 100).roundToInt()
+        return if (hundredths % 10 == 0) "%.1fx".format(speed) else "%.2fx".format(speed)
+    }
+
     private fun toggleOrientation() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         requireActivity().requestedOrientation = if (landscape) {
@@ -351,6 +400,7 @@ class PlayerFragment : Fragment() {
         dim = null
         osd = null
         topBar = null
+        speedToggle = null
         activity?.window?.let { window ->
             WindowCompat.getInsetsController(window, window.decorView)
                 .show(WindowInsetsCompat.Type.systemBars())

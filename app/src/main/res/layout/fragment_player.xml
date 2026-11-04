@@ -64,6 +64,16 @@
             android:src="@drawable/ic_back"
             android:tint="#FFFFFFFF" />
 
+        <TextView
+            android:id="@+id/player_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/player_next"
             android:layout_width="40dp"
@@ -75,16 +85,6 @@
             android:scaleX="-1"
             android:src="@drawable/ic_back"
             android:tint="#FFFFFFFF" />
-
-        <TextView
-            android:id="@+id/player_count"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="4dp"
-            android:paddingEnd="8dp"
-            android:textColor="#B3FFFFFF"
-            android:textSize="13sp"
-            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/player_rotate"
