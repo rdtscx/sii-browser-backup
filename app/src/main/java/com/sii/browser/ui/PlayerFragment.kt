@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.Toast
@@ -302,42 +303,25 @@ class PlayerFragment : Fragment() {
                     (button.parent as? ViewGroup)?.removeView(button)
                 }
             }
-            // 只缩小（52dp→44dp），位置保持原来的居中。
-            val size = dp(44)
-            for (i in 0 until center.childCount) {
-                val child = center.getChildAt(i)
-                child.layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                }
+            // 快退/快进改成自绘的 44dp 圆环按钮：图标用 Media3 的圆环矢量，
+            // 数字是独立 TextView，圆心与画布中心重合，不会再偏。
+            var seekIndex = 0
+            val children = (0 until center.childCount).map { center.getChildAt(it) }
+            children.forEach { child ->
                 if (child is ViewGroup) {
-                    for (j in 0 until child.childCount) {
-                        val inner = child.getChildAt(j)
-                        inner.layoutParams = FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        if (inner is TextView) {
-                            // 原数字隐藏（不清文本，避免 Media3 刷新又写回），叠一个居中的数字。
-                            inner.setTextColor(Color.TRANSPARENT)
-                            child.post {
-                                val label = inner.text?.toString().orEmpty()
-                                if (label.isEmpty()) return@post
-                                val overlay = TextView(requireContext()).apply {
-                                    layoutParams = FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                    gravity = android.view.Gravity.CENTER
-                                    text = label
-                                    setTextSize(10f)
-                                    setTextColor(Color.WHITE)
-                                    includeFontPadding = false
-                                    isClickable = false
-                                    isFocusable = false
-                                }
-                                child.addView(overlay)
-                            }
-                        }
+                    val index = center.indexOfChild(child)
+                    val rewind = seekIndex == 0
+                    center.removeViewAt(index)
+                    center.addView(
+                        buildSeekButton(if (rewind) "5" else "15", mirror = !rewind) {
+                            seekBy(if (rewind) -5_000L else 15_000L)
+                        },
+                        index
+                    )
+                    seekIndex++
+                } else {
+                    child.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                        gravity = android.view.Gravity.CENTER_VERTICAL
                     }
                 }
             }
@@ -533,6 +517,56 @@ class PlayerFragment : Fragment() {
                     .build()
             }
         }
+    }
+
+    /** 自绘的快退/快进按钮：44dp 圆环 + 居中数字。前进方向把图标水平镜像。 */
+    private fun buildSeekButton(label: String, mirror: Boolean, onClick: () -> Unit): View {
+        val context = requireContext()
+        val icon = ImageView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setImageResource(androidx.media3.ui.R.drawable.exo_ic_rewind)
+            imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            val pad = dp(4)
+            setPadding(pad, pad, pad, pad)
+            if (mirror) scaleX = -1f
+        }
+        val number = TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = android.view.Gravity.CENTER
+            text = label
+            setTextSize(10f)
+            setTextColor(Color.WHITE)
+            includeFontPadding = false
+        }
+        return FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            addView(icon)
+            addView(number)
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun seekBy(deltaMs: Long) {
+        val p = player ?: return
+        val duration = p.duration
+        if (duration <= 0L) return
+        val target = (p.currentPosition + deltaMs).coerceIn(0L, duration)
+        p.seekTo(target)
+        showOsdProgress(
+            formatTime(target) + " / " + formatTime(duration),
+            target.toFloat() / duration
+        )
+        scheduleHideOsd()
     }
 
     private fun toggleOrientation() {
