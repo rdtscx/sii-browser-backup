@@ -1228,7 +1228,7 @@ class DevToolsPanel(
             setOnClickListener {
                 PageRequests.clear(wv)
                 networkSelected = -1
-                renderNetwork()
+                render()
             }
         })
         content.addView(bar)
@@ -1239,7 +1239,7 @@ class DevToolsPanel(
             filters.addView(chip(label, networkFilter == key) {
                 networkFilter = key
                 networkSelected = -1
-                renderNetwork()
+                render()
             })
         }
 
@@ -1266,7 +1266,7 @@ class DevToolsPanel(
                 )
                 setOnClickListener {
                     networkSelected = if (networkSelected == i) -1 else i
-                    renderNetwork()
+                    render()
                 }
             })
         }
