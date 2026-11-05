@@ -13,7 +13,7 @@ import org.json.JSONObject
  */
 object DouyinLinks {
 
-    data class Detected(val id: String?, val shortCode: String?)
+    data class Detected(val id: String?, val shortCode: String?, val raw: String)
 
     data class Result(
         val desc: String,
@@ -32,9 +32,9 @@ object DouyinLinks {
     fun detect(raw: String): Detected? {
         val text = raw.trim()
         if (text.isEmpty()) return null
-        schemeRegex.find(text)?.let { return Detected(it.groupValues[1], null) }
-        shareRegex.find(text)?.let { return Detected(it.groupValues[1], null) }
-        shortRegex.find(text)?.let { return Detected(null, it.groupValues[1]) }
+        schemeRegex.find(text)?.let { return Detected(it.groupValues[1], null, text) }
+        shareRegex.find(text)?.let { return Detected(it.groupValues[1], null, text) }
+        shortRegex.find(text)?.let { return Detected(null, it.groupValues[1], text) }
         return null
     }
 

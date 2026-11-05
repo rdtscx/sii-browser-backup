@@ -979,8 +979,35 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
     }
 
-    /** 抖音私有 scheme / 短链：转网页、开启嗅探，并尽力直接解析直链。 */
+    /** 抖音链接：先让用户选在 Sii 里尝试，还是交给抖音 App。 */
     private fun openDouyin(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle("抖音链接")
+            .setMessage(
+                "抖音网页版限制了播放与下载，在 Sii 里通常只能嗅探到图片。\n" +
+                    "要试着在 Sii 里打开吗？"
+            )
+            .setPositiveButton("在 Sii 中打开") { _, _ -> openDouyinInternal(detected) }
+            .setNeutralButton("在抖音中打开") { _, _ ->
+                val uri = when {
+                    detected.id != null -> "snssdk1128://aweme/detail/${detected.id}"
+                    detected.shortCode != null ->
+                        com.sii.browser.core.webview.DouyinLinks.shortUrl(detected.shortCode)
+                    else -> detected.raw
+                }
+                runCatching {
+                    startActivity(android.content.Intent(
+                        android.content.Intent.ACTION_VIEW, android.net.Uri.parse(uri)
+                    ))
+                }.onFailure {
+                    Toast.makeText(requireContext(), "没有可用的抖音 App", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun openDouyinInternal(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
         setSiteSniffEnabled("www.iesdouyin.com", true)
         setSiteSniffEnabled("douyin.com", true)
         val id = detected.id
