@@ -422,8 +422,38 @@ class DevToolsPanel(
             setTextIsSelectable(true)
             text = picked?.let { formatPicked(it) } ?: "点选页面元素或点树节点查看详情"
         }
-        content.addView(
+        val detailWrap = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        detailWrap.addView(
             ScrollView(context).apply { addView(detail) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+        val actions = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(8), dp(6))
+        }
+        actions.addView(Button(context).apply {
+            text = "属性"
+            setTextSize(11f)
+            isEnabled = picked != null
+            setOnClickListener { editAttributes() }
+        })
+        actions.addView(Button(context).apply {
+            text = "样式"
+            setTextSize(11f)
+            isEnabled = picked != null
+            setOnClickListener { editStyles() }
+        })
+        actions.addView(Button(context).apply {
+            text = "取消高亮"
+            setTextSize(11f)
+            setOnClickListener { clearHighlight() }
+        })
+        detailWrap.addView(actions)
+        content.addView(
+            detailWrap,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f)
         )
     }
@@ -553,6 +583,98 @@ class DevToolsPanel(
             "e.style.outline='2px solid #2F7CF6';e.style.outlineOffset='1px';" +
             "e.scrollIntoView({block:'center'});return 1;}catch(x){return 0}})()"
         webViewProvider()?.evaluateJavascript(script, null)
+    }
+
+    private fun clearHighlight() {
+        val p = picked ?: return
+        val q = JSONObject.quote(p.optString("selector"))
+        webViewProvider()?.evaluateJavascript(
+            "(function(){try{var e=document.querySelector($q);if(e){e.style.outline='';}return 1;}catch(x){return 0}})()",
+            null
+        )
+    }
+
+    private fun editAttributes() {
+        val p = picked ?: return
+        val idField = EditText(context).apply { hint = "id"; setText(p.optString("id")) }
+        val clsField = EditText(context).apply { hint = "class"; setText(p.optString("cls")) }
+        val textField = EditText(context).apply { hint = "文本内容（留空不改）" }
+        val box = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), 0)
+            addView(idField)
+            addView(clsField)
+            addView(textField)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle("<${p.optString("tag")}> 属性")
+            .setView(box)
+            .setPositiveButton("应用") { _, _ ->
+                applyAttributes(
+                    p.optString("selector"),
+                    idField.text.toString(),
+                    clsField.text.toString(),
+                    textField.text.toString()
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun applyAttributes(selector: String, id: String, cls: String, textValue: String) {
+        val q = JSONObject.quote(selector)
+        val script = "(function(){try{var e=document.querySelector($q);if(!e)return 0;" +
+            "e.id=" + JSONObject.quote(id) + ";" +
+            "e.className=" + JSONObject.quote(cls) + ";" +
+            (if (textValue.isBlank()) "" else "e.textContent=" + JSONObject.quote(textValue) + ";") +
+            "return 1;}catch(x){return 0}})()"
+        applyAndRefresh(script)
+    }
+
+    private fun editStyles() {
+        val p = picked ?: return
+        val field = EditText(context).apply {
+            hint = "每行一条，例如：\ncolor: #ff0000\ndisplay: none\npadding: 8px"
+            setTextSize(12f)
+            minLines = 4
+            maxLines = 8
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle("<${p.optString("tag")}> 样式（内联）")
+            .setView(field)
+            .setPositiveButton("应用") { _, _ ->
+                val pairs = field.text.toString().lines().mapNotNull { line ->
+                    val idx = line.indexOf(':')
+                    if (idx <= 0) return@mapNotNull null
+                    val key = line.substring(0, idx).trim()
+                    val value = line.substring(idx + 1).trim()
+                    if (key.isEmpty() || value.isEmpty()) null else key to value
+                }
+                if (pairs.isEmpty()) return@setPositiveButton
+                val calls = pairs.joinToString("") { (k, v) ->
+                    "e.style.setProperty(" + JSONObject.quote(k) + "," + JSONObject.quote(v) + ");"
+                }
+                val q = JSONObject.quote(p.optString("selector"))
+                applyAndRefresh(
+                    "(function(){try{var e=document.querySelector($q);if(!e)return 0;$calls" +
+                        "return 1;}catch(x){return 0}})()"
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun applyAndRefresh(script: String) {
+        webViewProvider()?.evaluateJavascript(script) { result ->
+            if (!isShowing) return@evaluateJavascript
+            if (result?.trim() == "1") {
+                android.widget.Toast.makeText(context, "已应用", android.widget.Toast.LENGTH_SHORT).show()
+                loadTree()
+            } else {
+                android.widget.Toast.makeText(context, "未找到元素", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     // --- 网络 ---
