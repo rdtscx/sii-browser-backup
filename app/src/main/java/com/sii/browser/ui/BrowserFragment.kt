@@ -6464,6 +6464,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             view?.findViewById<View>(R.id.address_bar) ?: input,
             minWidthDp = 320,
             cornerRadiusDp = { if (AppServices.settings.uiStyle() == 1) 28 else 22 },
+            frosted = { AppServices.settings.homeFrosted() },
             fillAlpha = {
                 255 - AppServices.settings.homeSearchTransparency().coerceIn(0, 100) * 255 / 100
             }
@@ -10426,9 +10427,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 outline.setRoundRect(0, 0, view.width, view.height, dp(28).toFloat())
             }
         }
-        dock.elevation = if (AppServices.settings.homeShadow() &&
-            AppServices.settings.homeShadowDock()
-        ) dp(12).toFloat() else 0f
+        dock.elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
         addressHost.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
         address.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -10856,9 +10855,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val dock = view?.findViewById<LinearLayout>(R.id.modern_chrome) ?: return
         val night = AppServices.settings.isNightMode()
         val strength = AppServices.settings.glassStrength()
-        val dockAlpha = AppServices.settings.dockBgAlpha().coerceIn(0, 100)
-        val showBackground = dockAlpha > 0
-        val bgAlpha = dockAlpha * 255 / 100
         val radius = dp(28).toFloat()
         // 进度用胶囊本身的背景表达：一层从左往右裁剪的主色，插在填充与高光之间。
         val accent = ThemeAccent.color(requireContext())
@@ -10875,15 +10871,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 主页上底栏与搜索框/常用网站同一套材质；网页页仍是玻璃（需透出网页内容）。
         val onHome = homeContainer?.visibility == View.VISIBLE
         dock.background = when {
-            !showBackground -> GlassStyle.surface(
-                requireContext(), night, radius, strength,
-                highlight = 0f,
-                shade = 0f,
-                strokeOverride = android.graphics.Color.TRANSPARENT,
-                overlay = clip,
-                // 关背景色：只留图标与进度填充。
-                fillOverride = android.graphics.Color.TRANSPARENT
-            )
             onHome && frosted ->
                 GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
             onHome -> GlassStyle.surface(
@@ -10892,10 +10879,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 shade = 0f,
                 strokeOverride = if (night) 0x1FFFFFFF else 0x14000000,
                 overlay = clip,
-                // 实心卡：与搜索框/常用网站卡片同底色、同一描边，填充跟随透明度。
-                fillOverride = androidx.core.graphics.ColorUtils.setAlphaComponent(
-                    dockBaseColor() ?: requireContext().getColor(R.color.card), bgAlpha
-                )
+                // 实心卡：与搜索框/常用网站卡片同底色、同一描边。
+                fillOverride = dockBaseColor() ?: requireContext().getColor(R.color.card)
             )
             else -> GlassStyle.surface(
                 requireContext(), night, radius, strength,
@@ -10904,15 +10889,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 highlight = 0f,
                 shade = 0.03f,
                 strokeOverride = if (night) 0x2AFFFFFF else 0x1C000000,
-                overlay = clip,
-                // 网页页玻璃：填充再乘上透明度滑竿的值。
-                fillOverride = androidx.core.graphics.ColorUtils.setAlphaComponent(
-                    GlassStyle.fill(
-                        requireContext(), night, strength,
-                        GlassStyle.DOCK_GLASS_MIN_ALPHA, dockBaseColor()
-                    ),
-                    bgAlpha
-                )
+                overlay = clip
             )
         }
         val layer = dock.background as? android.graphics.drawable.LayerDrawable

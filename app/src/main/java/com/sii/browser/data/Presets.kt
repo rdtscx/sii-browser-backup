@@ -50,7 +50,6 @@ object Presets {
                 settings.setHomeShadow(true)
                 settings.setHomeShadowSearch(true)
                 settings.setHomeShadowGrid(true)
-                settings.setHomeShadowDock(true)
                 settings.setHomeLogoMode(1)
                 settings.setHomeSearchRadius(3)
                 settings.setHomeSearchRadiusCustom(28)

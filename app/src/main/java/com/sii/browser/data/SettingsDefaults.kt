@@ -96,7 +96,6 @@ object SettingsDefaults {
     const val HOME_SHADOW = true
     const val HOME_SHADOW_SEARCH = true
     const val HOME_SHADOW_GRID = true
-    const val HOME_SHADOW_DOCK = true
     const val HOME_GRID_ALPHA = 100
 
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
@@ -225,10 +224,6 @@ object SettingsDefaults {
 
     /** 玻璃质感强度：0 不透明 → 100 最通透。 */
     const val GLASS_STRENGTH = 40
-
-    /** 悬浮工具栏背景色（关闭后胶囊只剩图标与进度）。 */
-    const val DOCK_BACKGROUND = true
-    const val DOCK_BG_ALPHA = 100
 
     /** 看大图（网页自绘图片查看器）时自动隐藏悬浮工具栏。 */
     const val HIDE_CHROME_ON_IMAGE_VIEW = true

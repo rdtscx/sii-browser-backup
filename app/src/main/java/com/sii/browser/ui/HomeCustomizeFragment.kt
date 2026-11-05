@@ -655,7 +655,6 @@ class HomeCustomizeFragment : Fragment() {
                     settings.setHomeFrosted(false)
                     settings.setHomeShadowSearch(true)
                     settings.setHomeShadowGrid(true)
-                    settings.setHomeShadowDock(true)
                 }
                 refreshPreview()
                 view?.post { buildControls() }
@@ -787,15 +786,6 @@ class HomeCustomizeFragment : Fragment() {
         rows.add(switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
             settings.setToolbarAutoHide(it)
         })
-        val dockAlphaRow = sliderRow(
-            "悬浮工具栏背景透明度", 100 - settings.dockBgAlpha(), 0, 100
-        ) { value ->
-            settings.setDockBgAlpha(100 - value)
-            settings.setHomeShadowDock(false)
-            refreshPreview()
-        }
-        rows.add(dockAlphaRow)
-        if (!modern) disableRow(dockAlphaRow, true)
         val hideOnImageRow = switchRow(
             "看图时隐藏工具栏",
             settings.hideChromeOnImageView()

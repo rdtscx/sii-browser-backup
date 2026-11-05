@@ -1302,16 +1302,6 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeGridAlpha(value: Int) =
         putInt(SettingsKeys.HOME_GRID_ALPHA, value.coerceIn(0, 100))
 
-    override fun dockBgAlpha(): Int {
-        if (!cache.containsKey(SettingsKeys.DOCK_BG_ALPHA) &&
-            !bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)
-        ) return 0
-        return int(SettingsKeys.DOCK_BG_ALPHA, SettingsDefaults.DOCK_BG_ALPHA).coerceIn(0, 100)
-    }
-
-    override fun setDockBgAlpha(value: Int) =
-        putInt(SettingsKeys.DOCK_BG_ALPHA, value.coerceIn(0, 100))
-
     override fun homeFrosted(): Boolean =
         bool(SettingsKeys.HOME_FROSTED, SettingsDefaults.HOME_FROSTED)
 
@@ -1336,12 +1326,6 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeShadowGrid(value: Boolean) =
         putBool(SettingsKeys.HOME_SHADOW_GRID, value)
 
-    override fun homeShadowDock(): Boolean =
-        bool(SettingsKeys.HOME_SHADOW_DOCK, true)
-
-    override fun setHomeShadowDock(value: Boolean) =
-        putBool(SettingsKeys.HOME_SHADOW_DOCK, value)
-
     override fun homeSearchTransparency(): Int =
         int(
             SettingsKeys.HOME_SEARCH_TRANSPARENCY,
@@ -1350,12 +1334,6 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setHomeSearchTransparency(value: Int) =
         putInt(SettingsKeys.HOME_SEARCH_TRANSPARENCY, value.coerceIn(0, 100))
-
-    override fun dockBackground(): Boolean =
-        bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)
-
-    override fun setDockBackground(value: Boolean) =
-        putBool(SettingsKeys.DOCK_BACKGROUND, value)
 
     override fun hideChromeOnImageView(): Boolean =
         bool(
