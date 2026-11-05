@@ -66,8 +66,6 @@ class DevToolsPanel(
     private var picked: JSONObject? = null
     private var pickerOn = false
     private var elementsQuery = ""
-    private var bridgeAttached = false
-    private var bridgedWebView: SiiWebView? = null
 
     val isShowing: Boolean get() = host.visibility == View.VISIBLE
 
@@ -76,7 +74,6 @@ class DevToolsPanel(
         if (!built) build()
         host.visibility = View.VISIBLE
         applyHeight()
-        attachBridge()
         if (!AppServices.settings.jsConsoleLog()) AppServices.settings.setJsConsoleLog(true)
         JsConsoleStore.onChange = { host.post { if (currentTab == 0) renderConsoleList() } }
         renderTabs()
@@ -87,7 +84,7 @@ class DevToolsPanel(
         if (!isShowing) return
         JsConsoleStore.onChange = null
         if (pickerOn) setPicker(false)
-        detachBridge()
+        host.removeCallbacks(pickPoller)
         host.removeAllViews()
         host.visibility = View.GONE
         built = false
@@ -101,11 +98,12 @@ class DevToolsPanel(
     /** 切标签后重新把拾取桥接到当前 WebView。 */
     fun onWebViewChanged() {
         if (!isShowing) return
-        attachBridge()
         if (pickerOn) {
             val wv = webViewProvider() ?: return
             wv.evaluateJavascript(PICK_INIT, null)
             wv.evaluateJavascript("window.__siiPickOn=true", null)
+            host.removeCallbacks(pickPoller)
+            host.post(pickPoller)
         }
     }
 
@@ -982,26 +980,34 @@ class DevToolsPanel(
         val wv = webViewProvider() ?: return
         pickerOn = on
         if (on) {
-            // 强制重新接桥到当前 WebView，避免面板打开时缓存的是旧标签。
-            attachBridge()
             heightPercent = 35
             applyHeight()
+            wv.evaluateJavascript("window.__siiPicked=''", null)
             wv.evaluateJavascript(PICK_INIT, null)
             wv.evaluateJavascript("window.__siiPickOn=true", null)
-            wv.evaluateJavascript("(function(){return typeof window.SiiDevToolsPick})()") { r ->
-                if (!r.orEmpty().contains("object")) {
-                    android.widget.Toast.makeText(
-                        context, "拾取桥未就绪，请收起后重开面板",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
+            host.removeCallbacks(pickPoller)
+            host.post(pickPoller)
         } else {
             wv.evaluateJavascript("try{window.__siiPickOff&&window.__siiPickOff()}catch(e){}", null)
+            host.removeCallbacks(pickPoller)
             heightPercent = 55
             applyHeight()
         }
         if (currentTab == 1) render()
+    }
+
+    /** 页面已加载时 addJavascriptInterface 不生效，改用轮询读取选中的元素。 */
+    private val pickPoller = object : Runnable {
+        override fun run() {
+            if (!isShowing || !pickerOn) return
+            val wv = webViewProvider() ?: return
+            wv.evaluateJavascript(
+                "(function(){var v=window.__siiPicked;window.__siiPicked='';return v||'';})()"
+            ) { raw ->
+                val json = unquote(raw)
+                if (json.isNotBlank()) onPicked(json) else host.postDelayed(this, 250)
+            }
+        }
     }
 
     private fun onPicked(json: String) {
@@ -1015,29 +1021,6 @@ class DevToolsPanel(
         currentTab = 1
         renderTabs()
         render()
-    }
-
-    private fun attachBridge() {
-        val wv = webViewProvider() ?: return
-        if (bridgeAttached && bridgedWebView === wv) return
-        detachBridge()
-        wv.addJavascriptInterface(PickBridge(), "SiiDevToolsPick")
-        bridgedWebView = wv
-        bridgeAttached = true
-    }
-
-    private fun detachBridge() {
-        if (!bridgeAttached) return
-        runCatching { bridgedWebView?.removeJavascriptInterface("SiiDevToolsPick") }
-        bridgedWebView = null
-        bridgeAttached = false
-    }
-
-    inner class PickBridge {
-        @android.webkit.JavascriptInterface
-        fun picked(json: String) {
-            host.post { onPicked(json) }
-        }
     }
 
     // --- 通用 ---
@@ -1101,7 +1084,7 @@ class DevToolsPanel(
 
     private companion object {
         val PICK_INIT = "(function(){" +
-            "if(window.__siiPickInit)return 'OK';window.__siiPickInit=true;window.__siiPickOn=false;" +
+            "if(window.__siiPickInit2)return 'OK';window.__siiPickInit2=true;window.__siiPickOn=false;" +
             "var lastEl=null,lastOutline='';" +
             "function sel(el){if(el.id)return '#'+CSS.escape(el.id);var parts=[];" +
             "while(el&&el.nodeType===1&&parts.length<5){var p=el.nodeName.toLowerCase();" +
@@ -1125,7 +1108,7 @@ class DevToolsPanel(
             "document.addEventListener('click',function(e){if(!window.__siiPickOn)return;" +
             "e.preventDefault();e.stopPropagation();var el=e.target;window.__siiPickOn=false;" +
             "lastEl=el;lastOutline='';el.style.outline='2px solid #2F7CF6';" +
-            "try{window.SiiDevToolsPick.picked(info(el))}catch(err){}return false;},true);" +
+            "window.__siiPicked=info(el);return false;},true);" +
             "return 'OK';})()"
     }
 }
