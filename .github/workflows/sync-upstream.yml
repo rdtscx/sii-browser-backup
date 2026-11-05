@@ -1,0 +1,90 @@
+name: sync-upstream
+
+# 每天 08:00（北京时间 = UTC+8）检查上游 wanwuwww/Sii
+# GitHub 的 cron 用 UTC，所以写 0 0 * * *
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: wanwuwww/Sii
+  UPSTREAM_BRANCH: main
+
+jobs:
+  mirror-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        id: upstream
+        run: |
+          git config user.name "sii-backup-bot"
+          git config user.email "sii-backup-bot@users.noreply.github.com"
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+          echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Mirror files add-only
+        run: |
+          # 只覆盖与新增，不删除：上游删掉的文件在本仓库继续保留
+          git checkout "${{ steps.upstream.outputs.sha }}" -- . ':(exclude).github'
+          # GITHUB_TOKEN 不允许改写 workflow 文件，命中就中止而不是让推送失败
+          if git diff --cached --name-only | grep -q '^\.github/'; then
+            echo "上游改动了 .github/ 下的文件，已跳过" >&2
+            exit 1
+          fi
+          git diff --cached --quiet || git commit -m "sync: ${UPSTREAM_REPO}@$(git rev-parse --short ${{ steps.upstream.outputs.sha }})"
+
+      - name: Push mirrored files
+        run: git push origin "HEAD:main"
+
+      - name: Mirror tags add-only
+        run: |
+          git fetch --tags upstream
+          git ls-remote --tags origin | cut -f2 > /tmp/remote-tags
+          for tag in $(git tag); do
+            grep -qx "refs/tags/${tag}" /tmp/remote-tags || git push origin "refs/tags/${tag}"
+          done
+
+  mirror-releases:
+    needs: mirror-code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror releases and APK assets add-only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          up="${UPSTREAM_REPO}"
+          ours="${GITHUB_REPOSITORY}"
+          tmp="$(mktemp -d)"
+          tags="$(gh api "repos/${up}/releases" --paginate --jq '.[] | select(.draft == false) | .tag_name')"
+          for tag in ${tags}; do
+            echo "== ${tag}"
+            if ! gh release view "${tag}" --repo "${ours}" > /dev/null 2>&1; then
+              gh release view "${tag}" --repo "${up}" --json body --jq '.body // ""' > "${tmp}/body.md"
+              title="$(gh release view "${tag}" --repo "${up}" --json name --jq '.name // ""')"
+              [ -n "${title}" ] || title="${tag}"
+              gh release create "${tag}" --repo "${ours}" --title "${title}" --notes-file "${tmp}/body.md" --verify-tag
+            fi
+            ours_assets="$(gh release view "${tag}" --repo "${ours}" --json assets --jq '.assets[].name')"
+            up_assets="$(gh release view "${tag}" --repo "${up}" --json assets --jq '.assets[].name')"
+            for name in ${up_assets}; do
+              if printf '%s\n' "${ours_assets}" | grep -qxF "${name}"; then
+                continue
+              fi
+              gh release download "${tag}" --repo "${up}" --pattern "${name}" --dir "${tmp}/dl"
+              gh release upload "${tag}" "${tmp}/dl/${name}" --repo "${ours}"
+            done
+          done
