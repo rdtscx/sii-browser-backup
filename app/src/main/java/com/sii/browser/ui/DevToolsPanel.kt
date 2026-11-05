@@ -67,12 +67,16 @@ class DevToolsPanel(
     private var pickerOn = false
     private var elementsQuery = ""
     private var searchRunnable: Runnable? = null
+    private data class OverrideRule(val selector: String, val props: List<Pair<String, String>>)
+    private val overrideRules = mutableListOf<OverrideRule>()
 
     val isShowing: Boolean get() = host.visibility == View.VISIBLE
 
     fun show() {
         if (isShowing) return
         if (!built) build()
+        currentTab = lastTab
+        heightPercent = lastHeight
         host.visibility = View.VISIBLE
         applyHeight()
         if (!AppServices.settings.jsConsoleLog()) AppServices.settings.setJsConsoleLog(true)
@@ -192,6 +196,7 @@ class DevToolsPanel(
                 setPadding(dp(12), dp(8), dp(12), dp(8))
                 setOnClickListener {
                     currentTab = index
+                    lastTab = index
                     renderTabs()
                     render()
                 }
@@ -254,6 +259,7 @@ class DevToolsPanel(
             return
         }
         heightRetry = 0
+        lastHeight = heightPercent
         val h = (host.height * heightPercent / 100f).toInt().coerceAtLeast(dp(180))
         panel.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, h, Gravity.BOTTOM
@@ -302,6 +308,21 @@ class DevToolsPanel(
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             )
             bar.addView(Button(context).apply {
+                text = "复制全部"
+                setTextSize(11f)
+                setOnClickListener {
+                    val text = JsConsoleStore.snapshot().joinToString("\n") { e ->
+                        val t = android.text.format.DateFormat.format("HH:mm:ss", e.time)
+                        "$t [${e.level}] ${e.message}"
+                    }
+                    if (text.isBlank()) {
+                        android.widget.Toast.makeText(context, "暂无日志", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        copy(text)
+                    }
+                }
+            })
+            bar.addView(Button(context).apply {
                 text = "清空"
                 setTextSize(11f)
                 setOnClickListener { JsConsoleStore.clear(); renderConsoleList() }
@@ -327,12 +348,16 @@ class DevToolsPanel(
                 setSingleLine(true)
                 setTextSize(12f)
             }
+            consoleInput = input
             val run = Button(context).apply {
                 text = "执行"
                 setTextSize(11f)
                 setOnClickListener {
                     val code = input.text.toString().trim()
                     if (code.isEmpty()) return@setOnClickListener
+                    consoleHistory.remove(code)
+                    consoleHistory.add(code)
+                    while (consoleHistory.size > 20) consoleHistory.removeAt(0)
                     webViewProvider()?.let { wv ->
                         JsConsoleStore.add("INPUT", "", 0, code)
                         wv.evaluateJavascript(code) { r ->
@@ -340,6 +365,10 @@ class DevToolsPanel(
                         }
                     }
                     input.setText("")
+                }
+                setOnLongClickListener {
+                    showConsoleHistory()
+                    true
                 }
             }
             content.addView(LinearLayout(context).apply {
@@ -367,19 +396,52 @@ class DevToolsPanel(
             }
     }
 
+    private val consoleHistory = mutableListOf<String>()
+
+    private fun showConsoleHistory() {
+        if (consoleHistory.isEmpty()) {
+            android.widget.Toast.makeText(context, "暂无历史命令", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val items = consoleHistory.reversed().take(20).toTypedArray()
+        android.app.AlertDialog.Builder(context)
+            .setTitle("历史命令")
+            .setItems(items) { _, which ->
+                consoleInput?.setText(items[which])
+                consoleInput?.setSelection(consoleInput?.text?.length ?: 0)
+            }
+            .show()
+    }
+
+    private var consoleInput: EditText? = null
+
     private fun renderConsoleList() {
         val output = consoleOutput ?: return
         val entries = JsConsoleStore.snapshot().filter {
             consoleFilter == "ALL" || it.level.equals(consoleFilter, true)
         }
-        output.text = if (entries.isEmpty()) {
-            "（暂无输出，只记录打开面板之后的信息）"
-        } else {
-            entries.joinToString("\n") { e ->
-                val t = android.text.format.DateFormat.format("HH:mm:ss", e.time)
-                "$t [${e.level}] ${e.message}"
-            }
+        if (entries.isEmpty()) {
+            output.text = "（暂无输出，只记录打开面板之后的信息）"
+            return
         }
+        val sb = android.text.SpannableStringBuilder()
+        entries.forEach { e ->
+            val t = android.text.format.DateFormat.format("HH:mm:ss", e.time)
+            val start = sb.length
+            sb.append(t).append(" [").append(e.level).append("] ").append(e.message).append('\n')
+            val color = when (e.level.uppercase()) {
+                "ERROR" -> 0xFFD32F2F.toInt()
+                "WARNING" -> 0xFFF57C00.toInt()
+                "DEBUG" -> 0xFF757575.toInt()
+                else -> context.getColor(R.color.text_primary)
+            }
+            sb.setSpan(
+                android.text.style.ForegroundColorSpan(color),
+                start, sb.length,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        output.text = sb
         consoleScroll?.post { consoleScroll?.fullScroll(View.FOCUS_DOWN) }
     }
 
@@ -424,7 +486,8 @@ class DevToolsPanel(
             })
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(top)
-        content.addView(hint("点选：在页面上点一下选中元素；搜索：过滤元素树；详情下方可改属性/样式、复制 HTML、加样式覆盖").apply {
+        selectionBar()?.let { content.addView(it) }
+        content.addView(hint("点选：在页面上点一下选中元素；搜索：过滤元素树；详情里点值可复制/改样式").apply {
             setPadding(dp(10), 0, dp(10), dp(4))
         })
 
@@ -445,19 +508,12 @@ class DevToolsPanel(
         )
         renderTreeRows(treeList)
 
-        val detail = TextView(context).apply {
-            typeface = Typeface.MONOSPACE
-            setTextSize(9.5f)
-            setTextColor(context.getColor(R.color.text_primary))
-            setPadding(dp(10), dp(4), dp(10), dp(6))
-            setTextIsSelectable(true)
-            text = picked?.let { formatPicked(it) } ?: "点选页面元素或点树节点查看详情"
-        }
-        val detailWrap = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val detailWrap = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val detailList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val detailScroll = ScrollView(context).apply { addView(detailList) }
+        fillDetailRows(detailList)
         detailWrap.addView(
-            ScrollView(context).apply { addView(detail) },
+            detailScroll,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
         val actions = LinearLayout(context).apply {
@@ -509,38 +565,175 @@ class DevToolsPanel(
             detailWrap,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f)
         )
+        content.addView(overrideList())
     }
 
-    private fun formatPicked(json: JSONObject): String = buildString {
-        append("<").append(json.optString("tag")).append(">")
-        if (json.optString("id").isNotBlank()) append("#").append(json.optString("id"))
-        val cls = json.optString("cls")
-        if (cls.isNotBlank()) append(".").append(cls.replace(' ', '.'))
-        append('\n').append("selector: ").append(json.optString("selector"))
-        val rect = json.optJSONObject("rect")
-        if (rect != null) {
-            append('\n').append("rect: ")
-                .append(rect.optInt("x")).append(", ").append(rect.optInt("y"))
-                .append("  ").append(rect.optInt("w")).append(" × ").append(rect.optInt("h"))
+    private fun selectionBar(): View? {
+        val p = picked ?: return null
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(2), dp(6), dp(2))
+            setBackgroundColor(0x0F2F7CF6)
         }
-        val style = json.optJSONObject("style")
-        if (style != null) {
-            append('\n').append("display: ").append(style.optString("display"))
-            append('\n').append("position: ").append(style.optString("position"))
-            append('\n').append("color: ").append(style.optString("color"))
-            append('\n').append("font-size: ").append(style.optString("fontSize"))
-            append('\n').append("opacity: ").append(style.optString("opacity"))
-            if (style.has("margin")) {
-                append('\n').append("margin: ").append(style.optString("margin"))
-                append('\n').append("padding: ").append(style.optString("padding"))
-                append('\n').append("border: ").append(style.optString("border"))
-                append('\n').append("box: ").append(style.optString("width"))
-                    .append(" × ").append(style.optString("height"))
-                append('\n').append("box-sizing: ").append(style.optString("boxSizing"))
+        val label = TextView(context).apply {
+            text = "当前：<${p.optString("tag")}>" +
+                (if (p.optString("id").isNotBlank()) "#${p.optString("id")}" else "") +
+                (if (p.optString("cls").isNotBlank()) ".${p.optString("cls").substringBefore(' ')}" else "")
+            setTextSize(11f)
+            setTextColor(context.getColor(R.color.text_primary))
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        row.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(TextView(context).apply {
+            text = "×"
+            setTextSize(16f)
+            setPadding(dp(10), dp(2), dp(10), dp(2))
+            setTextColor(context.getColor(R.color.text_secondary))
+            setOnClickListener {
+                picked = null
+                render()
+            }
+        })
+        return row
+    }
+
+    private fun fillDetailRows(list: LinearLayout) {
+        list.removeAllViews()
+        val p = picked
+        if (p == null) {
+            list.addView(hint("点选页面元素或点树节点查看详情"))
+            return
+        }
+        fun section(title: String) {
+            list.addView(TextView(context).apply {
+                text = title
+                setTextSize(10f)
+                setTextColor(ThemeAccent.color(context))
+                setPadding(dp(12), dp(6), dp(12), dp(2))
+            })
+        }
+        section("属性")
+        val rect = p.optJSONObject("rect")
+        val rectText = if (rect != null) {
+            "${rect.optInt("x")}, ${rect.optInt("y")}  ${rect.optInt("w")} × ${rect.optInt("h")}"
+        } else ""
+        list.addView(kvRow("tag", p.optString("tag"), false, null))
+        if (p.optString("id").isNotBlank()) list.addView(kvRow("id", p.optString("id"), false, null))
+        if (p.optString("cls").isNotBlank()) list.addView(kvRow("class", p.optString("cls"), false, null))
+        if (rectText.isNotBlank()) list.addView(kvRow("rect", rectText, false, null))
+        if (p.optString("text").isNotBlank()) list.addView(kvRow("text", p.optString("text"), false, null))
+        list.addView(kvRow("selector", p.optString("selector"), false, null))
+
+        val style = p.optJSONObject("style") ?: return
+        section("样式（点值可修改）")
+        val keys = listOf(
+            "display" to "display", "position" to "position", "color" to "color",
+            "fontSize" to "font-size", "opacity" to "opacity",
+            "margin" to "margin", "padding" to "padding", "border" to "border",
+            "width" to "width", "height" to "height", "boxSizing" to "box-sizing"
+        )
+        keys.forEach { (jsonKey, cssKey) ->
+            val value = style.optString(jsonKey)
+            if (value.isBlank()) return@forEach
+            list.addView(kvRow(cssKey, value, true) {
+                editStyleValue(cssKey, value)
+            })
+        }
+    }
+
+    private fun kvRow(label: String, value: String, editable: Boolean, onEdit: (() -> Unit)?): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(3), dp(8), dp(3))
+        }
+        row.addView(TextView(context).apply {
+            text = label
+            setTextSize(10f)
+            setTextColor(context.getColor(R.color.text_secondary))
+        }, LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT))
+        val valueView = TextView(context).apply {
+            text = value
+            setTextSize(10.5f)
+            typeface = Typeface.MONOSPACE
+            setTextColor(context.getColor(R.color.text_primary))
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setOnClickListener {
+                if (editable && onEdit != null) onEdit() else copy(value)
+            }
+            setOnLongClickListener {
+                copy(value)
+                true
             }
         }
-        val text = json.optString("text")
-        if (text.isNotBlank()) append('\n').append("text: ").append(text)
+        row.addView(valueView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        return row
+    }
+
+    private fun editStyleValue(cssKey: String, current: String) {
+        val input = EditText(context).apply {
+            setText(current)
+            setTextSize(12f)
+            setSingleLine(true)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle(cssKey)
+            .setView(input)
+            .setPositiveButton("应用") { _, _ ->
+                val value = input.text.toString().trim()
+                if (value.isEmpty()) return@setPositiveButton
+                val p = picked ?: return@setPositiveButton
+                val q = JSONObject.quote(p.optString("selector"))
+                applyAndRefresh(
+                    "(function(){try{var e=document.querySelector($q);if(!e)return 0;" +
+                        "e.style.setProperty(" + JSONObject.quote(cssKey) + "," + JSONObject.quote(value) + ");" +
+                        "return 1;}catch(x){return 0}})()"
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun overrideList(): View {
+        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        if (overrideRules.isEmpty()) return box
+        box.addView(TextView(context).apply {
+            text = "已添加的覆盖"
+            setTextSize(10f)
+            setTextColor(ThemeAccent.color(context))
+            setPadding(dp(12), dp(4), dp(12), dp(2))
+        })
+        overrideRules.forEachIndexed { index, rule ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(3), dp(6), dp(3))
+            }
+            row.addView(TextView(context).apply {
+                text = rule.selector + "  " + rule.props.joinToString("; ") { "${it.first}:${it.second}" }
+                setTextSize(10f)
+                typeface = Typeface.MONOSPACE
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(context.getColor(R.color.text_primary))
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(TextView(context).apply {
+                text = "×"
+                setTextSize(15f)
+                setPadding(dp(8), 0, dp(8), 0)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setOnClickListener {
+                    overrideRules.removeAt(index)
+                    rebuildOverride()
+                    render()
+                }
+            })
+            box.addView(row)
+        }
+        return box
     }
 
     private fun loadTree() {
@@ -630,7 +823,7 @@ class DevToolsPanel(
                     highlight(node.selector)
                 }
                 setOnLongClickListener {
-                    copy(node.selector)
+                    showNodeMenu(node)
                     true
                 }
             })
@@ -640,6 +833,46 @@ class DevToolsPanel(
                 setPadding(dp(10), dp(4), dp(10), dp(4))
             })
         }
+    }
+
+    private fun showNodeMenu(node: Node) {
+        val items = arrayOf("复制选择器", "复制 HTML", "高亮", "删除元素")
+        android.app.AlertDialog.Builder(context)
+            .setTitle("<${node.tag}>")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> copy(node.selector)
+                    1 -> copyNodeHtml(node.selector)
+                    2 -> highlight(node.selector)
+                    else -> confirmDeleteNode(node.selector)
+                }
+            }
+            .show()
+    }
+
+    private fun copyNodeHtml(selector: String) {
+        val q = JSONObject.quote(selector)
+        webViewProvider()?.evaluateJavascript(
+            "(function(){try{var e=document.querySelector($q);if(!e)return '';" +
+                "return e.outerHTML.slice(0,4000);}catch(x){return ''}})()"
+        ) { raw ->
+            val html = unquote(raw)
+            if (html.isNotBlank()) copy(html)
+        }
+    }
+
+    private fun confirmDeleteNode(selector: String) {
+        android.app.AlertDialog.Builder(context)
+            .setTitle("删除元素")
+            .setMessage(selector + "\n\n删除后可用刷新页面恢复。")
+            .setPositiveButton("删除") { _, _ ->
+                val q = JSONObject.quote(selector)
+                applyAndRefresh(
+                    "(function(){try{var e=document.querySelector($q);if(!e)return 0;e.remove();return 1;}catch(x){return 0}})()"
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun labelOf(node: Node): String = buildString {
@@ -810,39 +1043,49 @@ class DevToolsPanel(
                     if (key.isEmpty() || value.isEmpty()) null else key to value
                 }
                 if (pairs.isEmpty()) return@setPositiveButton
-                val propsJson = JSONArray().apply {
-                    pairs.forEach { (k, v) -> put(JSONArray().put(k).put(v)) }
-                }
-                val script = "(function(){try{var id='sii-devtools-override';" +
-                    "var st=document.getElementById(id);" +
-                    "if(!st){st=document.createElement('style');st.id=id;" +
-                    "(document.head||document.documentElement).appendChild(st);}" +
-                    "var props=" + propsJson + ";var body='';" +
-                    "for(var i=0;i<props.length;i++){body+=props[i][0]+':'+props[i][1]+' !important;'}" +
-                    "st.textContent+= " + JSONObject.quote(selectorField.text.toString().trim()) +
-                    " + '{'+body+'}';return 'OK';}catch(x){return 'ERR:'+x}})()"
-                webViewProvider()?.evaluateJavascript(script) { r ->
-                    val ok = unquote(r) == "OK"
-                    android.widget.Toast.makeText(
-                        context, if (ok) "已覆盖" else "应用失败",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
+                overrideRules.add(
+                    OverrideRule(selectorField.text.toString().trim(), pairs)
+                )
+                rebuildOverride()
+                render()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun clearOverride() {
-        webViewProvider()?.evaluateJavascript(
-            "(function(){var st=document.getElementById('sii-devtools-override');" +
-                "if(st){st.remove();return 'OK';}return 'NONE';})()"
-        ) { r ->
-            android.widget.Toast.makeText(
-                context, if (unquote(r) == "OK") "已清除覆盖" else "没有覆盖样式",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+    /** 用当前规则列表重写 <style>，有则更新、无则删除。 */
+    private fun rebuildOverride() {
+        val rulesJson = JSONArray().apply {
+            overrideRules.forEach { rule ->
+                put(
+                    JSONObject()
+                        .put("selector", rule.selector)
+                        .put(
+                            "props",
+                            JSONArray().apply {
+                                rule.props.forEach { (k, v) -> put(JSONArray().put(k).put(v)) }
+                            }
+                        )
+                )
+            }
         }
+        val script = "(function(){try{var id='sii-devtools-override';" +
+            "var st=document.getElementById(id);var rules=" + rulesJson + ";" +
+            "if(!rules.length){if(st)st.remove();return 'OK';}" +
+            "if(!st){st=document.createElement('style');st.id=id;" +
+            "(document.head||document.documentElement).appendChild(st);}" +
+            "var text='';for(var i=0;i<rules.length;i++){var r=rules[i];var body='';" +
+            "for(var j=0;j<r.props.length;j++){body+=r.props[j][0]+':'+r.props[j][1]+' !important;'}" +
+            "text+=r.selector+'{'+body+'}';}st.textContent=text;return 'OK';" +
+            "}catch(x){return 'ERR:'+x}})()"
+        webViewProvider()?.evaluateJavascript(script, null)
+    }
+
+    private fun clearOverride() {
+        overrideRules.clear()
+        rebuildOverride()
+        android.widget.Toast.makeText(context, "已清除覆盖", android.widget.Toast.LENGTH_SHORT).show()
+        render()
     }
 
     private fun unquote(raw: String?): String {
@@ -1104,6 +1347,8 @@ class DevToolsPanel(
     private fun dp(value: Int): Int = (value * density).toInt()
 
     private companion object {
+        var lastTab = 0
+        var lastHeight = 55
         val PICK_INIT = "(function(){" +
             "if(window.__siiPickInit2)return 'OK';window.__siiPickInit2=true;window.__siiPickOn=false;" +
             "var lastEl=null,lastOutline='';" +
