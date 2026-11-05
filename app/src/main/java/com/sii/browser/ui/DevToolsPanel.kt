@@ -638,7 +638,7 @@ class DevToolsPanel(
             val value = style.optString(jsonKey)
             if (value.isBlank()) return@forEach
             list.addView(kvRow(cssKey, value, true) {
-                editStyleValue(cssKey, value)
+                editStyleValue(cssKey, jsonKey, value)
             })
         }
     }
@@ -673,25 +673,54 @@ class DevToolsPanel(
         return row
     }
 
-    private fun editStyleValue(cssKey: String, current: String) {
+    private fun editStyleValue(cssKey: String, jsonKey: String, current: String) {
         val input = EditText(context).apply {
             setText(current)
             setTextSize(12f)
             setSingleLine(true)
         }
+        val wrap = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), 0)
+            addView(input)
+            addView(TextView(context).apply {
+                text = "例如 #ff0000、red、rgb(255, 0, 0)"
+                setTextSize(11f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(0, dp(4), 0, 0)
+            })
+        }
         android.app.AlertDialog.Builder(context)
             .setTitle(cssKey)
-            .setView(input)
+            .setView(wrap)
             .setPositiveButton("应用") { _, _ ->
                 val value = input.text.toString().trim()
                 if (value.isEmpty()) return@setPositiveButton
                 val p = picked ?: return@setPositiveButton
                 val q = JSONObject.quote(p.optString("selector"))
-                applyAndRefresh(
-                    "(function(){try{var e=document.querySelector($q);if(!e)return 0;" +
+                webViewProvider()?.evaluateJavascript(
+                    "(function(){try{var e=document.querySelector($q);if(!e)return 'NOT_FOUND';" +
                         "e.style.setProperty(" + JSONObject.quote(cssKey) + "," + JSONObject.quote(value) + ");" +
-                        "return 1;}catch(x){return 0}})()"
-                )
+                        "var got=e.style.getPropertyValue(" + JSONObject.quote(cssKey) + ");" +
+                        "return got?got:'INVALID';}catch(x){return 'ERR'}})()"
+                ) { raw ->
+                    val got = unquote(raw)
+                    when {
+                        got == "INVALID" || got == "ERR" || got == "NOT_FOUND" || got.isBlank() -> {
+                            android.widget.Toast.makeText(
+                                context, "值无效，试试 #ff0000 或 rgb(255, 0, 0)",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        else -> {
+                            picked?.optJSONObject("style")?.put(jsonKey, got)
+                            android.widget.Toast.makeText(
+                                context, "已应用", android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            render()
+                        }
+                    }
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
