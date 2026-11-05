@@ -170,7 +170,7 @@ class DevToolsPanel(
             setPadding(dp(8), dp(6), dp(8), dp(6))
             setTextColor(context.getColor(R.color.text_secondary))
             setOnClickListener {
-                heightPercent = if (heightPercent >= 90) 55 else 95
+                heightPercent = if (heightPercent >= 90) 55 else 100
                 applyHeight()
                 text = if (heightPercent >= 90) "退出全屏" else "全屏"
             }
@@ -502,11 +502,16 @@ class DevToolsPanel(
         val treeList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         this.treeList = treeList
         val treeScroll = ScrollView(context).apply { addView(treeList) }
-        content.addView(
-            treeScroll,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 3f)
+        val treeParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, lastElementsRatio
         )
+        content.addView(treeScroll, treeParams)
         renderTreeRows(treeList)
+
+        val divider = View(context).apply {
+            setBackgroundColor(0x1A000000)
+        }
+        content.addView(divider, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6)))
 
         val detailWrap = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val detailList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -561,11 +566,37 @@ class DevToolsPanel(
                 addView(actions)
             }
         )
-        content.addView(
-            detailWrap,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f)
+        val detailParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f - lastElementsRatio
         )
+        content.addView(detailWrap, detailParams)
         content.addView(overrideList())
+
+        divider.setOnTouchListener(object : View.OnTouchListener {
+            private var startY = 0f
+            private var startRatio = lastElementsRatio
+            override fun onTouch(v: View, e: MotionEvent): Boolean {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        startY = e.rawY
+                        startRatio = lastElementsRatio
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val total = (treeScroll.height + detailWrap.height).coerceAtLeast(1)
+                        val ratio = startRatio + (e.rawY - startY) / total
+                        lastElementsRatio = ratio.coerceIn(0.2f, 0.8f)
+                        treeParams.weight = lastElementsRatio
+                        detailParams.weight = 1f - lastElementsRatio
+                        treeScroll.requestLayout()
+                        detailWrap.requestLayout()
+                        return true
+                    }
+                    MotionEvent.ACTION_UP -> return true
+                }
+                return false
+            }
+        })
     }
 
     private fun selectionBar(): View? {
@@ -1420,6 +1451,7 @@ class DevToolsPanel(
     private companion object {
         var lastTab = 0
         var lastHeight = 55
+        var lastElementsRatio = 0.55f
         val PICK_INIT = "(function(){" +
             "if(window.__siiPickInit2)return 'OK';window.__siiPickInit2=true;window.__siiPickOn=false;" +
             "var lastEl=null,lastOutline='';" +
