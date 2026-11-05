@@ -6239,6 +6239,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "home-search",
             text + " tab=" + tabManager.currentIndex + "/" + tabManager.size
         )
+        val douyin = com.sii.browser.core.webview.DouyinLinks.detect(text)
+        if (douyin != null && !android.webkit.URLUtil.isNetworkUrl(text)) {
+            openDouyin(douyin)
+            return
+        }
         val url = resolveInput(text)
         loadUrlFor(url)
     }
@@ -8010,6 +8015,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             text + " tab=" + tabManager.currentIndex + "/" + tabManager.size
         )
         if (text.isEmpty()) return
+        val douyin = com.sii.browser.core.webview.DouyinLinks.detect(text)
+        if (douyin != null && !android.webkit.URLUtil.isNetworkUrl(text)) {
+            openDouyin(douyin)
+            addressInput?.clearFocus()
+            return
+        }
         val url = resolveInput(text)
         loadUrlFor(url)
         addressInput?.clearFocus()
