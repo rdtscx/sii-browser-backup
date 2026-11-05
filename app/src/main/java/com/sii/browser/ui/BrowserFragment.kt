@@ -983,6 +983,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun openDouyin(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
         setSiteSniffEnabled("www.iesdouyin.com", true)
         setSiteSniffEnabled("douyin.com", true)
+        applyDouyinUserAgent()
         val id = detected.id
         if (id != null) {
             loadUrlFor(com.sii.browser.core.webview.DouyinLinks.shareUrl(id), fromDouyin = true)
@@ -1039,6 +1040,25 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 ).show()
             }
         }
+    }
+
+    private var douyinUaBackup: String? = null
+
+    /** 抖音分享页只认手机浏览器 UA；用当前标签临时切换，离开抖音时恢复。 */
+    private fun applyDouyinUserAgent() {
+        val webView = tabManager.currentWebView ?: return
+        if (douyinUaBackup == null) {
+            douyinUaBackup = webView.settings.userAgentString
+        }
+        webView.settings.userAgentString =
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
+                "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    }
+
+    private fun restoreDouyinUserAgent() {
+        val backup = douyinUaBackup ?: return
+        tabManager.currentWebView?.settings?.userAgentString = backup
+        douyinUaBackup = null
     }
 
     private fun showDouyinResult(
@@ -4084,6 +4104,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             val host = runCatching { android.net.Uri.parse(rawUrl).host }.getOrNull()
             if (com.sii.browser.core.webview.DouyinLinks.isDouyinHost(host)) {
                 host?.let { setSiteSniffEnabled(it, true) }
+            } else {
+                restoreDouyinUserAgent()
             }
         }
         revealToolbarOnNavigate()
