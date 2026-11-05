@@ -26,30 +26,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch upstream
-        id: upstream
+      - name: Configure git
         run: |
           git config user.name "sii-backup-bot"
           git config user.email "sii-backup-bot@users.noreply.github.com"
-          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
-          echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Keep schedule alive
+        run: |
+          # 公开仓库连续 60 天没有提交会被停用定时任务，上游长期不更新时补一次心跳提交
+          last="$(git log -1 --format=%ct)"
+          if [ $(( $(date +%s) - last )) -gt $(( 40 * 86400 )) ]; then
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > .sync-heartbeat
+            git add .sync-heartbeat
+            git commit -m "chore: 心跳提交，避免定时任务被停用"
+          fi
+
+      - name: Fetch upstream
+        id: upstream
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || true
+          for i in 1 2 3; do
+            if git fetch --no-tags upstream "${UPSTREAM_BRANCH}"; then
+              echo "sha=$(git rev-parse FETCH_HEAD)" >> "$GITHUB_OUTPUT"
+              echo "ok=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::上游 ${UPSTREAM_REPO} 拉取失败（可能已删除或改名），本次跳过镜像"
+          echo "ok=false" >> "$GITHUB_OUTPUT"
 
       - name: Mirror files add-only
+        if: steps.upstream.outputs.ok == 'true'
         run: |
           # 只覆盖与新增，不删除：上游删掉的文件在本仓库继续保留
           git checkout "${{ steps.upstream.outputs.sha }}" -- . ':(exclude).github'
-          # GITHUB_TOKEN 不允许改写 workflow 文件，命中就中止而不是让推送失败
-          if git diff --cached --name-only | grep -q '^\.github/'; then
-            echo "上游改动了 .github/ 下的文件，为避免 GITHUB_TOKEN 改写 workflow 已中止" >&2
-            exit 1
-          fi
+          # GITHUB_TOKEN 不允许改写 .github/，回退该目录而不是让推送天天失败
+          git reset -q HEAD -- .github
+          git checkout HEAD -- .github
+          git clean -fdq .github
           git diff --cached --quiet || git commit -m "sync: ${UPSTREAM_REPO}@$(git rev-parse --short ${{ steps.upstream.outputs.sha }})"
 
-      - name: Push mirrored files
+      - name: Push
         run: git push origin "HEAD:main"
 
       - name: Mirror tags add-only
+        if: steps.upstream.outputs.ok == 'true'
         run: |
           git fetch --tags upstream
           git ls-remote --tags origin | cut -f2 > /tmp/remote-tags
@@ -69,7 +91,10 @@ jobs:
           up="${UPSTREAM_REPO}"
           ours="${GITHUB_REPOSITORY}"
           tmp="$(mktemp -d)"
-          tags="$(gh api "repos/${up}/releases" --paginate --jq '.[] | select(.draft == false) | .tag_name')"
+          if ! tags="$(gh api "repos/${up}/releases" --paginate --jq '.[] | select(.draft == false) | .tag_name')"; then
+            echo "::warning::上游 ${up} 的 Release 列表不可用，本次跳过"
+            exit 0
+          fi
           for tag in ${tags}; do
             echo "== ${tag}"
             if ! gh release view "${tag}" --repo "${ours}" > /dev/null 2>&1; then
