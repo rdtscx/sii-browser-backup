@@ -875,8 +875,13 @@ class HomePanel(
         val base = context.getColor(R.color.card)
         val fillAlpha = alpha * 255 / 100
         card.background = when {
-            // 磨砂：半透明填充 + 亮描边 + 高光，跟随日夜；开启时不再叠主题色淡底。
-            AppServices.settings.homeFrosted() -> GlassStyle.frosted(context, dark, dp(24).toFloat())
+            // 磨砂：优先取窗口背景的模糊采样，退半透明填充；开启时不再叠主题色淡底。
+            AppServices.settings.homeFrosted() -> (
+                if (!previewMode) HomeBackdrop.drawable(
+                    context, dp(24).toFloat(), dark,
+                    position = { HomeBackdrop.windowRect(card) }
+                ) else null
+            ) ?: GlassStyle.frosted(context, dark, dp(24).toFloat())
             themeFill != null -> GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
                 setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(themeFill, fillAlpha))
@@ -926,8 +931,17 @@ class HomePanel(
         val baseColor = context.getColor(R.color.card)
         val radiusPx = dp(radius).toFloat()
         if (AppServices.settings.homeFrosted()) {
-            // 磨砂：半透明填充 + 亮描边 + 顶部高光；聚焦换成主色淡底，仍保留磨砂层。
-            box.background = GlassStyle.frosted(
+            // 磨砂：优先取窗口背景的模糊采样；聚焦换成主色淡底，仍保留磨砂层。
+            box.background = (
+                if (!previewMode) HomeBackdrop.drawable(
+                    context, radiusPx, night,
+                    position = { HomeBackdrop.windowRect(box) },
+                    fillOverride = if (focused) {
+                        (0x8C shl 24) or (ThemeAccent.color(context) and 0x00FFFFFF)
+                    } else null,
+                    strokeOverride = if (focused) ThemeAccent.color(context) else null
+                ) else null
+            ) ?: GlassStyle.frosted(
                 context, night, radiusPx,
                 fillOverride = if (focused) {
                     (0x8C shl 24) or (ThemeAccent.color(context) and 0x00FFFFFF)

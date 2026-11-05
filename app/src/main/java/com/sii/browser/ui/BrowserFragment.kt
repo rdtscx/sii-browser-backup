@@ -10884,8 +10884,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 // 关背景色：只留图标与进度填充。
                 fillOverride = android.graphics.Color.TRANSPARENT
             )
-            onHome && frosted ->
-                GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
+            onHome && frosted -> {
+                val blurred = HomeBackdrop.drawable(
+                    requireContext(), radius, night,
+                    position = { HomeBackdrop.windowRect(dock) }
+                )
+                if (blurred != null) {
+                    android.graphics.drawable.LayerDrawable(arrayOf(blurred, clip))
+                } else {
+                    GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
+                }
+            }
             onHome -> GlassStyle.surface(
                 requireContext(), night, radius, strength,
                 highlight = 0f,
