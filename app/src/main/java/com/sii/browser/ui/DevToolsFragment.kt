@@ -19,10 +19,11 @@ import com.sii.browser.core.webview.PageRequests
 import com.sii.browser.core.webview.SiiWebView
 import com.sii.browser.di.AppServices
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * 应用内开发者工具：控制台 / 元素 / 网络 / 信息。
- * 数据全部来自现有 JS 桥、[JsConsoleStore] 与 [PageRequests]，不引入 CDP 与前端资源。
+ * 数据来自 onConsoleMessage、[JsConsoleStore]、[PageRequests] 与 JS 桥，不引入 CDP。
  */
 class DevToolsFragment : Fragment() {
 
@@ -31,6 +32,25 @@ class DevToolsFragment : Fragment() {
     private lateinit var body: LinearLayout
     private var webView: SiiWebView? = null
     private val labels = arrayOf("控制台", "元素", "网络", "信息")
+
+    // 元素树状态
+    private data class Node(
+        val depth: Int,
+        val tag: String,
+        val id: String,
+        val cls: String,
+        val text: String,
+        val parent: Int,
+        val hasChildren: Boolean
+    )
+
+    private var nodes: List<Node> = emptyList()
+    private val expanded = mutableSetOf<Int>()
+    private var elementsLoading = false
+
+    // 过滤
+    private var consoleFilter = "ALL"
+    private var networkFilter = "ALL"
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -76,7 +96,11 @@ class DevToolsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         webView = AppServices.sniffTarget
-        JsConsoleStore.onChange = { view.post { if (currentTab == 0) renderConsole() } }
+        // 打开面板即开始记录控制台（默认设置是关的，否则这里永远是空的）。
+        if (!AppServices.settings.jsConsoleLog()) {
+            AppServices.settings.setJsConsoleLog(true)
+        }
+        JsConsoleStore.onChange = { view.post { if (currentTab == 0) renderConsoleList() } }
         renderTabs()
         render()
     }
@@ -109,15 +133,31 @@ class DevToolsFragment : Fragment() {
 
     private var consoleOutput: TextView? = null
     private var consoleScroll: ScrollView? = null
+    private var consoleFilterRow: LinearLayout? = null
 
     private fun renderConsole() {
         if (consoleOutput == null) {
             val ctx = requireContext()
+            val bar = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(4), dp(10), dp(4))
+            }
+            consoleFilterRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            bar.addView(consoleFilterRow, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            bar.addView(Button(ctx).apply {
+                text = "清空"
+                setTextSize(12f)
+                setOnClickListener { JsConsoleStore.clear(); renderConsoleList() }
+            })
+            body.addView(bar)
+
             val outputView = TextView(ctx).apply {
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextSize(10f)
                 setTextColor(ctx.getColor(R.color.text_primary))
-                setPadding(dp(8), dp(8), dp(8), dp(8))
+                setPadding(dp(8), dp(6), dp(8), dp(8))
+                setTextIsSelectable(true)
             }
             consoleOutput = outputView
             consoleScroll = ScrollView(ctx).apply { addView(outputView) }
@@ -125,6 +165,7 @@ class DevToolsFragment : Fragment() {
                 consoleScroll,
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
             )
+
             val input = EditText(ctx).apply {
                 hint = getString(R.string.js_console_hint)
                 setSingleLine(true)
@@ -144,27 +185,43 @@ class DevToolsFragment : Fragment() {
                     input.setText("")
                 }
             }
-            val clear = Button(ctx).apply {
-                text = getString(R.string.js_console_clear)
-                setOnClickListener { JsConsoleStore.clear(); renderConsole() }
-            }
             val row = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(4), dp(8), dp(8))
                 addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(run)
-                addView(clear)
             }
             body.addView(row)
         }
-        val entries = JsConsoleStore.snapshot()
-        consoleOutput?.text = if (entries.isEmpty()) {
-            "（暂无输出）"
+        renderConsoleFilters()
+        renderConsoleList()
+    }
+
+    private fun renderConsoleFilters() {
+        val row = consoleFilterRow ?: return
+        row.removeAllViews()
+        val items = listOf("ALL" to "全部", "LOG" to "LOG", "WARNING" to "警告", "ERROR" to "错误")
+        items.forEach { (key, label) ->
+            row.addView(chip(label, consoleFilter == key) {
+                consoleFilter = key
+                renderConsoleFilters()
+                renderConsoleList()
+            })
+        }
+    }
+
+    private fun renderConsoleList() {
+        val output = consoleOutput ?: return
+        val entries = JsConsoleStore.snapshot().filter {
+            consoleFilter == "ALL" || it.level.equals(consoleFilter, true)
+        }
+        output.text = if (entries.isEmpty()) {
+            "（暂无输出，只记录打开本页之后的控制台信息）"
         } else {
             entries.joinToString("\n") { entry ->
-                val tag = entry.level.ifBlank { "LOG" }
-                "[$tag] ${entry.message}"
+                val time = android.text.format.DateFormat.format("HH:mm:ss", entry.time)
+                "$time [${entry.level}] ${entry.message}"
             }
         }
         consoleScroll?.post { consoleScroll?.fullScroll(View.FOCUS_DOWN) }
@@ -179,66 +236,143 @@ class DevToolsFragment : Fragment() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(4), dp(10), dp(4))
         }
-        val reload = Button(ctx).apply {
+        bar.addView(Button(ctx).apply {
             text = "刷新"
-            setOnClickListener { renderElements() }
-        }
-        bar.addView(reload)
+            setTextSize(12f)
+            setOnClickListener {
+                elementsLoading = false
+                nodes = emptyList()
+                expanded.clear()
+                loadTree()
+            }
+        })
         bar.addView(TextView(ctx).apply {
-            text = "  限制 500 个节点，点击查看属性"
+            text = "  点击展开 / 查看，长按复制选择器"
             setTextSize(11f)
             setTextColor(ctx.getColor(R.color.text_secondary))
         })
         body.addView(bar)
 
         val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = ScrollView(ctx).apply { addView(list) }
         body.addView(
-            scroll,
+            ScrollView(ctx).apply { addView(list) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
-        val script = "(function(){try{var out=[];var walk=function(el,d){if(!el||out.length>500||d>12)return;" +
+        if (elementsLoading) {
+            list.addView(hint("读取中…"))
+            return
+        }
+        if (nodes.isEmpty()) {
+            loadTree()
+            return
+        }
+        renderTreeRows(list)
+    }
+
+    private fun loadTree() {
+        if (elementsLoading) return
+        elementsLoading = true
+        val script = "(function(){try{var out=[];var stack=[];var walk=function(el,d,parent){" +
+            "if(!el||out.length>=800||d>18)return;var idx=out.length;" +
             "var c=el.className;if(c&&c.baseVal!==undefined)c=c.baseVal;" +
             "out.push({d:d,t:el.tagName.toLowerCase(),i:el.id||'',c:(c||'').toString().slice(0,60)," +
-            "x:(el.innerText||'').trim().slice(0,40)});" +
-            "for(var i=0;i<el.children.length;i++)walk(el.children[i],d+1);};" +
-            "if(document.body)walk(document.body,0);return JSON.stringify(out);}catch(e){return 'ERR:'+e}})()"
+            "x:(el.innerText||'').trim().slice(0,40),p:parent,k:el.children.length>0});" +
+            "for(var j=0;j<el.children.length;j++)walk(el.children[j],d+1,idx);};" +
+            "if(document.body)walk(document.body,0,-1);return JSON.stringify(out);" +
+            "}catch(e){return 'ERR:'+e}})()"
         webView?.injectJavaScript(script) { raw ->
             if (!isAdded) return@injectJavaScript
+            elementsLoading = false
             val arr = runCatching { JSONArray(raw.orEmpty()) }.getOrNull()
-            if (arr == null) {
-                list.addView(hint("读取失败：${raw ?: "无结果"}"))
-                return@injectJavaScript
-            }
-            for (i in 0 until arr.length()) {
-                val item = arr.optJSONObject(i) ?: continue
-                val depth = item.optInt("d")
-                val tag = item.optString("t")
-                val id = item.optString("i")
-                val cls = item.optString("c")
-                val text = item.optString("x")
-                val label = buildString {
-                    append(tag)
-                    if (id.isNotBlank()) append('#').append(id)
-                    if (cls.isNotBlank()) append('.').append(cls.substringBefore(' '))
-                    if (text.isNotBlank()) append("  ").append(text)
+            nodes = if (arr == null) emptyList() else buildList {
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i) ?: continue
+                    add(
+                        Node(
+                            depth = item.optInt("d"),
+                            tag = item.optString("t"),
+                            id = item.optString("i"),
+                            cls = item.optString("c"),
+                            text = item.optString("x"),
+                            parent = item.optInt("p", -1),
+                            hasChildren = item.optBoolean("k")
+                        )
+                    )
                 }
-                list.addView(TextView(ctx).apply {
-                    this.text = label
-                    setTextSize(11f)
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setPadding(dp(8 + depth * 12), dp(4), dp(8), dp(4))
-                    setTextColor(ctx.getColor(R.color.text_primary))
-                    setOnClickListener {
-                        android.app.AlertDialog.Builder(ctx)
-                            .setTitle("元素")
-                            .setMessage(label)
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show()
-                    }
-                })
             }
+            // 默认展开前两层，避免一屏全是折叠行。
+            expanded.clear()
+            nodes.forEachIndexed { index, node ->
+                if (node.hasChildren && node.depth < 2) expanded.add(index)
+            }
+            render()
         }
+    }
+
+    private fun renderTreeRows(list: LinearLayout) {
+        val ctx = requireContext()
+        list.removeAllViews()
+        nodes.forEachIndexed { index, node ->
+            if (!isVisible(index)) return@forEachIndexed
+            val arrow = when {
+                !node.hasChildren -> "  "
+                expanded.contains(index) -> "▾ "
+                else -> "▸ "
+            }
+            val label = buildString {
+                append(arrow)
+                append(node.tag)
+                if (node.id.isNotBlank()) append('#').append(node.id)
+                if (node.cls.isNotBlank()) append('.').append(node.cls.substringBefore(' '))
+                if (node.text.isNotBlank()) append("  ").append(node.text)
+            }
+            list.addView(TextView(ctx).apply {
+                text = label
+                setTextSize(11f)
+                typeface = android.graphics.Typeface.MONOSPACE
+                setPadding(dp(6 + node.depth * 12), dp(3), dp(8), dp(3))
+                setTextColor(
+                    if (node.id.isNotBlank()) ThemeAccent.color(ctx)
+                    else ctx.getColor(R.color.text_primary)
+                )
+                setOnClickListener {
+                    if (node.hasChildren) {
+                        if (!expanded.add(index)) expanded.remove(index)
+                        renderTreeRows(list)
+                    } else {
+                        showNodeInfo(node)
+                    }
+                }
+                setOnLongClickListener {
+                    val selector = if (node.id.isNotBlank()) "#${node.id}" else node.tag
+                    copyText(selector)
+                    true
+                }
+            })
+        }
+    }
+
+    private fun isVisible(index: Int): Boolean {
+        var parent = nodes[index].parent
+        while (parent >= 0) {
+            if (!expanded.contains(parent)) return false
+            parent = nodes[parent].parent
+        }
+        return true
+    }
+
+    private fun showNodeInfo(node: Node) {
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle("<${node.tag}>")
+            .setMessage(
+                buildString {
+                    if (node.id.isNotBlank()) append("id: ").append(node.id).append('\n')
+                    if (node.cls.isNotBlank()) append("class: ").append(node.cls).append('\n')
+                    if (node.text.isNotBlank()) append("text: ").append(node.text)
+                }.ifBlank { "无属性" }
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     // --- 网络 ---
@@ -250,20 +384,58 @@ class DevToolsFragment : Fragment() {
             body.addView(hint("没有可用的网页"))
             return
         }
-        val entries = PageRequests.list(wv).reversed()
+        val bar = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+        }
+        val filters = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        bar.addView(filters, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        bar.addView(Button(ctx).apply {
+            text = "清空"
+            setTextSize(12f)
+            setOnClickListener {
+                PageRequests.clear(wv)
+                renderNetwork()
+            }
+        })
+        body.addView(bar)
+
+        val options = listOf(
+            "ALL" to "全部", "document" to "文档", "xhr" to "XHR",
+            "media" to "媒体", "image" to "图片", "other" to "其他"
+        )
+        options.forEach { (key, label) ->
+            filters.addView(chip(label, networkFilter == key) {
+                networkFilter = key
+                renderNetwork()
+            })
+        }
+
+        val all = PageRequests.list(wv).reversed()
+        val entries = all.filter {
+            networkFilter == "ALL" || it.kind == networkFilter
+        }
         if (entries.isEmpty()) {
-            body.addView(hint("暂无记录（需在设置里开启请求记录）"))
+            body.addView(hint(if (all.isEmpty()) "暂无记录" else "该分类下没有请求"))
             return
         }
+        body.addView(TextView(ctx).apply {
+            text = "共 ${entries.size} 条"
+            setTextSize(11f)
+            setTextColor(ctx.getColor(R.color.text_secondary))
+            setPadding(dp(10), dp(2), dp(10), dp(4))
+        })
         val list = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(6), dp(6), dp(6), dp(6))
+            setPadding(dp(6), 0, dp(6), dp(6))
         }
         entries.forEach { entry ->
             list.addView(TextView(ctx).apply {
                 text = "${entry.method}  ${entry.kind}  ${shortUrl(entry.url)}" +
                     if (entry.blocked) "  [已拦截]" else ""
                 setTextSize(11f)
+                typeface = android.graphics.Typeface.MONOSPACE
                 setPadding(dp(8), dp(6), dp(8), dp(6))
                 setTextColor(
                     if (entry.blocked) ThemeAccent.color(ctx)
@@ -282,9 +454,8 @@ class DevToolsFragment : Fragment() {
                 }
             })
         }
-        val scroll = ScrollView(ctx).apply { addView(list) }
         body.addView(
-            scroll,
+            ScrollView(ctx).apply { addView(list) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
     }
@@ -299,9 +470,8 @@ class DevToolsFragment : Fragment() {
         }
         val card = CardList.pageCard(ctx)
         content.addView(card)
-        val scroll = ScrollView(ctx).apply { addView(content) }
         body.addView(
-            scroll,
+            ScrollView(ctx).apply { addView(content) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         )
         val script = "(function(){try{return JSON.stringify({" +
@@ -314,22 +484,44 @@ class DevToolsFragment : Fragment() {
             "});}catch(e){return 'ERR:'+e}})()"
         webView?.injectJavaScript(script) { raw ->
             if (!isAdded) return@injectJavaScript
-            val json = runCatching { org.json.JSONObject(raw.orEmpty()) }.getOrNull()
+            val json = runCatching { JSONObject(raw.orEmpty()) }.getOrNull()
             if (json == null) {
                 CardList.addRows(card, listOf(hint("读取失败：${raw ?: "无结果"}")))
                 return@injectJavaScript
             }
-            val rows = listOf(
-                infoRow("URL", json.optString("url")),
-                infoRow("标题", json.optString("title")),
-                infoRow("视口", "${json.optInt("vw")} × ${json.optInt("vh")}"),
-                infoRow("DPR", json.optString("dpr")),
-                infoRow("localStorage", json.optInt("ls").toString()),
-                infoRow("sessionStorage", json.optInt("ss").toString()),
-                infoRow("Cookie", json.optInt("cookie").toString()),
-                infoRow("UA", json.optString("ua"))
+            CardList.addRows(
+                card,
+                listOf(
+                    infoRow("URL", json.optString("url")),
+                    infoRow("标题", json.optString("title")),
+                    infoRow("视口", "${json.optInt("vw")} × ${json.optInt("vh")}"),
+                    infoRow("DPR", json.optString("dpr")),
+                    infoRow("localStorage", json.optInt("ls").toString()),
+                    infoRow("sessionStorage", json.optInt("ss").toString()),
+                    infoRow("Cookie", json.optInt("cookie").toString()),
+                    infoRow("UA", json.optString("ua"))
+                )
             )
-            CardList.addRows(card, rows)
+        }
+    }
+
+    // --- 通用 ---
+
+    private fun chip(label: String, active: Boolean, onClick: () -> Unit): View {
+        val ctx = requireContext()
+        return TextView(ctx).apply {
+            text = label
+            setTextSize(11f)
+            setPadding(dp(10), dp(5), dp(10), dp(5))
+            setTextColor(if (active) ThemeAccent.color(ctx) else ctx.getColor(R.color.text_secondary))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(
+                    if (active) ((0x1A shl 24) or (ThemeAccent.color(ctx) and 0x00FFFFFF))
+                    else ctx.getColor(R.color.card)
+                )
+            }
+            setOnClickListener { onClick() }
         }
     }
 
@@ -340,7 +532,7 @@ class DevToolsFragment : Fragment() {
             setTextSize(12f)
             setTextColor(ctx.getColor(R.color.text_secondary))
         }
-        val body = TextView(ctx).apply {
+        val valueView = TextView(ctx).apply {
             text = value
             setTextSize(12f)
             setTextColor(ctx.getColor(R.color.text_primary))
@@ -350,7 +542,7 @@ class DevToolsFragment : Fragment() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
             addView(name)
-            addView(body)
+            addView(valueView)
         }
     }
 
@@ -359,6 +551,13 @@ class DevToolsFragment : Fragment() {
         setTextSize(12f)
         setTextColor(requireContext().getColor(R.color.text_secondary))
         setPadding(dp(12), dp(12), dp(12), dp(12))
+    }
+
+    private fun copyText(text: String) {
+        val clipboard = requireContext()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("selector", text))
+        android.widget.Toast.makeText(requireContext(), "已复制 $text", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun shortUrl(url: String): String {
