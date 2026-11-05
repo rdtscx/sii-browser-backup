@@ -1346,4 +1346,5 @@
     <string name="mcp_notification_text_lan">埠 %1$d · 區域網</string>
     <string name="mcp_notification_failed">啟動失敗，請在設定中檢查埠或權杖</string>
     <string name="mcp_notification_stop">停止</string>
+    <string name="menu_devtools">開發者工具</string>
 </resources>

@@ -80,6 +80,9 @@ interface McpHost {
 
     suspend fun evaluateJavascript(tab: Int?, code: String): String?
 
+    /** 当前标签视口截图（PNG）；不可用时返回 null。 */
+    suspend fun screenshot(): ByteArray?
+
     suspend fun captureList(
         tab: Int?,
         limit: Int,

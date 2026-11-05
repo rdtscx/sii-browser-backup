@@ -335,13 +335,19 @@ class McpServer(
                     ToolResult("tool failed: ${it.message ?: it.javaClass.simpleName}", true)
                 }
                 recordAudit(name, !output.isError, System.currentTimeMillis() - started, client)
-                JSONObject()
-                    .put(
-                        "content",
-                        JSONArray().put(
-                            JSONObject().put("type", "text").put("text", output.text)
-                        )
+                val content = JSONArray().put(
+                    JSONObject().put("type", "text").put("text", output.text)
+                )
+                output.imagePng?.let { png ->
+                    content.put(
+                        JSONObject()
+                            .put("type", "image")
+                            .put("mimeType", "image/png")
+                            .put("data", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
                     )
+                }
+                JSONObject()
+                    .put("content", content)
                     .put("isError", output.isError)
             }
             "resources/list", "prompts/list" -> JSONObject()

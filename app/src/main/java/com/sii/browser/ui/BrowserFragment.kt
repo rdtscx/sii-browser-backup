@@ -633,7 +633,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
             },
             isUiReady = { isAdded && view != null },
-            uiStateProvider = { uiStateJson() }
+            uiStateProvider = { uiStateJson() },
+            windowProvider = { activity?.window }
         )
     }
 
@@ -2727,6 +2728,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     }
                 }
             )
+            .addToBackStack(null)
+            .commit()
+    }
+
+    private fun openDevTools() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, DevToolsFragment())
             .addToBackStack(null)
             .commit()
     }
@@ -5608,6 +5616,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("downloads", getString(R.string.menu_downloads), R.drawable.ic_m_download, false, { false }) { openDownloads() },
         MenuEntry("netlog", getString(R.string.settings_netlog), R.drawable.ic_m_netlog, false, { false }) { openNetlog() },
         MenuEntry("jsconsole", getString(R.string.menu_js_console), R.drawable.ic_m_code, false, { false }, { hasWebPage() }) { openJsConsole() },
+        MenuEntry("devtools", getString(R.string.menu_devtools), R.drawable.ic_m_code, false, { false }, { hasWebPage() }) { openDevTools() },
         MenuEntry("history", getString(R.string.menu_history), R.drawable.ic_m_history, false, { false }) { openHistory() },
         MenuEntry("adblockstats", getString(R.string.menu_adblock_stats), R.drawable.ic_m_shield_check, false, { false }) { openAdblockStats() },
         MenuEntry("pagerequests", getString(R.string.menu_page_requests), R.drawable.ic_m_netlog, false, { false }, { hasWebPage() }) { showPageRequests() },

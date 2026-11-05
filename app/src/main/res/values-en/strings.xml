@@ -1345,4 +1345,5 @@
     <string name="mcp_notification_text_lan">Port %1$d · LAN</string>
     <string name="mcp_notification_failed">Failed to start; check the port or token in settings</string>
     <string name="mcp_notification_stop">Stop</string>
+    <string name="menu_devtools">Developer tools</string>
 </resources>

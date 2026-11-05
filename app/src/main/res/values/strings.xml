@@ -1346,4 +1346,5 @@
     <string name="mcp_notification_text_lan">端口 %1$d · 局域网</string>
     <string name="mcp_notification_failed">启动失败，请在设置中检查端口或令牌</string>
     <string name="mcp_notification_stop">停止</string>
+    <string name="menu_devtools">开发者工具</string>
 </resources>
