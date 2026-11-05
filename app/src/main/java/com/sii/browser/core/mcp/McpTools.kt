@@ -647,8 +647,12 @@ class McpTools(
                 val script = "(function(){try{var sel=" + JSONObject.quote(selector) +
                     ";var txt=" + JSONObject.quote(text) +
                     ";var el=null;if(sel){el=document.querySelector(sel);}else{" +
-                    "var all=document.querySelectorAll('*');for(var i=0;i<all.length&&i<3000;i++){" +
-                    "var t=all[i].innerText;if(t&&t.trim().indexOf(txt)>=0){el=all[i];break;}}}" +
+                    "var all=document.querySelectorAll('*');var best=null;for(var i=0;i<all.length&&i<3000;i++){" +
+                    "var e=all[i];var t=e.innerText;if(!t||t.trim().indexOf(txt)<0)continue;" +
+                    "var deeper=false;for(var j=0;j<e.children.length;j++){var ct=e.children[j].innerText;" +
+                    "if(ct&&ct.trim().indexOf(txt)>=0){deeper=true;break;}}" +
+                    "if(!deeper){el=e;break;}if(!best)best=e;}" +
+                    "if(!el)el=best;}" +
                     "if(!el)return 'NOT_FOUND';var r=el.getBoundingClientRect();var cs=getComputedStyle(el);" +
                     "var c=el.className;if(c&&c.baseVal!==undefined)c=c.baseVal;" +
                     "return JSON.stringify({tag:el.tagName.toLowerCase(),id:el.id||'',cls:(c||'').toString()," +
