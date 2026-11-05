@@ -83,7 +83,6 @@ class SettingsFragment : Fragment() {
         SearchEntry("搜索框透明度", "外观与主页", "搜索框 透明 背景 opacity alpha", diyTab = 1),
         SearchEntry("磨砂质感", "外观与主页", "磨砂 搜索框 常用网站 工具栏 建议 透明 模糊 frosted blur", diyTab = 3),
         SearchEntry("主页玻璃质感", "外观与主页", "磨砂 玻璃 质感 搜索框 常用网站 悬浮工具栏", diyTab = 3),
-        SearchEntry("主页三大件统一透明度", "外观与主页", "统一 透明度 搜索框 常用网站 悬浮工具栏", diyTab = 3),
         SearchEntry("常用网站背景透明度", "外观与主页", "常用网站 背景 透明 opacity alpha", diyTab = 4),
         SearchEntry("卡片与工具栏阴影", "外观与主页", "阴影 搜索框 常用网站 悬浮工具栏 shadow", diyTab = 3),
         SearchEntry("地址栏", "外观与主页", "address", diyTab = 2),

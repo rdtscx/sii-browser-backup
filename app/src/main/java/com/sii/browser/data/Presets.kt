@@ -47,7 +47,6 @@ object Presets {
                 settings.setHomeShowLabels(true)
                 settings.setShowSites(true)
                 settings.setHomeGridAlpha(100)
-                settings.setHomeUnifiedAlpha(0)
                 settings.setHomeShadow(true)
                 settings.setHomeShadowSearch(true)
                 settings.setHomeShadowGrid(true)
@@ -72,7 +71,6 @@ object Presets {
                 settings.setShowSites(true)
                 // 极简白：站点直接浮在主页背景上。
                 settings.setHomeGridAlpha(0)
-                settings.setHomeUnifiedAlpha(0)
                 settings.setHomeShadow(false)
                 settings.setHomeLogoMode(0)
                 settings.setHomeSearchRadius(0)

@@ -648,24 +648,6 @@ class HomeCustomizeFragment : Fragment() {
                 view?.post { buildControls() }
             }
         )
-        val unifiedRow = sliderRow(
-            "主页三大件统一透明度", settings.homeUnifiedAlpha(), 0, 100
-        ) { value ->
-            settings.setHomeUnifiedAlpha(value)
-            // 0 表示不生效；>0 时按「透明度」语义强制同步三个滑竿（0 不透明）。
-            if (value > 0) {
-                settings.setHomeGridAlpha(100 - value)
-                settings.setHomeSearchTransparency(value)
-                settings.setDockBgAlpha(100 - value)
-                settings.setHomeShadowSearch(false)
-                settings.setHomeShadowGrid(false)
-                settings.setHomeShadowDock(false)
-            }
-            refreshPreview()
-            view?.post { buildControls() }
-        }
-        if (settings.homeFrosted()) disableRow(unifiedRow, true)
-        rows.add(unifiedRow)
         rows.add(
             switchRow("卡片与工具栏阴影", settings.homeShadow()) { on ->
                 settings.setHomeShadow(on)

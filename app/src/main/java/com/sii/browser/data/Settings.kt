@@ -991,11 +991,6 @@ interface WebPageSettings {
 
     fun setHomeGridAlpha(value: Int)
 
-    /** 主页三大件统一透明度：0 不生效；>0 时同步写入三个透明度。 */
-    fun homeUnifiedAlpha(): Int
-
-    fun setHomeUnifiedAlpha(value: Int)
-
     /** 悬浮工具栏背景透明度：0 无背景 → 100 不透明。 */
     fun dockBgAlpha(): Int
 

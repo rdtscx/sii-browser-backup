@@ -1302,13 +1302,6 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeGridAlpha(value: Int) =
         putInt(SettingsKeys.HOME_GRID_ALPHA, value.coerceIn(0, 100))
 
-    override fun homeUnifiedAlpha(): Int =
-        int(SettingsKeys.HOME_UNIFIED_ALPHA, SettingsDefaults.HOME_UNIFIED_ALPHA)
-            .coerceIn(0, 100)
-
-    override fun setHomeUnifiedAlpha(value: Int) =
-        putInt(SettingsKeys.HOME_UNIFIED_ALPHA, value.coerceIn(0, 100))
-
     override fun dockBgAlpha(): Int {
         if (!cache.containsKey(SettingsKeys.DOCK_BG_ALPHA) &&
             !bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)

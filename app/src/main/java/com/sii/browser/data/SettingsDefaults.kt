@@ -98,7 +98,6 @@ object SettingsDefaults {
     const val HOME_SHADOW_GRID = true
     const val HOME_SHADOW_DOCK = true
     const val HOME_GRID_ALPHA = 100
-    const val HOME_UNIFIED_ALPHA = 0
 
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
     const val HOME_SEARCH_TRANSPARENCY = 0
