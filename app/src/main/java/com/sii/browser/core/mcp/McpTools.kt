@@ -736,6 +736,65 @@ class McpTools(
                 else ToolResult("screenshot " + png.size + " bytes", imagePng = png)
             }
         )
+        add(
+            ToolSpec(
+                "sii_highlight_element",
+                "Highlight element",
+                "Outline an element and scroll it into view (same logic as the in-app devtools).",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector."))
+                        .put("clear", prop("boolean", "true to remove the outline instead.")),
+                    listOf("selector")
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                if (selector.isBlank()) return@ToolSpec ToolResult("selector required", true)
+                val clear = args.optBoolean("clear", false)
+                val script = if (clear) {
+                    "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                        ");if(!e)return 'NOT_FOUND';e.style.outline='';return 'OK';}catch(x){return 'ERR:'+x}})()"
+                } else {
+                    "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                        ");if(!e)return 'NOT_FOUND';e.style.outline='2px solid #2F7CF6';" +
+                        "e.style.outlineOffset='1px';e.scrollIntoView({block:'center'});return 'OK';" +
+                        "}catch(x){return 'ERR:'+x}})()"
+                }
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_edit_element",
+                "Edit element",
+                "Edit id / class / text and inline CSS of an element (same logic as the in-app devtools).",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector."))
+                        .put("id", prop("string", "New id (omit to keep)."))
+                        .put("class_name", prop("string", "New class attribute (omit to keep)."))
+                        .put("text", prop("string", "New text content (omit to keep)."))
+                        .put("styles", prop("object", "Inline CSS properties, e.g. {\"color\":\"#f00\"}.")),
+                    listOf("selector")
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                if (selector.isBlank()) return@ToolSpec ToolResult("selector required", true)
+                val styles = args.optJSONObject("styles")?.toString() ?: "{}"
+                val script = "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                    ");if(!e)return 'NOT_FOUND';var changed=[];" +
+                    (if (args.has("id")) "e.id=" + JSONObject.quote(args.optString("id")) + ";changed.push('id');" else "") +
+                    (if (args.has("class_name")) "e.className=" + JSONObject.quote(args.optString("class_name")) + ";changed.push('class');" else "") +
+                    (if (args.has("text")) "e.textContent=" + JSONObject.quote(args.optString("text")) + ";changed.push('text');" else "") +
+                    "var st=" + styles + ";for(var k in st){e.style.setProperty(k,st[k]);changed.push(k);}" +
+                    "return 'OK:'+changed.join(',');}catch(x){return 'ERR:'+x}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
     }
 
     fun availableTools(): List<JSONObject> = tools
