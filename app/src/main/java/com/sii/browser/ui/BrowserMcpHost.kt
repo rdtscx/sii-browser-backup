@@ -35,6 +35,8 @@ class BrowserMcpHost(
     private val windowProvider: () -> android.view.Window?
 ) : McpHost {
 
+    var onOpenDevTools: (() -> Boolean)? = null
+
     private suspend fun <T> main(block: suspend () -> T): T =
         withContext(Dispatchers.Main.immediate) { block() }
 
@@ -262,6 +264,11 @@ class BrowserMcpHost(
         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
         bitmap.recycle()
         out.toByteArray()
+    }
+
+    override suspend fun openDevTools(): Boolean = main {
+        if (!isUiReady()) return@main false
+        onOpenDevTools?.invoke() ?: false
     }
 
     override suspend fun captureList(

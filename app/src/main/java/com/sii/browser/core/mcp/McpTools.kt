@@ -795,6 +795,17 @@ class McpTools(
                 ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
             }
         )
+        add(
+            ToolSpec(
+                "sii_open_devtools",
+                "Open devtools",
+                "Toggle the in-app developer tools panel.",
+                McpGroup.PAGE_ACTION,
+                schema(JSONObject())
+            ) { host, _ ->
+                okOrNot(host.openDevTools())
+            }
+        )
     }
 
     fun availableTools(): List<JSONObject> = tools

@@ -644,6 +644,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             uiStateProvider = { uiStateJson() },
             windowProvider = { activity?.window }
         )
+        (AppServices.mcpHost as? BrowserMcpHost)?.onOpenDevTools = {
+            devToolsPanel?.toggle()
+            devToolsPanel?.isShowing == true
+        }
     }
 
     private fun persistTabs() {
