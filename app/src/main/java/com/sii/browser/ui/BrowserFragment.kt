@@ -135,6 +135,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 浮条 5 秒无操作自动收起。 */
     private val autoHideSniffPrompt = Runnable { hideSniffPrompt() }
     private var menuOverlay: View? = null
+    private var devToolsPanel: DevToolsPanel? = null
     private var menuToggles: LinearLayout? = null
     private var menuGrid: LinearLayout? = null
     private var menuGridHorizontal: LinearLayout? = null
@@ -272,6 +273,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             view?.post { maybeShowSniffPrompt(key, res) }
         }
         menuOverlay = view.findViewById(R.id.menu_overlay)
+        devToolsPanel = DevToolsPanel(
+            requireContext(),
+            view.findViewById(R.id.devtools_host),
+            { tabManager.currentWebView },
+            {}
+        )
         view.findViewById<View>(R.id.menu_open_settings)?.setOnClickListener {
             hideMenuSheet()
             openSettings()
@@ -490,6 +497,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 返回键/返回手势统一处理：游戏模式 → 全屏 → 浮层 → 网页后退 → 关标签 → 交还系统。 */
     private fun handleBack(): Boolean {
+        if (devToolsPanel?.onBack() == true) return true
         if (AppServices.settings.gameMode()) {
             if (gameExitArmed) {
                 gameExitArmed = false
@@ -2733,10 +2741,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun openDevTools() {
-        NavAnim.apply(parentFragmentManager.beginTransaction())
-            .replace(R.id.shell_root, DevToolsFragment())
-            .addToBackStack(null)
-            .commit()
+        devToolsPanel?.toggle()
     }
 
     /** 内置 JS 控制台：查看 console 输出并执行 JS。 */
@@ -11183,6 +11188,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPromptResource = null
         sniffPromptKey = null
         menuOverlay = null
+        devToolsPanel = null
         menuToggles = null
         menuGrid = null
         backButton = null
