@@ -781,7 +781,7 @@ class DevToolsPanel(
             "var out=[];var walk=function(el,d,parent){if(!el||out.length>=800||d>18)return;var idx=out.length;" +
             "var c=el.className;if(c&&c.baseVal!==undefined)c=c.baseVal;" +
             "out.push({d:d,t:el.tagName.toLowerCase(),i:el.id||'',c:(c||'').toString().slice(0,60)," +
-            "x:(el.innerText||'').trim().slice(0,40),p:parent,k:el.children.length>0,s:selOf(el)});" +
+            "x:(el.innerText||'').replace(/\\s+/g,' ').trim().slice(0,40),p:parent,k:el.children.length>0,s:selOf(el)});" +
             "for(var j=0;j<el.children.length;j++)walk(el.children[j],d+1,idx);};" +
             "if(document.body)walk(document.body,0,-1);return JSON.stringify(out);}catch(e){return 'ERR:'+e}})()"
         webViewProvider()?.injectJavaScript(script) { raw ->
@@ -825,37 +825,58 @@ class DevToolsPanel(
             if (shown >= 300) return@forEachIndexed
             shown++
             val arrow = when {
-                !node.hasChildren -> "  "
-                expanded.contains(index) -> "▾ "
-                else -> "▸ "
+                !node.hasChildren -> ""
+                expanded.contains(index) -> "▾"
+                else -> "▸"
             }
             val label = buildString {
-                append(arrow).append(node.tag)
+                append(node.tag)
                 if (node.id.isNotBlank()) append('#').append(node.id)
                 if (node.cls.isNotBlank()) append('.').append(node.cls.substringBefore(' '))
                 if (node.text.isNotBlank()) append("  ").append(node.text)
             }
-            list.addView(TextView(context).apply {
-                text = label
-                setTextSize(10.5f)
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(4 + node.depth * 10), 0, dp(8), 0)
+                if (picked?.optString("selector") == node.selector) {
+                    setBackgroundColor(0x142F7CF6)
+                }
+            }
+            row.addView(TextView(context).apply {
+                text = if (arrow.isEmpty()) "  " else arrow
+                setTextSize(11f)
                 typeface = Typeface.MONOSPACE
-                setPadding(dp(6 + node.depth * 10), dp(3), dp(8), dp(3))
-                setTextColor(
-                    if (node.id.isNotBlank()) accent
-                    else context.getColor(R.color.text_primary)
-                )
+                setPadding(dp(2), dp(3), dp(2), dp(3))
+                setTextColor(context.getColor(R.color.text_secondary))
                 setOnClickListener {
                     if (node.hasChildren) {
                         if (!expanded.add(index)) expanded.remove(index)
                         renderTreeRows(list)
                     }
+                }
+            })
+            row.addView(TextView(context).apply {
+                text = label
+                setTextSize(10.5f)
+                typeface = Typeface.MONOSPACE
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(3), 0, dp(3))
+                setTextColor(
+                    if (node.id.isNotBlank()) accent
+                    else context.getColor(R.color.text_primary)
+                )
+                setOnClickListener {
                     highlight(node.selector)
+                    selectNode(node.selector)
                 }
                 setOnLongClickListener {
                     showNodeMenu(node)
                     true
                 }
-            })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            list.addView(row)
         }
         if (keep != null && keep.size > shown) {
             list.addView(hint("匹配 ${keep.size} 个，已显示前 $shown 个").apply {
@@ -935,6 +956,27 @@ class DevToolsPanel(
             }
         }
         return keep
+    }
+
+    private fun selectNode(selector: String) {
+        val q = JSONObject.quote(selector)
+        val script = "(function(){try{var s=$q;var e=document.querySelector(s);if(!e)return 'NOT_FOUND';" +
+            "var r=e.getBoundingClientRect();var cs=getComputedStyle(e);var c=e.className;" +
+            "if(c&&c.baseVal!==undefined)c=c.baseVal;" +
+            "return JSON.stringify({tag:e.tagName.toLowerCase(),id:e.id||'',cls:(c||'').toString()," +
+            "text:(e.innerText||'').replace(/\\s+/g,' ').slice(0,200),selector:s," +
+            "rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}," +
+            "style:{display:cs.display,position:cs.position,color:cs.color,fontSize:cs.fontSize," +
+            "opacity:cs.opacity,margin:cs.margin,padding:cs.padding,border:cs.border," +
+            "width:cs.width,height:cs.height,boxSizing:cs.boxSizing}});" +
+            "}catch(x){return 'ERR'}})()"
+        webViewProvider()?.evaluateJavascript(script) { raw ->
+            val json = runCatching { JSONObject(unquote(raw)) }.getOrNull()
+            if (json != null) {
+                picked = json
+                render()
+            }
+        }
     }
 
     private fun highlight(selector: String) {
