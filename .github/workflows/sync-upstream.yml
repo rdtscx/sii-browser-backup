@@ -41,7 +41,7 @@ jobs:
           git checkout "${{ steps.upstream.outputs.sha }}" -- . ':(exclude).github'
           # GITHUB_TOKEN 不允许改写 workflow 文件，命中就中止而不是让推送失败
           if git diff --cached --name-only | grep -q '^\.github/'; then
-            echo "上游改动了 .github/ 下的文件，已跳过" >&2
+            echo "上游改动了 .github/ 下的文件，为避免 GITHUB_TOKEN 改写 workflow 已中止" >&2
             exit 1
           fi
           git diff --cached --quiet || git commit -m "sync: ${UPSTREAM_REPO}@$(git rev-parse --short ${{ steps.upstream.outputs.sha }})"
