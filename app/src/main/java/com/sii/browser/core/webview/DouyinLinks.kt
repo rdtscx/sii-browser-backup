@@ -67,8 +67,16 @@ object DouyinLinks {
 
     data class Resolved(val id: String, val url: String)
 
+    /** 短链解析结果缓存：短时间内重复打开复用第一次的地址，避免重复请求触发风控。 */
+    private data class Cached(val resolved: Resolved, val at: Long)
+    private val shortCache = java.util.concurrent.ConcurrentHashMap<String, Cached>()
+    private const val CACHE_MS = 10 * 60 * 1000L
+
     /** 短链跟一次重定向，返回作品 id 和带参数的完整地址。 */
     fun resolveShort(code: String): Resolved? {
+        shortCache[code]?.let { cached ->
+            if (System.currentTimeMillis() - cached.at < CACHE_MS) return cached.resolved
+        }
         var html: String? = null
         var finalUrl: String? = null
         runCatching {
@@ -91,7 +99,9 @@ object DouyinLinks {
                 .find(page)?.groupValues?.get(1)
             ?: finalUrl?.let { Regex("/(\\d{6,})").find(it)?.groupValues?.get(1) }
             ?: return null
-        return Resolved(id, finalUrl ?: shareUrl(id))
+        return Resolved(id, finalUrl ?: shareUrl(id)).also {
+            shortCache[code] = Cached(it, System.currentTimeMillis())
+        }
     }
 
     fun parse(id: String): Result? {
