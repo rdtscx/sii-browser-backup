@@ -26,8 +26,7 @@ data class ToolResult(val text: String, val isError: Boolean = false)
  */
 class McpTools(
     private val settings: Settings,
-    private val hostProvider: () -> McpHost?,
-    private val debugBuild: Boolean
+    private val hostProvider: () -> McpHost?
 ) {
 
     private data class ToolSpec(
@@ -571,7 +570,7 @@ class McpTools(
 
     fun enabledCount(): Int = tools.count { isAllowed(it.group) }
 
-    fun totalCount(): Int = tools.count { debugBuild || it.group != McpGroup.DIAG }
+    fun totalCount(): Int = tools.size
 
     suspend fun call(name: String, arguments: JSONObject): ToolResult {
         val spec = tools.firstOrNull { it.name == name }
@@ -598,7 +597,7 @@ class McpTools(
         McpGroup.BOOKMARK_WRITE -> settings.mcpAllowBookmarkWrite()
         McpGroup.HISTORY_WRITE -> settings.mcpAllowHistoryWrite()
         McpGroup.CAPTURE -> settings.mcpAllowCapture()
-        McpGroup.DIAG -> debugBuild && settings.mcpAllowDiag()
+        McpGroup.DIAG -> settings.mcpAllowDiag()
     }
 
     private fun tab(args: JSONObject): Int? =

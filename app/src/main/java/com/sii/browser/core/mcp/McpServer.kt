@@ -34,8 +34,7 @@ import kotlinx.coroutines.withTimeout
  */
 class McpServer(
     private val settingsProvider: () -> Settings,
-    private val hostProvider: () -> McpHost?,
-    debugBuild: Boolean
+    private val hostProvider: () -> McpHost?
 ) {
 
     data class Config(val port: Int, val lan: Boolean, val token: String)
@@ -64,7 +63,7 @@ class McpServer(
     var lastError: String? = null
         private set
 
-    private val tools: McpTools = McpTools(settingsProvider(), hostProvider, debugBuild)
+    private val tools: McpTools = McpTools(settingsProvider(), hostProvider)
 
     val isRunning: Boolean get() = running.get()
 
