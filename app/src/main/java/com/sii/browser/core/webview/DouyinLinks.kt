@@ -65,14 +65,33 @@ object DouyinLinks {
         }
     }.getOrNull()
 
-    /** 短链先跟一次重定向，拿到分享页里的作品 id。 */
-    fun resolveShort(code: String): String? {
-        val html = get(shortUrl(code)) ?: return null
-        shareRegex.find(html)?.let { return it.groupValues[1] }
-        schemeRegex.find(html)?.let { return it.groupValues[1] }
-        Regex("\\\"lastPath\\\"\\s*:\\s*\\\"(\\d{6,})\\\"")
-            .find(html)?.let { return it.groupValues[1] }
-        return null
+    data class Resolved(val id: String, val url: String)
+
+    /** 短链跟一次重定向，返回作品 id 和带参数的完整地址。 */
+    fun resolveShort(code: String): Resolved? {
+        var html: String? = null
+        var finalUrl: String? = null
+        runCatching {
+            val request = okhttp3.Request.Builder()
+                .url(shortUrl(code))
+                .header("User-Agent", UA)
+                .header("Referer", "https://www.douyin.com/")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    html = response.body?.string()
+                    finalUrl = response.request.url.toString()
+                }
+            }
+        }
+        val page = html ?: return null
+        val id = shareRegex.find(page)?.groupValues?.get(1)
+            ?: schemeRegex.find(page)?.groupValues?.get(1)
+            ?: Regex("\\\"lastPath\\\"\\s*:\\s*\\\"(\\d{6,})\\\"")
+                .find(page)?.groupValues?.get(1)
+            ?: finalUrl?.let { Regex("/(\\d{6,})").find(it)?.groupValues?.get(1) }
+            ?: return null
+        return Resolved(id, finalUrl ?: shareUrl(id))
     }
 
     fun parse(id: String): Result? {
