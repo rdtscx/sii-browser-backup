@@ -991,6 +991,11 @@ interface WebPageSettings {
 
     fun setHomeGridAlpha(value: Int)
 
+    /** 主页悬浮工具栏背景透明度：0 无背景 → 100 不透明。 */
+    fun homeDockAlpha(): Int
+
+    fun setHomeDockAlpha(value: Int)
+
     /** 主页磨砂质感：搜索框、常用网站卡片、悬浮工具栏与建议弹层共用。 */
     fun homeFrosted(): Boolean
 

@@ -1302,6 +1302,12 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeGridAlpha(value: Int) =
         putInt(SettingsKeys.HOME_GRID_ALPHA, value.coerceIn(0, 100))
 
+    override fun homeDockAlpha(): Int =
+        int(SettingsKeys.HOME_DOCK_ALPHA, SettingsDefaults.HOME_DOCK_ALPHA).coerceIn(0, 100)
+
+    override fun setHomeDockAlpha(value: Int) =
+        putInt(SettingsKeys.HOME_DOCK_ALPHA, value.coerceIn(0, 100))
+
     override fun homeFrosted(): Boolean =
         bool(SettingsKeys.HOME_FROSTED, SettingsDefaults.HOME_FROSTED)
 

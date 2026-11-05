@@ -115,12 +115,18 @@ class HomePreviewShell(
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(4), dp(6), dp(4))
             val onHome = !previewWeb
+            val dockAlpha = AppServices.settings.homeDockAlpha().coerceIn(0, 100)
+            val bgAlpha = dockAlpha * 255 / 100
             background = when {
                 onHome && AppServices.settings.homeFrosted() ->
                     GlassStyle.frosted(context, night, dp(28).toFloat())
                 onHome -> GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
-                    setColor(dockTint ?: ContextCompat.getColor(context, R.color.card))
+                    setColor(
+                        androidx.core.graphics.ColorUtils.setAlphaComponent(
+                            dockTint ?: ContextCompat.getColor(context, R.color.card), bgAlpha
+                        )
+                    )
                     setStroke(dp(1), if (night) 0x1FFFFFFF else 0x14000000)
                 }
                 else -> GradientDrawable().apply {
@@ -134,7 +140,9 @@ class HomePreviewShell(
                     setStroke(dp(1), if (night) 0x24FFFFFF else 0x1A000000)
                 }
             }
-            elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
+            elevation = if (AppServices.settings.homeShadow() && dockAlpha == 100) {
+                dp(12).toFloat()
+            } else 0f
             setOnClickListener { onToolbarClick() }
         }
         val address = LinearLayout(context).apply {

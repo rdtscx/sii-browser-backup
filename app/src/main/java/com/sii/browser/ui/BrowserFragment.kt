@@ -10427,7 +10427,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 outline.setRoundRect(0, 0, view.width, view.height, dp(28).toFloat())
             }
         }
-        dock.elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
+        // 主页底栏阴影跟透明度走；网页页只跟总开关（不受主页透明度滑竿影响）。
+        val onHomeNow = homeContainer?.visibility == View.VISIBLE
+        val homeDockShadow = !onHomeNow ||
+            AppServices.settings.homeDockAlpha().coerceIn(0, 100) == 100
+        dock.elevation = if (AppServices.settings.homeShadow() && homeDockShadow) {
+            dp(12).toFloat()
+        } else 0f
         addressHost.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
         address.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -10868,6 +10874,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         dockProgressClip = clip
         val frosted = AppServices.settings.homeFrosted()
+        val dockAlpha = AppServices.settings.homeDockAlpha().coerceIn(0, 100)
+        val bgAlpha = dockAlpha * 255 / 100
         // 主页上底栏与搜索框/常用网站同一套材质；网页页仍是玻璃（需透出网页内容）。
         val onHome = homeContainer?.visibility == View.VISIBLE
         dock.background = when {
@@ -10879,8 +10887,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 shade = 0f,
                 strokeOverride = if (night) 0x1FFFFFFF else 0x14000000,
                 overlay = clip,
-                // 实心卡：与搜索框/常用网站卡片同底色、同一描边。
-                fillOverride = dockBaseColor() ?: requireContext().getColor(R.color.card)
+                // 实心卡：与搜索框/常用网站卡片同底色、同一描边，填充跟随透明度。
+                fillOverride = androidx.core.graphics.ColorUtils.setAlphaComponent(
+                    dockBaseColor() ?: requireContext().getColor(R.color.card), bgAlpha
+                )
             )
             else -> GlassStyle.surface(
                 requireContext(), night, radius, strength,

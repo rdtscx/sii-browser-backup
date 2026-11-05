@@ -545,7 +545,8 @@ class HomeCustomizeFragment : Fragment() {
             "搜索框透明度", settings.homeSearchTransparency(), 0, 100
         ) { value ->
             settings.setHomeSearchTransparency(value)
-            settings.setHomeShadowSearch(false)
+            // 透明度 0 等于不透明，阴影重新打开；>0 时关掉。
+            settings.setHomeShadowSearch(value == 0)
             refreshPreview()
         }
         // 磨砂自带固定半透明，两者同时生效会互相抵消。
@@ -602,13 +603,14 @@ class HomeCustomizeFragment : Fragment() {
 
     private fun backgroundRows(): List<View> {
         val rows = mutableListOf<View>()
+        val hasBackground = settings.homeBackground() != null
         rows.add(
             navRow(
                 getString(R.string.settings_home_background),
-                if (settings.homeBackground() != null) "已设置" else "默认"
+                if (hasBackground) "已设置" else "默认"
             ) { bgLauncher.launch(arrayOf("image/*")) }
         )
-        if (settings.homeBackground() != null) {
+        if (hasBackground) {
             rows.add(
                 navRow("清除背景图片", null) {
                     settings.setHomeBackground(null)
@@ -617,28 +619,29 @@ class HomeCustomizeFragment : Fragment() {
                 }
             )
         }
-        rows.add(
-            sliderRow(
-                getString(R.string.settings_home_bg_blur),
-                settings.homeBgBlurPercent().takeIf { it >= 0 }
-                    ?: when (settings.homeBgBlur()) {
-                        1 -> 33; 2 -> 66; 3 -> 100; else -> 0
-                    },
-                0, 100
-            ) { value ->
-                settings.setHomeBgBlurPercent(value)
-                refreshPreview()
-            }
-        )
-        rows.add(
-            sliderRow(
-                getString(R.string.settings_home_bg_overlay),
-                settings.homeBgOverlay(), 0, 100
-            ) { value ->
-                settings.setHomeBgOverlay(value)
-                refreshPreview()
-            }
-        )
+        val blurRow = sliderRow(
+            getString(R.string.settings_home_bg_blur),
+            settings.homeBgBlurPercent().takeIf { it >= 0 }
+                ?: when (settings.homeBgBlur()) {
+                    1 -> 33; 2 -> 66; 3 -> 100; else -> 0
+                },
+            0, 100
+        ) { value ->
+            settings.setHomeBgBlurPercent(value)
+            refreshPreview()
+        }
+        // 没有背景图时模糊与遮罩都没有作用对象。
+        if (!hasBackground) disableRow(blurRow, true)
+        rows.add(blurRow)
+        val overlayRow = sliderRow(
+            getString(R.string.settings_home_bg_overlay),
+            settings.homeBgOverlay(), 0, 100
+        ) { value ->
+            settings.setHomeBgOverlay(value)
+            refreshPreview()
+        }
+        if (!hasBackground) disableRow(overlayRow, true)
+        rows.add(overlayRow)
         // 磨砂与阴影互斥：开启一个自动关掉另一个。
         rows.add(
             switchRow("主页玻璃质感", settings.homeFrosted()) { on ->
@@ -648,6 +651,14 @@ class HomeCustomizeFragment : Fragment() {
                 view?.post { buildControls() }
             }
         )
+        val dockAlphaRow = sliderRow(
+            "主页悬浮工具栏透明度", 100 - settings.homeDockAlpha(), 0, 100
+        ) { value ->
+            settings.setHomeDockAlpha(100 - value)
+            refreshPreview()
+        }
+        if (settings.homeFrosted() || settings.uiStyle() != 1) disableRow(dockAlphaRow, true)
+        rows.add(dockAlphaRow)
         rows.add(
             switchRow("卡片与工具栏阴影", settings.homeShadow()) { on ->
                 settings.setHomeShadow(on)
@@ -669,7 +680,7 @@ class HomeCustomizeFragment : Fragment() {
             100 - settings.homeGridAlpha(), 0, 100
         ) { value ->
             settings.setHomeGridAlpha(100 - value)
-            settings.setHomeShadowGrid(false)
+            settings.setHomeShadowGrid(value == 0)
             refreshPreview()
         }
         if (settings.homeFrosted()) disableRow(sitesAlpha, true)

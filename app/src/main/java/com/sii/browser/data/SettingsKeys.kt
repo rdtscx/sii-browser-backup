@@ -285,6 +285,7 @@ object SettingsKeys {
     const val HOME_SHADOW_SEARCH = "home_shadow_search"
     const val HOME_SHADOW_GRID = "home_shadow_grid"
     const val HOME_GRID_ALPHA = "home_grid_alpha"
+    const val HOME_DOCK_ALPHA = "home_dock_alpha"
     const val HIDE_CHROME_ON_IMAGE_VIEW = "hide_chrome_image_view"
     const val WEB_TEXT_COLOR = "webtextcolor"
     const val WEBVIEW_DARK = "webviewdark"
