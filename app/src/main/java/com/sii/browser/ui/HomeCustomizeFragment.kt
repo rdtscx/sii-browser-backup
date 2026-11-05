@@ -652,11 +652,11 @@ class HomeCustomizeFragment : Fragment() {
             "主页三大件统一透明度", settings.homeUnifiedAlpha(), 0, 100
         ) { value ->
             settings.setHomeUnifiedAlpha(value)
-            // 0 表示不生效；>0 时强制同步三个滑竿，并关闭三处阴影。
+            // 0 表示不生效；>0 时按「透明度」语义强制同步三个滑竿（0 不透明）。
             if (value > 0) {
-                settings.setHomeGridAlpha(value)
+                settings.setHomeGridAlpha(100 - value)
                 settings.setHomeSearchTransparency(value)
-                settings.setDockBgAlpha(value)
+                settings.setDockBgAlpha(100 - value)
                 settings.setHomeShadowSearch(false)
                 settings.setHomeShadowGrid(false)
                 settings.setHomeShadowDock(false)
@@ -685,9 +685,9 @@ class HomeCustomizeFragment : Fragment() {
     private fun favoriteRows(): List<View> {
         val sitesAlpha = sliderRow(
             getString(R.string.settings_home_sites_card_bg),
-            settings.homeGridAlpha(), 0, 100
+            100 - settings.homeGridAlpha(), 0, 100
         ) { value ->
-            settings.setHomeGridAlpha(value)
+            settings.setHomeGridAlpha(100 - value)
             settings.setHomeShadowGrid(false)
             refreshPreview()
         }
@@ -806,9 +806,9 @@ class HomeCustomizeFragment : Fragment() {
             settings.setToolbarAutoHide(it)
         })
         val dockAlphaRow = sliderRow(
-            "悬浮工具栏背景透明度", settings.dockBgAlpha(), 0, 100
+            "悬浮工具栏背景透明度", 100 - settings.dockBgAlpha(), 0, 100
         ) { value ->
-            settings.setDockBgAlpha(value)
+            settings.setDockBgAlpha(100 - value)
             settings.setHomeShadowDock(false)
             refreshPreview()
         }
