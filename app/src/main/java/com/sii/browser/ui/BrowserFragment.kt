@@ -110,6 +110,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
     private val installingScripts = mutableSetOf<String>()
+    private val scriptPromptedUrls = mutableSetOf<String>()
     private val scriptInstallClient by lazy {
         OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     }
@@ -8212,6 +8213,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 hidePageLoadingCover()
             }
             markPageFinished(webView)
+            maybeOfferScriptFromPage(webView, url)
             // 补注入抓包 hook：onPageStarted 的注入可能落在旧文档上，
             // 加载完成后补一次，确保后续 XHR/接口请求被记录（脚本自身幂等）。
             if (webView != null && AppServices.settings.mcpAllowCapture()) {
@@ -9400,29 +9402,51 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 return@launch
             }
             if (!isAdded) return@launch
-            val parsed = UserScript.parse(code)
-            val matchText = parsed.matches.take(5).joinToString("\n").ifEmpty { "*" }
-            val message = buildString {
-                append(getString(R.string.scripts_install_name, parsed.name))
-                append("\n")
-                append(getString(R.string.scripts_install_author, parsed.author ?: "-"))
-                append("\n")
-                append(getString(R.string.scripts_install_match, matchText))
-                append("\n")
-                append(getString(R.string.scripts_install_source, url))
-            }
-            android.app.AlertDialog.Builder(requireContext())
-                .setTitle(R.string.scripts_install_title)
-                .setMessage(message)
-                .setPositiveButton(R.string.scripts_install_confirm) { _, _ ->
-                    lifecycleScope.launch {
-                        runCatching { AppServices.scriptRepository.add(code, url) }
-                        Toast.makeText(requireContext(), R.string.scripts_installed, Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            showScriptInstallDialog(url, code)
         }
+    }
+
+    /** 页面直接展示油猴脚本源码（如 greasyfork 的 /scripts/<id>）时也提示安装。 */
+    private fun maybeOfferScriptFromPage(webView: SiiWebView?, url: String) {
+        if (!isAdded || url.startsWith("about")) return
+        if (isUserScriptUrl(url)) return
+        if (!scriptPromptedUrls.add(url)) return
+        webView?.evaluateJavascript(
+            "(function(){try{var t=document.body?document.body.innerText:'';" +
+                "return t.length>2000000?t.slice(0,2000000):t}catch(e){return ''}})()"
+        ) { raw ->
+            val text = runCatching {
+                org.json.JSONTokener(raw.orEmpty()).nextValue().toString()
+            }.getOrDefault("")
+            if (text.trimStart().startsWith("// ==UserScript==") && text.contains("@name")) {
+                showScriptInstallDialog(url, text)
+            }
+        }
+    }
+
+    private fun showScriptInstallDialog(url: String, code: String) {
+        val parsed = UserScript.parse(code)
+        val matchText = parsed.matches.take(5).joinToString("\n").ifEmpty { "*" }
+        val message = buildString {
+            append(getString(R.string.scripts_install_name, parsed.name))
+            append("\n")
+            append(getString(R.string.scripts_install_author, parsed.author ?: "-"))
+            append("\n")
+            append(getString(R.string.scripts_install_match, matchText))
+            append("\n")
+            append(getString(R.string.scripts_install_source, url))
+        }
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.scripts_install_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.scripts_install_confirm) { _, _ ->
+                lifecycleScope.launch {
+                    runCatching { AppServices.scriptRepository.add(code, url) }
+                    Toast.makeText(requireContext(), R.string.scripts_installed, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun fetchUserScript(url: String): String? = runCatching {
