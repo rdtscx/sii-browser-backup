@@ -979,120 +979,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
     }
 
-    /** 抖音链接：先让用户选在 Sii 里尝试，还是交给抖音 App。 */
-    private fun openDouyin(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle("抖音链接")
-            .setMessage(
-                "抖音网页版限制了播放与下载，在 Sii 里通常只能嗅探到图片。\n" +
-                    "要试着在 Sii 里打开吗？"
-            )
-            .setPositiveButton("在 Sii 中打开") { _, _ -> openDouyinInternal(detected) }
-            .setNeutralButton("在抖音中打开") { _, _ ->
-                val uri = when {
-                    detected.id != null -> "snssdk1128://aweme/detail/${detected.id}"
-                    detected.shortCode != null ->
-                        com.sii.browser.core.webview.DouyinLinks.shortUrl(detected.shortCode)
-                    else -> detected.raw
-                }
-                runCatching {
-                    startActivity(android.content.Intent(
-                        android.content.Intent.ACTION_VIEW, android.net.Uri.parse(uri)
-                    ))
-                }.onFailure {
-                    Toast.makeText(requireContext(), "没有可用的抖音 App", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    private fun openDouyinInternal(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
-        setSiteSniffEnabled("www.iesdouyin.com", true)
-        setSiteSniffEnabled("douyin.com", true)
-        val id = detected.id
-        if (id != null) {
-            loadUrlFor(com.sii.browser.core.webview.DouyinLinks.shareUrl(id), fromDouyin = true)
-            lifecycleScope.launch {
-                val result = withContext(Dispatchers.IO) {
-                    com.sii.browser.core.webview.DouyinLinks.parse(id)
-                }
-                if (result != null && isAdded && view != null) {
-                    showDouyinResult(result, id)
-                } else if (isAdded) {
-                    Toast.makeText(
-                        requireContext(),
-                        "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-            return
-        }
-        val code = detected.shortCode ?: return
-        lifecycleScope.launch {
-            val resolved = withContext(Dispatchers.IO) {
-                com.sii.browser.core.webview.DouyinLinks.resolveShort(code)
-            }
-            if (resolved != null) {
-                loadUrlFor(resolved.url, fromDouyin = true)
-                val result = withContext(Dispatchers.IO) {
-                    com.sii.browser.core.webview.DouyinLinks.parse(resolved.id)
-                }
-                if (result != null && isAdded && view != null) {
-                    showDouyinResult(result, resolved.id)
-                } else if (isAdded) {
-                    Toast.makeText(
-                        requireContext(),
-                        "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-                return@launch
-            }
-            // 拿不到 id 才退回直接打开短链（可能跳到 App 的 scheme，交给 WebView 处理）。
-            loadUrlFor(
-                com.sii.browser.core.webview.DouyinLinks.shortUrl(code),
-                fromDouyin = true
-            )
-            if (isAdded) {
-                Toast.makeText(
-                    requireContext(),
-                    "短链解析失败，已开启本站嗅探",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    private fun showDouyinResult(
-        result: com.sii.browser.core.webview.DouyinLinks.Result,
-        id: String
-    ) {
-        val labels = mutableListOf<String>()
-        val urls = mutableListOf<String>()
-        result.videos.forEach { (label, url) ->
-            labels.add("下载 $label")
-            urls.add(url)
-        }
-        result.images.forEachIndexed { index, url ->
-            labels.add("下载 图片 ${index + 1}")
-            urls.add(url)
-        }
-        if (labels.isEmpty()) return
-        val builder = android.app.AlertDialog.Builder(requireContext())
-            .setTitle("抖音解析")
-            .setItems(labels.toTypedArray()) { _, which ->
-                val isVideo = which < result.videos.size
-                val name = "douyin_${id}_${which + 1}." + if (isVideo) "mp4" else "jpg"
-                startDownload(urls[which], name)
-                Toast.makeText(requireContext(), "已加入下载", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("关闭", null)
-        if (result.desc.isNotBlank()) builder.setMessage(result.desc.take(200))
-        builder.show()
-    }
-
     /** 保存离线网页（MHTML 存到下载目录）。 */
     @Suppress("DEPRECATION")
     private fun savePageOffline() {
@@ -4095,21 +3981,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
-    private fun loadUrlFor(rawUrl: String, fromDouyin: Boolean = false) {
+    private fun loadUrlFor(rawUrl: String) {
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
-        if (!fromDouyin) {
-            val detected = com.sii.browser.core.webview.DouyinLinks.detect(rawUrl)
-            if (detected != null && !rawUrl.trim().startsWith("http", true)) {
-                openDouyin(detected)
-                return
-            }
-        }
-        if (rawUrl.startsWith("http", ignoreCase = true)) {
-            val host = runCatching { android.net.Uri.parse(rawUrl).host }.getOrNull()
-            if (com.sii.browser.core.webview.DouyinLinks.isDouyinHost(host)) {
-                host?.let { setSiteSniffEnabled(it, true) }
-            }
-        }
         revealToolbarOnNavigate()
         homePanel?.dismissSuggestions()
         blurAddressInput()
@@ -6281,11 +6154,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "home-search",
             text + " tab=" + tabManager.currentIndex + "/" + tabManager.size
         )
-        val douyin = com.sii.browser.core.webview.DouyinLinks.detect(text)
-        if (douyin != null && !android.webkit.URLUtil.isNetworkUrl(text)) {
-            openDouyin(douyin)
-            return
-        }
         val url = resolveInput(text)
         loadUrlFor(url)
     }
@@ -8057,12 +7925,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             text + " tab=" + tabManager.currentIndex + "/" + tabManager.size
         )
         if (text.isEmpty()) return
-        val douyin = com.sii.browser.core.webview.DouyinLinks.detect(text)
-        if (douyin != null && !android.webkit.URLUtil.isNetworkUrl(text)) {
-            openDouyin(douyin)
-            addressInput?.clearFocus()
-            return
-        }
         val url = resolveInput(text)
         loadUrlFor(url)
         addressInput?.clearFocus()
