@@ -979,13 +979,23 @@ class DevToolsPanel(
     // --- 点选 ---
 
     private fun setPicker(on: Boolean) {
-        pickerOn = on
         val wv = webViewProvider() ?: return
+        pickerOn = on
         if (on) {
+            // 强制重新接桥到当前 WebView，避免面板打开时缓存的是旧标签。
+            attachBridge()
             heightPercent = 35
             applyHeight()
             wv.evaluateJavascript(PICK_INIT, null)
             wv.evaluateJavascript("window.__siiPickOn=true", null)
+            wv.evaluateJavascript("(function(){return typeof window.SiiDevToolsPick})()") { r ->
+                if (!r.orEmpty().contains("object")) {
+                    android.widget.Toast.makeText(
+                        context, "拾取桥未就绪，请收起后重开面板",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         } else {
             wv.evaluateJavascript("try{window.__siiPickOff&&window.__siiPickOff()}catch(e){}", null)
             heightPercent = 55
