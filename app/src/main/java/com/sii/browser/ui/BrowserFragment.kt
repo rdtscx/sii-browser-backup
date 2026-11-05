@@ -1003,20 +1003,38 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return
         }
         val code = detected.shortCode ?: return
-        loadUrlFor(com.sii.browser.core.webview.DouyinLinks.shortUrl(code), fromDouyin = true)
         lifecycleScope.launch {
             val realId = withContext(Dispatchers.IO) {
                 com.sii.browser.core.webview.DouyinLinks.resolveShort(code)
-            } ?: return@launch
-            val result = withContext(Dispatchers.IO) {
-                com.sii.browser.core.webview.DouyinLinks.parse(realId)
             }
-            if (result != null && isAdded && view != null) {
-                showDouyinResult(result, realId)
-            } else if (isAdded) {
+            if (realId != null) {
+                loadUrlFor(
+                    com.sii.browser.core.webview.DouyinLinks.shareUrl(realId),
+                    fromDouyin = true
+                )
+                val result = withContext(Dispatchers.IO) {
+                    com.sii.browser.core.webview.DouyinLinks.parse(realId)
+                }
+                if (result != null && isAdded && view != null) {
+                    showDouyinResult(result, realId)
+                } else if (isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                return@launch
+            }
+            // 拿不到 id 才退回直接打开短链（可能跳到 App 的 scheme，交给 WebView 处理）。
+            loadUrlFor(
+                com.sii.browser.core.webview.DouyinLinks.shortUrl(code),
+                fromDouyin = true
+            )
+            if (isAdded) {
                 Toast.makeText(
                     requireContext(),
-                    "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
+                    "短链解析失败，已开启本站嗅探",
                     Toast.LENGTH_LONG
                 ).show()
             }

@@ -70,6 +70,8 @@ object DouyinLinks {
         val html = get(shortUrl(code)) ?: return null
         shareRegex.find(html)?.let { return it.groupValues[1] }
         schemeRegex.find(html)?.let { return it.groupValues[1] }
+        Regex("\\\"lastPath\\\"\\s*:\\s*\\\"(\\d{6,})\\\"")
+            .find(html)?.let { return it.groupValues[1] }
         return null
     }
 
