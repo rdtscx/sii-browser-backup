@@ -32,7 +32,7 @@ class SniffInterceptor(private val key: Any) : ResourceInterceptor {
             accept.contains("audio", true) ||
             dest == "video" || dest == "audio"
         if (interesting) {
-            SniffStore.add(key, SniffedResource(url, type))
+            SniffStore.add(key, SniffedResource(url, type, pageUrl = pageUrl))
         }
         return null
     }

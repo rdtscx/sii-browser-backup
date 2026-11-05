@@ -34,6 +34,12 @@ class SniffFragment : Fragment() {
     private lateinit var chips: LinearLayout
     private var sniffHint: View? = null
     private var filter: SniffType? = null
+    private var showAllPages = false
+    private val storeListener: (Any) -> Unit = { key ->
+        if (key === AppServices.sniffTarget) {
+            view?.post { render() }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -91,11 +97,7 @@ class SniffFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        SniffStore.onChange = { key ->
-            if (key === AppServices.sniffTarget) {
-                view.post { render() }
-            }
-        }
+        SniffStore.addListener(storeListener)
         render()
     }
 
@@ -105,7 +107,7 @@ class SniffFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        SniffStore.onChange = null
+        SniffStore.removeListener(storeListener)
         sniffHint = null
         super.onDestroyView()
     }
@@ -119,7 +121,18 @@ class SniffFragment : Fragment() {
         container.removeAllViews()
         val target = key()
         val all = target?.let { SniffStore.list(it) }.orEmpty()
-        val items = if (filter == null) all else all.filter { it.type == filter }
+        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
+        var visible = if (showAllPages || current.isNullOrEmpty()) {
+            all
+        } else {
+            all.filter { samePage(it.pageUrl, current) }
+        }
+        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
+        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
+            showAllPages = true
+            visible = all
+        }
+        val items = if (filter == null) visible else visible.filter { it.type == filter }
         if (items.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
                 text = getString(if (all.isEmpty()) R.string.sniff_empty else R.string.search_no_match)
@@ -134,8 +147,33 @@ class SniffFragment : Fragment() {
         container.addView(card)
     }
 
+    /** 两个 URL 是否属于同一文档：忽略 query/hash 与末尾斜杠，任一缺失时视为同页。 */
+    private fun samePage(a: String?, b: String?): Boolean {
+        if (a.isNullOrBlank() || b.isNullOrBlank()) return true
+        val ua = runCatching { android.net.Uri.parse(a) }.getOrNull() ?: return true
+        val ub = runCatching { android.net.Uri.parse(b) }.getOrNull() ?: return true
+        if (ua.host != ub.host || ua.scheme != ub.scheme) return false
+        return ua.path.orEmpty().trimEnd('/') == ub.path.orEmpty().trimEnd('/')
+    }
+
     private fun renderChips() {
         chips.removeAllViews()
+        chips.addView(TextView(requireContext()).apply {
+            text = if (showAllPages) getString(R.string.sniff_all_pages)
+            else getString(R.string.sniff_current_page)
+            setTextSize(12.5f)
+            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setTextColor(ThemeAccent.color(requireContext()))
+            setBackgroundResource(R.drawable.bg_accent_soft)
+            isClickable = true
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(8) }
+            setOnClickListener {
+                showAllPages = !showAllPages
+                render()
+            }
+        })
         val options = listOf<SniffType?>(
             null, SniffType.VIDEO, SniffType.HLS, SniffType.AUDIO,
             SniffType.IMAGE, SniffType.DOC, SniffType.MSE, SniffType.OTHER
@@ -278,17 +316,21 @@ class SniffFragment : Fragment() {
             .show()
     }
 
-    /** 用外部播放器打开嗅探到的视频/音频/流媒体。 */
+    /** 用内建播放器打开嗅探到的视频/音频/流媒体，带上当前页面的 Referer/UA。 */
     private fun play(res: SniffedResource) {
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-            setDataAndType(android.net.Uri.parse(res.url), mimeOf(res))
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val player = AppServices.settings.videoPlayer()
-        if (!player.isNullOrBlank()) intent.setPackage(player)
-        runCatching { startActivity(intent) }.onFailure {
-            Toast.makeText(requireContext(), R.string.sniff_no_player, Toast.LENGTH_SHORT).show()
-        }
+        val target = AppServices.sniffTarget
+        parentFragmentManager.beginTransaction()
+            .replace(
+                R.id.shell_root,
+                PlayerFragment.newInstance(
+                    res.url,
+                    res.type == SniffType.HLS,
+                    target?.url,
+                    target?.settings?.userAgentString
+                )
+            )
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun mimeOf(res: SniffedResource): String {

@@ -43,6 +43,8 @@ object SettingsKeys {
     const val PRIVACY_MINERS = "privacyminers"
     const val PRIVACY_FINGERPRINT = "privacyfingerprint"
     const val PRIVACY_CONTENT = "privacycontent"
+    const val PRIVACY_ALLOWED_HOSTS = "privacyallowedhosts"
+    const val PRIVACY_COMPAT = "privacycompat"
     const val PRIVACY_COOKIES = "privacycookies"
     const val PRIVACY_CLEAN_URLS = "privacycleanurls"
     const val PRIVACY_GPC = "privacygpc"

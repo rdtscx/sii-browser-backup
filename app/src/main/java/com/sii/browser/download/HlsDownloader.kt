@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.IOException
 import java.io.FileOutputStream
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -37,7 +38,7 @@ object HlsDownloader {
     ): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val mediaPlaylist = resolveMediaPlaylist(playlistUrl, referer, userAgent)
-            val segments = parseSegments(mediaPlaylist)
+            val segments = parseSegments(mediaPlaylist, referer, userAgent)
             if (segments.isEmpty()) return@runCatching false
             outFile.parentFile?.mkdirs()
             var bytes = 0L
@@ -83,8 +84,8 @@ object HlsDownloader {
 
     private data class Segment(val url: String, val key: ByteArray?, val iv: ByteArray?)
 
-    private fun parseSegments(playlistUrl: String): List<Segment> {
-        val text = fetchText(playlistUrl, null, null)
+    private fun parseSegments(playlistUrl: String, referer: String?, ua: String?): List<Segment> {
+        val text = fetchText(playlistUrl, referer, ua)
         val base = URI(playlistUrl)
         val segments = mutableListOf<Segment>()
         var key: ByteArray? = null
@@ -99,14 +100,18 @@ object HlsDownloader {
                     val method = Regex("METHOD=([^,]*)").find(line)?.groupValues?.get(1).orEmpty()
                     if (method.equals("AES-128", true)) {
                         val uri = Regex("URI=\"([^\"]*)\"").find(line)?.groupValues?.get(1)
-                        key = uri?.let { fetchBytes(base.resolve(it).toString(), null, null) }
+                        key = uri?.let { fetchBytes(base.resolve(it).toString(), referer, ua) }
                         val ivHex = Regex("IV=0x([0-9A-Fa-f]+)").find(line)?.groupValues?.get(1)
                         iv = ivHex?.let { hexToBytes(it) }
+                    } else if (!method.equals("NONE", true) && method.isNotEmpty()) {
+                        throw IOException("加密方式 $method 暂不支持")
                     } else {
                         key = null
                         iv = null
                     }
                 }
+                line.startsWith("#EXT-X-MAP:") ->
+                    throw IOException("fMP4（EXT-X-MAP）暂不支持")
                 line.isEmpty() || line.startsWith("#") -> Unit
                 else -> {
                     val segmentIv = iv ?: if (key != null) sequenceToIv(mediaSequence + index) else null
@@ -156,16 +161,36 @@ object HlsDownloader {
         Request.Builder().url(url).apply {
             if (!referer.isNullOrEmpty()) header("Referer", referer)
             if (!ua.isNullOrEmpty()) header("User-Agent", ua)
+            runCatching { android.webkit.CookieManager.getInstance().getCookie(url) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { header("Cookie", it) }
+            val target = runCatching { android.net.Uri.parse(url) }.getOrNull()
+            val page = referer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            val targetHost = target?.host?.lowercase()
+            val pageHost = page?.host?.lowercase()
+            if (targetHost != null && pageHost != null &&
+                (targetHost == pageHost || targetHost.endsWith(".$pageHost")) &&
+                page?.scheme != null && page.authority != null
+            ) {
+                header("Origin", "${page.scheme}://${page.authority}")
+            }
         }.build()
 
     private fun fetchText(url: String, referer: String?, ua: String?): String =
         client.newCall(request(url, referer, ua)).execute().use { resp ->
+            if (resp.code == 401 || resp.code == 403) {
+                throw IOException("HTTP ${resp.code}：需要登录或链接已过期")
+            }
             require(resp.isSuccessful) { "HTTP ${resp.code}" }
             resp.body?.string().orEmpty()
         }
 
     private fun fetchBytes(url: String, referer: String?, ua: String?): ByteArray =
         client.newCall(request(url, referer, ua)).execute().use { resp ->
+            if (resp.code == 401 || resp.code == 403) {
+                throw IOException("HTTP ${resp.code}：需要登录或链接已过期")
+            }
             require(resp.isSuccessful) { "HTTP ${resp.code}" }
             resp.body?.bytes() ?: ByteArray(0)
         }

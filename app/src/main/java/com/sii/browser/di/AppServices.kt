@@ -162,6 +162,7 @@ object AppServices {
         if (::settings.isInitialized) return
         settings = DataStoreSettings(application)
         adBlock = AdBlockEngine().apply { enabled = settings.adBlockEnabled() }
+        syncPrivacyAllowlist()
         privacyManager = PrivacyManager(application)
         privacyManager.isIncognito = settings.incognitoActive()
         privacyManager.incognitoSessionStartedAt = settings.incognitoSessionStartedAt()
@@ -336,9 +337,20 @@ object AppServices {
     )
 
     /** 依据站点规则里的「广告拦截」开关刷新单站覆盖（读内存缓存，主线程可调）。 */
+    /** 重新计算隐私放行名单：用户名单 + 标准档兼容模式的功能性域名。 */
+    fun syncPrivacyAllowlist() {
+        val extra = if (settings.privacyLevel() == 1 && settings.privacyCompat()) {
+            com.sii.browser.core.privacy.PrivacyCompat.HOSTS
+        } else {
+            emptySet()
+        }
+        adBlock.setPrivacyAllowedHosts(settings.privacyAllowedHosts() + extra)
+    }
+
     fun refreshAdBlockWhitelist() {
         val enabledHosts = mutableSetOf<String>()
         val disabledHosts = mutableSetOf<String>()
+        val privacyPausedHosts = mutableSetOf<String>()
         siteConfigRepository.cachedAll().forEach { (host, config) ->
             val json = com.sii.browser.data.SiteConfig.parse(config)
             if (!com.sii.browser.data.SiteConfig.enabled(json)) return@forEach
@@ -346,7 +358,11 @@ object AppServices {
                 1 -> enabledHosts.add(host)
                 2 -> disabledHosts.add(host)
             }
+            if (com.sii.browser.data.SiteConfig.tri(json, "pv") == 2) {
+                privacyPausedHosts.add(host)
+            }
         }
         adBlock.setSiteOverrides(enabledHosts, disabledHosts)
+        adBlock.setPrivacySiteOverrides(privacyPausedHosts)
     }
 }

@@ -11,6 +11,8 @@ val localProps = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val releaseStore = localProps.getProperty("sii.release.storeFile")
+// -Pcoexist=true 时生成可共存的测试包（包名 .test，使用正式签名）。
+val coexist = (findProperty("coexist") as String?)?.toBoolean() ?: false
 
 android {
     namespace = "com.sii.browser"
@@ -20,8 +22,8 @@ android {
         applicationId = "com.sii.browser"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.4.0"
+        versionCode = 11
+        versionName = "1.5.0"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -36,6 +38,10 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    sourceSets {
+        if (coexist) getByName("release").res.srcDirs("src/coexist/res")
     }
 
     signingConfigs {
@@ -58,6 +64,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (coexist) {
+                applicationIdSuffix = ".test"
+                resValue("string", "app_package_name", "com.sii.browser.test")
+            }
             signingConfig = if (releaseStore != null) signingConfigs.getByName("release") else null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

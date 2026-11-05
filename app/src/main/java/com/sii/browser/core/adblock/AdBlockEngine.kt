@@ -17,6 +17,8 @@ class AdBlockEngine {
     private val subscriptionRules = mutableListOf<AdBlockRule>()
     private val siteEnabled = mutableSetOf<String>()
     private val siteDisabled = mutableSetOf<String>()
+    private val privacyDisabledSites = mutableSetOf<String>()
+    private val privacyAllowedHosts = mutableSetOf<String>()
 
     private val domainBlock = HashSet<String>()
     private val domainAllow = HashSet<String>()
@@ -69,7 +71,15 @@ class AdBlockEngine {
     @Synchronized
     fun resetPrivacyStats() {
         blockedByCategory.clear()
+        blockedPrivacyHosts.clear()
     }
+
+    private val blockedPrivacyHosts = LinkedHashMap<String, Int>()
+
+    @Synchronized
+    fun privacyBlockedHostStats(limit: Int = 12): List<Pair<String, Int>> =
+        blockedPrivacyHosts.entries.sortedByDescending { it.value }
+            .take(limit).map { it.key to it.value }
 
     val customRuleCount: Int get() = customRules.size
     val subscriptionRuleCount: Int get() = subscriptionRules.size
@@ -130,6 +140,20 @@ class AdBlockEngine {
         disabledHosts.mapTo(siteDisabled) { it.lowercase() }
     }
 
+    /** 站点级暂停隐私规则（不影响广告规则）。 */
+    @Synchronized
+    fun setPrivacySiteOverrides(disabledHosts: Set<String>) {
+        privacyDisabledSites.clear()
+        disabledHosts.mapTo(privacyDisabledSites) { it.lowercase() }
+    }
+
+    /** 全局放行的请求域名：这些域名不再应用隐私规则，广告规则继续生效。 */
+    @Synchronized
+    fun setPrivacyAllowedHosts(hosts: Set<String>) {
+        privacyAllowedHosts.clear()
+        hosts.mapTo(privacyAllowedHosts) { it.trim().lowercase() }
+    }
+
     /** 旧入口：只有 URL 时按普通子资源匹配。 */
     fun shouldBlock(url: String): Boolean =
         shouldBlock(url, AdBlockRule.TYPE_OTHER, hostOf(url), false)
@@ -174,8 +198,12 @@ class AdBlockEngine {
         if (domainBlock.isEmpty() && blockIndex.isEmpty() && shortBlock.isEmpty()) return false
 
         val adActive = isAdBlockActive(siteHost)
-        val privacyActive = privacyEnabled
         val host = hostOf(url)
+        val privacyPausedForSite = privacyDisabledSites.any {
+            matchesSite(siteHost.orEmpty(), it)
+        }
+        val privacyActive = privacyEnabled && !privacyPausedForSite &&
+            !matchesDomain(privacyAllowedHosts, host)
         if (matchesAllow(url, type, pageHost, thirdParty, host, adActive, privacyActive)) {
             return false
         }
@@ -185,6 +213,12 @@ class AdBlockEngine {
         blockedCount++
         if (category.isNotEmpty()) {
             blockedByCategory[category] = (blockedByCategory[category] ?: 0) + 1
+            val privacyKey = host.ifEmpty { pageHost.orEmpty() }
+            if (privacyKey.isNotEmpty() &&
+                (blockedPrivacyHosts.size < 100 || blockedPrivacyHosts.containsKey(privacyKey))
+            ) {
+                blockedPrivacyHosts[privacyKey] = (blockedPrivacyHosts[privacyKey] ?: 0) + 1
+            }
         }
         val key = host.ifEmpty { pageHost.orEmpty() }
         if (key.isNotEmpty() && (blockedHosts.size < 50 || blockedHosts.containsKey(key))) {
@@ -396,7 +430,8 @@ class AdBlockEngine {
     fun cosmeticCssFor(host: String?): String {
         val selectors = cosmeticSelectorsFor(host)
         if (selectors.isEmpty()) return ""
-        return selectors.chunked(100).joinToString("\n") { chunk ->
+        // 不能带换行：整段 CSS 会被塞进 JS 单引号字符串，字面换行会导致语法错误。
+        return selectors.chunked(100).joinToString("") { chunk ->
             chunk.joinToString(",") + "{display:none!important}"
         }
     }
@@ -406,14 +441,30 @@ class AdBlockEngine {
     fun cosmeticSelectorsFor(host: String?): List<String> {
         rebuildIndexIfNeeded()
         if (cosmeticRules.isEmpty()) return emptyList()
+        val privacyActive = privacyActiveForSite(host)
         val exceptions = cosmeticRules
-            .filter { (it.privacyCategory == null || privacyEnabled) && it.isException && it.appliesTo(host) }
+            .filter { (it.privacyCategory == null || privacyActive) && it.isException && it.appliesTo(host) }
             .map { it.selector }
             .toSet()
         return cosmeticRules
-            .filter { (it.privacyCategory == null || privacyEnabled) && !it.isException && it.appliesTo(host) }
+            .filter { (it.privacyCategory == null || privacyActive) && !it.isException && it.appliesTo(host) }
             .map { it.selector }
             .filter { it !in exceptions }
             .distinct()
+    }
+
+    /** 元素隐藏规则总数与其中隐私类数量，供测试包诊断。 */
+    @Synchronized
+    fun cosmeticRuleCounts(): IntArray {
+        rebuildIndexIfNeeded()
+        val privacy = cosmeticRules.count { it.privacyCategory != null }
+        return intArrayOf(cosmeticRules.size, privacy)
+    }
+
+    /** 隐私规则在当前站点是否生效：全局开启且未被站点暂停。 */
+    private fun privacyActiveForSite(host: String?): Boolean {
+        if (!privacyEnabled) return false
+        val target = host.orEmpty().lowercase()
+        return privacyDisabledSites.none { matchesSite(target, it) }
     }
 }

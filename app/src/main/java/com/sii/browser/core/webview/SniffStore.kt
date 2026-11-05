@@ -10,7 +10,8 @@ data class SniffedResource(
     val url: String,
     val type: SniffType,
     val mime: String? = null,
-    val size: Long = 0L
+    val size: Long = 0L,
+    val pageUrl: String? = null
 )
 
 /**
@@ -25,11 +26,23 @@ object SniffStore {
     private val pendingNotify = java.util.LinkedHashSet<Any>()
     private val notifyRunnable = Runnable {
         val keys = synchronized(lock) { pendingNotify.toList().also { pendingNotify.clear() } }
-        keys.forEach { onChange?.invoke(it) }
+        keys.forEach { notifyChanged(it) }
     }
 
-    /** 列表变化回调（在调用线程触发，UI 侧自行切主线程）。 */
-    var onChange: ((Any) -> Unit)? = null
+    /** 列表变化回调（可多个监听者，在调用线程触发，UI 侧自行切主线程）。 */
+    private val listeners = java.util.concurrent.CopyOnWriteArrayList<(Any) -> Unit>()
+
+    fun addListener(listener: (Any) -> Unit) {
+        listeners.add(listener)
+    }
+
+    fun removeListener(listener: (Any) -> Unit) {
+        listeners.remove(listener)
+    }
+
+    private fun notifyChanged(key: Any) {
+        listeners.forEach { runCatching { it(key) } }
+    }
 
     /** 新资源回调：用于浏览器页的“发现视频”提示。 */
     var onResource: ((Any, SniffedResource) -> Unit)? = null
@@ -47,7 +60,8 @@ object SniffStore {
                 existing.copy(
                     type = if (resource.type != SniffType.OTHER) resource.type else existing.type,
                     mime = resource.mime ?: existing.mime,
-                    size = if (resource.size > 0L) resource.size else existing.size
+                    size = if (resource.size > 0L) resource.size else existing.size,
+                    pageUrl = resource.pageUrl ?: existing.pageUrl
                 )
             }
             if (existing != merged) {
@@ -82,12 +96,12 @@ object SniffStore {
 
     fun clear(key: Any) {
         synchronized(lock) { store[key]?.clear() }
-        onChange?.invoke(key)
+        notifyChanged(key)
     }
 
     fun remove(key: Any) {
         synchronized(lock) { store.remove(key) }
-        onChange?.invoke(key)
+        notifyChanged(key)
     }
 
     /** 低内存时清空所有标签的嗅探结果。 */
