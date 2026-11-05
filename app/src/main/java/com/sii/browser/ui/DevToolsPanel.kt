@@ -66,6 +66,7 @@ class DevToolsPanel(
     private var picked: JSONObject? = null
     private var pickerOn = false
     private var elementsQuery = ""
+    private var searchRunnable: Runnable? = null
 
     val isShowing: Boolean get() = host.visibility == View.VISIBLE
 
@@ -414,7 +415,10 @@ class DevToolsPanel(
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
                     elementsQuery = s?.toString().orEmpty()
-                    treeList?.let { renderTreeRows(it) }
+                    searchRunnable?.let { host.removeCallbacks(it) }
+                    val job = Runnable { treeList?.let { renderTreeRows(it) } }
+                    searchRunnable = job
+                    host.postDelayed(job, 300)
                 }
                 override fun afterTextChanged(s: android.text.Editable?) = Unit
             })
@@ -588,8 +592,16 @@ class DevToolsPanel(
 
     private fun renderTreeRows(list: LinearLayout) {
         list.removeAllViews()
+        val query = elementsQuery.trim()
+        // 每次渲染只算一次匹配集合，避免每个节点重复 O(n) 扫描。
+        val keep = if (query.isEmpty()) null else keepForQuery()
+        val accent = ThemeAccent.color(context)
+        var shown = 0
         nodes.forEachIndexed { index, node ->
-            if (!visible(index)) return@forEachIndexed
+            val visibleNow = if (keep != null) keep.contains(index) else visibleInTree(index)
+            if (!visibleNow) return@forEachIndexed
+            if (shown >= 300) return@forEachIndexed
+            shown++
             val arrow = when {
                 !node.hasChildren -> "  "
                 expanded.contains(index) -> "▾ "
@@ -607,7 +619,7 @@ class DevToolsPanel(
                 typeface = Typeface.MONOSPACE
                 setPadding(dp(6 + node.depth * 10), dp(3), dp(8), dp(3))
                 setTextColor(
-                    if (node.id.isNotBlank()) ThemeAccent.color(context)
+                    if (node.id.isNotBlank()) accent
                     else context.getColor(R.color.text_primary)
                 )
                 setOnClickListener {
@@ -623,6 +635,11 @@ class DevToolsPanel(
                 }
             })
         }
+        if (keep != null && keep.size > shown) {
+            list.addView(hint("匹配 ${keep.size} 个，已显示前 $shown 个").apply {
+                setPadding(dp(10), dp(4), dp(10), dp(4))
+            })
+        }
     }
 
     private fun labelOf(node: Node): String = buildString {
@@ -632,8 +649,7 @@ class DevToolsPanel(
         if (node.text.isNotBlank()) append(' ').append(node.text)
     }
 
-    private fun visible(index: Int): Boolean {
-        if (elementsQuery.isNotBlank()) return keepForQuery().contains(index)
+    private fun visibleInTree(index: Int): Boolean {
         var parent = nodes[index].parent
         while (parent >= 0) {
             if (!expanded.contains(parent)) return false
