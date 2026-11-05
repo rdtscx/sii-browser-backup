@@ -495,7 +495,12 @@ class DevToolsPanel(
             setTextSize(11f)
             setOnClickListener { clearHighlight() }
         })
-        detailWrap.addView(actions)
+        detailWrap.addView(
+            android.widget.HorizontalScrollView(context).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(actions)
+            }
+        )
         content.addView(
             detailWrap,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 2f)
