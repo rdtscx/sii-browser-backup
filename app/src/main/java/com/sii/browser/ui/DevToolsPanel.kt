@@ -123,16 +123,12 @@ class DevToolsPanel(
         built = true
         panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(context.getColor(R.color.bg))
-            elevation = 24f * density
-            clipToOutline = true
-            outlineProvider = object : android.view.ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: android.graphics.Outline) {
-                    outline.setRoundRect(
-                        0, 0, view.width, view.height + dp(28), dp(22) * density
-                    )
-                }
+            background = GradientDrawable().apply {
+                cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
+                setColor(context.getColor(R.color.bg))
+                setStroke(dp(1), if (AppServices.settings.isNightMode()) 0x1FFFFFFF else 0x14000000)
             }
+            elevation = 12f * density
         }
 
         // 拖动条
@@ -173,7 +169,7 @@ class DevToolsPanel(
             setOnClickListener {
                 heightPercent = if (heightPercent >= 90) 55 else 95
                 applyHeight()
-                text = if (heightPercent >= 90) "半屏" else "全屏"
+                text = if (heightPercent >= 90) "退出全屏" else "全屏"
             }
         })
         header.addView(TextView(context).apply {
@@ -249,11 +245,16 @@ class DevToolsPanel(
         )
     }
 
+    private var heightRetry = 0
+
     private fun applyHeight() {
         if (host.height <= 0) {
+            if (heightRetry >= 3) return
+            heightRetry++
             host.post { applyHeight() }
             return
         }
+        heightRetry = 0
         val h = (host.height * heightPercent / 100f).toInt().coerceAtLeast(dp(180))
         panel.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, h, Gravity.BOTTOM
@@ -402,7 +403,7 @@ class DevToolsPanel(
             }
         })
         top.addView(Button(context).apply {
-            text = if (pickerOn) "停止点选" else "点选"
+            text = if (pickerOn) "退出点选" else "点选元素"
             setTextSize(11f)
             setOnClickListener { setPicker(!pickerOn) }
         })
@@ -421,6 +422,9 @@ class DevToolsPanel(
             })
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(top)
+        content.addView(hint("点选：在页面上点一下选中元素；搜索：过滤元素树；详情下方可改属性/样式、复制 HTML、加样式覆盖").apply {
+            setPadding(dp(10), 0, dp(10), dp(4))
+        })
 
         if (treeLoading) {
             content.addView(hint("读取中…"))
@@ -472,24 +476,24 @@ class DevToolsPanel(
             setOnClickListener { editStyles() }
         })
         actions.addView(Button(context).apply {
-            text = "HTML"
+            text = "复制HTML"
             setTextSize(11f)
             isEnabled = picked != null
             setOnClickListener { copyHtml() }
         })
         actions.addView(Button(context).apply {
-            text = "覆盖"
+            text = "样式覆盖"
             setTextSize(11f)
             isEnabled = picked != null
             setOnClickListener { editOverride() }
         })
         actions.addView(Button(context).apply {
-            text = "清覆盖"
+            text = "清除覆盖"
             setTextSize(11f)
             setOnClickListener { clearOverride() }
         })
         actions.addView(Button(context).apply {
-            text = "取消高亮"
+            text = "清除高亮"
             setTextSize(11f)
             setOnClickListener { clearHighlight() }
         })
