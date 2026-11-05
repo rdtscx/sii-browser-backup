@@ -61,9 +61,11 @@ class DevToolsPanel(
 
     private var nodes: List<Node> = emptyList()
     private val expanded = mutableSetOf<Int>()
+    private var treeList: LinearLayout? = null
     private var treeLoading = false
     private var picked: JSONObject? = null
     private var pickerOn = false
+    private var elementsQuery = ""
     private var bridgeAttached = false
     private var bridgedWebView: SiiWebView? = null
 
@@ -94,6 +96,17 @@ class DevToolsPanel(
 
     fun toggle() {
         if (isShowing) hide() else show()
+    }
+
+    /** 切标签后重新把拾取桥接到当前 WebView。 */
+    fun onWebViewChanged() {
+        if (!isShowing) return
+        attachBridge()
+        if (pickerOn) {
+            val wv = webViewProvider() ?: return
+            wv.evaluateJavascript(PICK_INIT, null)
+            wv.evaluateJavascript("window.__siiPickOn=true", null)
+        }
     }
 
     /** 返回键优先收面板。 */
@@ -257,6 +270,7 @@ class DevToolsPanel(
     }
 
     private fun render() {
+        treeList = null
         consoleOutput = null
         consoleScroll = null
         consoleFilterRow = null
@@ -392,6 +406,20 @@ class DevToolsPanel(
             setTextSize(11f)
             setOnClickListener { setPicker(!pickerOn) }
         })
+        top.addView(EditText(context).apply {
+            hint = "搜索标签 / id / 文本"
+            setTextSize(11f)
+            setSingleLine(true)
+            setText(elementsQuery)
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
+                    elementsQuery = s?.toString().orEmpty()
+                    treeList?.let { renderTreeRows(it) }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(top)
 
         if (treeLoading) {
@@ -402,17 +430,14 @@ class DevToolsPanel(
             loadTree()
             return
         }
-        val treeScroll = ScrollView(context).apply {
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                tag = "tree"
-            })
-        }
+        val treeList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        this.treeList = treeList
+        val treeScroll = ScrollView(context).apply { addView(treeList) }
         content.addView(
             treeScroll,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 3f)
         )
-        renderTreeRows(treeScroll.getChildAt(0) as LinearLayout)
+        renderTreeRows(treeList)
 
         val detail = TextView(context).apply {
             typeface = Typeface.MONOSPACE
@@ -447,6 +472,23 @@ class DevToolsPanel(
             setOnClickListener { editStyles() }
         })
         actions.addView(Button(context).apply {
+            text = "HTML"
+            setTextSize(11f)
+            isEnabled = picked != null
+            setOnClickListener { copyHtml() }
+        })
+        actions.addView(Button(context).apply {
+            text = "覆盖"
+            setTextSize(11f)
+            isEnabled = picked != null
+            setOnClickListener { editOverride() }
+        })
+        actions.addView(Button(context).apply {
+            text = "清覆盖"
+            setTextSize(11f)
+            setOnClickListener { clearOverride() }
+        })
+        actions.addView(Button(context).apply {
             text = "取消高亮"
             setTextSize(11f)
             setOnClickListener { clearHighlight() }
@@ -477,6 +519,14 @@ class DevToolsPanel(
             append('\n').append("color: ").append(style.optString("color"))
             append('\n').append("font-size: ").append(style.optString("fontSize"))
             append('\n').append("opacity: ").append(style.optString("opacity"))
+            if (style.has("margin")) {
+                append('\n').append("margin: ").append(style.optString("margin"))
+                append('\n').append("padding: ").append(style.optString("padding"))
+                append('\n').append("border: ").append(style.optString("border"))
+                append('\n').append("box: ").append(style.optString("width"))
+                    .append(" × ").append(style.optString("height"))
+                append('\n').append("box-sizing: ").append(style.optString("boxSizing"))
+            }
         }
         val text = json.optString("text")
         if (text.isNotBlank()) append('\n').append("text: ").append(text)
@@ -568,13 +618,38 @@ class DevToolsPanel(
         }
     }
 
+    private fun labelOf(node: Node): String = buildString {
+        append(node.tag)
+        if (node.id.isNotBlank()) append('#').append(node.id)
+        if (node.cls.isNotBlank()) append('.').append(node.cls)
+        if (node.text.isNotBlank()) append(' ').append(node.text)
+    }
+
     private fun visible(index: Int): Boolean {
+        if (elementsQuery.isNotBlank()) return keepForQuery().contains(index)
         var parent = nodes[index].parent
         while (parent >= 0) {
             if (!expanded.contains(parent)) return false
             parent = nodes[parent].parent
         }
         return true
+    }
+
+    private fun keepForQuery(): Set<Int> {
+        val query = elementsQuery.trim()
+        if (query.isEmpty()) return emptySet()
+        val keep = mutableSetOf<Int>()
+        nodes.forEachIndexed { index, node ->
+            if (labelOf(node).contains(query, true)) {
+                keep.add(index)
+                var parent = node.parent
+                while (parent >= 0) {
+                    keep.add(parent)
+                    parent = nodes[parent].parent
+                }
+            }
+        }
+        return keep
     }
 
     private fun highlight(selector: String) {
@@ -665,8 +740,95 @@ class DevToolsPanel(
             .show()
     }
 
-    private fun applyAndRefresh(script: String) {
-        webViewProvider()?.evaluateJavascript(script) { result ->
+    private fun copyHtml() {
+        val p = picked ?: return
+        val q = JSONObject.quote(p.optString("selector"))
+        webViewProvider()?.evaluateJavascript(
+            "(function(){try{var e=document.querySelector($q);if(!e)return '';" +
+                "return e.outerHTML.slice(0,4000);}catch(x){return ''}})()"
+        ) { raw ->
+            val html = unquote(raw)
+            if (html.isBlank()) {
+                android.widget.Toast.makeText(context, "未找到元素", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                copy(html)
+            }
+        }
+    }
+
+    private fun editOverride() {
+        val p = picked ?: return
+        val selectorField = EditText(context).apply {
+            setText(p.optString("selector"))
+            setTextSize(11f)
+            setSingleLine(true)
+        }
+        val propsField = EditText(context).apply {
+            hint = "每行一条，例如：\nbackground: #ff0 !important\ndisplay: block"
+            setTextSize(12f)
+            minLines = 4
+            maxLines = 8
+        }
+        val box = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), 0)
+            addView(selectorField)
+            addView(propsField)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle("覆盖样式（!important）")
+            .setView(box)
+            .setPositiveButton("应用") { _, _ ->
+                val pairs = propsField.text.toString().lines().mapNotNull { line ->
+                    val idx = line.indexOf(':')
+                    if (idx <= 0) return@mapNotNull null
+                    val key = line.substring(0, idx).trim()
+                    val value = line.substring(idx + 1).trim()
+                    if (key.isEmpty() || value.isEmpty()) null else key to value
+                }
+                if (pairs.isEmpty()) return@setPositiveButton
+                val propsJson = JSONArray().apply {
+                    pairs.forEach { (k, v) -> put(JSONArray().put(k).put(v)) }
+                }
+                val script = "(function(){try{var id='sii-devtools-override';" +
+                    "var st=document.getElementById(id);" +
+                    "if(!st){st=document.createElement('style');st.id=id;" +
+                    "(document.head||document.documentElement).appendChild(st);}" +
+                    "var props=" + propsJson + ";var body='';" +
+                    "for(var i=0;i<props.length;i++){body+=props[i][0]+':'+props[i][1]+' !important;'}" +
+                    "st.textContent+= " + JSONObject.quote(selectorField.text.toString().trim()) +
+                    " + '{'+body+'}';return 'OK';}catch(x){return 'ERR:'+x}})()"
+                webViewProvider()?.evaluateJavascript(script) { r ->
+                    val ok = unquote(r) == "OK"
+                    android.widget.Toast.makeText(
+                        context, if (ok) "已覆盖" else "应用失败",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun clearOverride() {
+        webViewProvider()?.evaluateJavascript(
+            "(function(){var st=document.getElementById('sii-devtools-override');" +
+                "if(st){st.remove();return 'OK';}return 'NONE';})()"
+        ) { r ->
+            android.widget.Toast.makeText(
+                context, if (unquote(r) == "OK") "已清除覆盖" else "没有覆盖样式",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun unquote(raw: String?): String {
+        if (raw.isNullOrBlank() || raw == "null") return ""
+        return runCatching { org.json.JSONTokener(raw).nextValue().toString() }
+            .getOrDefault(raw)
+    }
+
+    private fun applyAndRefresh(script: String) {        webViewProvider()?.evaluateJavascript(script) { result ->
             if (!isShowing) return@evaluateJavascript
             if (result?.trim() == "1") {
                 android.widget.Toast.makeText(context, "已应用", android.widget.Toast.LENGTH_SHORT).show()
@@ -939,7 +1101,8 @@ class DevToolsPanel(
             "cls:(el.className&&el.className.baseVal!==undefined?el.className.baseVal:el.className||'').toString()," +
             "text:(el.innerText||'').slice(0,200),selector:sel(el)," +
             "rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}," +
-            "style:{display:cs.display,position:cs.position,color:cs.color,fontSize:cs.fontSize,opacity:cs.opacity}});}" +
+            "style:{display:cs.display,position:cs.position,color:cs.color,fontSize:cs.fontSize,opacity:cs.opacity," +
+            "margin:cs.margin,padding:cs.padding,border:cs.border,width:cs.width,height:cs.height,boxSizing:cs.boxSizing}});}" +
             "window.__siiPickClear=function(){if(lastEl){lastEl.style.outline=lastOutline;lastEl=null;}};" +
             "window.__siiPickOff=function(){window.__siiPickOn=false;try{window.__siiPickClear()}catch(e){}};" +
             "document.addEventListener('mousemove',function(e){if(!window.__siiPickOn)return;var el=e.target;" +

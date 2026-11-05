@@ -3923,6 +3923,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         showCloseTabHint()
         if (wasCurrent) applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 关闭标签后删掉对应的磁盘缩略图，避免缓存文件越积越多。 */
@@ -3972,6 +3973,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         updateAddressBarForCurrent()
         applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
@@ -4787,6 +4789,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabManager.currentWebView?.onResume()
         updateAddressBarForCurrent()
         applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 主页原生视图懒创建（直接加入 home_container）。 */
