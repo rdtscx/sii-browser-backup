@@ -4057,7 +4057,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
         if (!fromDouyin) {
             val detected = com.sii.browser.core.webview.DouyinLinks.detect(rawUrl)
-            if (detected != null && rawUrl.trim().startsWith("snssdk", true)) {
+            if (detected != null && !rawUrl.trim().startsWith("http", true)) {
                 openDouyin(detected)
                 return
             }
