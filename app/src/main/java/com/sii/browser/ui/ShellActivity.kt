@@ -214,7 +214,6 @@ class ShellActivity : AppCompatActivity() {
             chromeImageActive = false
             chromeImageKey = null
             chromeImageDrawable = null
-            HomeBackdrop.clear()
             root.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_bg))
             applyStatusBarColor(null)
             return
@@ -237,18 +236,6 @@ class ShellActivity : AppCompatActivity() {
         chromeImageKey = key
         chromeImageDrawable = drawable
         chromeImageLight = isLightBitmap(drawable.bitmap)
-        // 给「主页玻璃质感」提供真模糊取样源：整窗背景图。
-        (drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap?.let { bitmap ->
-            if (!bitmap.isRecycled) {
-                val decor = window.decorView
-                HomeBackdrop.set(
-                    bitmap,
-                    decor.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels,
-                    decor.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels,
-                    overlayPercent
-                )
-            }
-        }
         val overlay = overlayPercent.coerceIn(0, 100)
         root.background = if (overlay > 0) {
             android.graphics.drawable.LayerDrawable(
