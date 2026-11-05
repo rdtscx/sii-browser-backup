@@ -979,6 +979,78 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
     }
 
+    /** 抖音私有 scheme / 短链：转网页、开启嗅探，并尽力直接解析直链。 */
+    private fun openDouyin(detected: com.sii.browser.core.webview.DouyinLinks.Detected) {
+        setSiteSniffEnabled("www.iesdouyin.com", true)
+        setSiteSniffEnabled("douyin.com", true)
+        val id = detected.id
+        if (id != null) {
+            loadUrlFor(com.sii.browser.core.webview.DouyinLinks.shareUrl(id), fromDouyin = true)
+            lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    com.sii.browser.core.webview.DouyinLinks.parse(id)
+                }
+                if (result != null && isAdded && view != null) {
+                    showDouyinResult(result, id)
+                } else if (isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            return
+        }
+        val code = detected.shortCode ?: return
+        loadUrlFor(com.sii.browser.core.webview.DouyinLinks.shortUrl(code), fromDouyin = true)
+        lifecycleScope.launch {
+            val realId = withContext(Dispatchers.IO) {
+                com.sii.browser.core.webview.DouyinLinks.resolveShort(code)
+            } ?: return@launch
+            val result = withContext(Dispatchers.IO) {
+                com.sii.browser.core.webview.DouyinLinks.parse(realId)
+            }
+            if (result != null && isAdded && view != null) {
+                showDouyinResult(result, realId)
+            } else if (isAdded) {
+                Toast.makeText(
+                    requireContext(),
+                    "已开启本站嗅探：播放视频后到「资源嗅探」里下载",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun showDouyinResult(
+        result: com.sii.browser.core.webview.DouyinLinks.Result,
+        id: String
+    ) {
+        val labels = mutableListOf<String>()
+        val urls = mutableListOf<String>()
+        result.videos.forEach { (label, url) ->
+            labels.add("下载 $label")
+            urls.add(url)
+        }
+        result.images.forEachIndexed { index, url ->
+            labels.add("下载 图片 ${index + 1}")
+            urls.add(url)
+        }
+        if (labels.isEmpty()) return
+        val builder = android.app.AlertDialog.Builder(requireContext())
+            .setTitle("抖音解析")
+            .setItems(labels.toTypedArray()) { _, which ->
+                val isVideo = which < result.videos.size
+                val name = "douyin_${id}_${which + 1}." + if (isVideo) "mp4" else "jpg"
+                startDownload(urls[which], name)
+                Toast.makeText(requireContext(), "已加入下载", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("关闭", null)
+        if (result.desc.isNotBlank()) builder.setMessage(result.desc.take(200))
+        builder.show()
+    }
+
     /** 保存离线网页（MHTML 存到下载目录）。 */
     @Suppress("DEPRECATION")
     private fun savePageOffline() {
@@ -3981,8 +4053,21 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
-    private fun loadUrlFor(rawUrl: String) {
+    private fun loadUrlFor(rawUrl: String, fromDouyin: Boolean = false) {
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
+        if (!fromDouyin) {
+            val detected = com.sii.browser.core.webview.DouyinLinks.detect(rawUrl)
+            if (detected != null && rawUrl.trim().startsWith("snssdk", true)) {
+                openDouyin(detected)
+                return
+            }
+        }
+        if (rawUrl.startsWith("http", ignoreCase = true)) {
+            val host = runCatching { android.net.Uri.parse(rawUrl).host }.getOrNull()
+            if (com.sii.browser.core.webview.DouyinLinks.isDouyinHost(host)) {
+                host?.let { setSiteSniffEnabled(it, true) }
+            }
+        }
         revealToolbarOnNavigate()
         homePanel?.dismissSuggestions()
         blurAddressInput()
