@@ -60,7 +60,6 @@
     <string name="settings_home_label_size">Site name size</string>
     <string name="settings_home_cell_gap">Site row spacing</string>
     <string name="settings_home_icon_accent">Use accent color for icons</string>
-    <string name="settings_home_sites_title">Show "Frequently used" title</string>
     <string name="settings_home_bg_overlay">Background overlay</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_custom">Custom language code</string>
@@ -808,7 +807,7 @@
     <string name="settings_wifi_img">Load images on Wi-Fi only</string>
     <string name="settings_wifi_img_desc">Don\'t load images on mobile data to save traffic</string>
     <string name="settings_show_sites">Show frequently used sites</string>
-    <string name="settings_home_sites_card_bg">Frequent sites background</string>
+    <string name="settings_home_sites_card_bg">Frequent sites background opacity</string>
     <string name="settings_tool_no_label">Toolbar without labels</string>
     <string name="settings_ua_simplify">Simplify browser identity</string>
     <string name="settings_ua_simplify_desc">Remove device model and minor version from UA</string>
@@ -1258,7 +1257,7 @@
     <string name="settings_engine_url_hint">Search URL with %s for the query, e.g. https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>
     <string name="home_tab_search">Search</string>
-    <string name="home_tab_background">Background</string>
+    <string name="home_tab_background">Background &amp; Home</string>
     <string name="home_tab_sites">Sites</string>
     <string name="home_tab_advanced">Advanced</string>
     <string name="home_tab_address">Address bar</string>

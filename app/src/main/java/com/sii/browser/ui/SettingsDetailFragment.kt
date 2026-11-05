@@ -1541,9 +1541,6 @@ class SettingsDetailFragment : Fragment() {
                         0, 24
                     ) { settings.setHomeCellGap(it) }
                 }
-            },
-            switchRow(getString(R.string.settings_home_sites_title), settings.homeShowSitesTitle()) {
-                settings.setHomeShowSitesTitle(it)
             }
         )
     }

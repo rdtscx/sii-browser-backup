@@ -114,7 +114,9 @@ class HomePreviewShell(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(4), dp(6), dp(4))
-            val showBackground = AppServices.settings.dockBackground()
+            val dockAlpha = AppServices.settings.dockBgAlpha().coerceIn(0, 100)
+            val showBackground = dockAlpha > 0
+            val bgAlpha = dockAlpha * 255 / 100
             val onHome = !previewWeb
             background = when {
                 !showBackground -> null
@@ -122,21 +124,30 @@ class HomePreviewShell(
                     GlassStyle.frosted(context, night, dp(28).toFloat())
                 onHome -> GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
-                    setColor(dockTint ?: ContextCompat.getColor(context, R.color.card))
+                    setColor(
+                        androidx.core.graphics.ColorUtils.setAlphaComponent(
+                            dockTint ?: ContextCompat.getColor(context, R.color.card), bgAlpha
+                        )
+                    )
                     setStroke(dp(1), if (night) 0x1FFFFFFF else 0x14000000)
                 }
                 else -> GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
                     setColor(
-                        GlassStyle.fill(
-                            context, night, AppServices.settings.glassStrength(),
-                            GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
+                        androidx.core.graphics.ColorUtils.setAlphaComponent(
+                            GlassStyle.fill(
+                                context, night, AppServices.settings.glassStrength(),
+                                GlassStyle.DOCK_GLASS_MIN_ALPHA, dockTint
+                            ),
+                            bgAlpha
                         )
                     )
                     setStroke(dp(1), if (night) 0x24FFFFFF else 0x1A000000)
                 }
             }
-            elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
+            elevation = if (AppServices.settings.homeShadow() &&
+                AppServices.settings.homeShadowDock()
+            ) dp(12).toFloat() else 0f
             setOnClickListener { onToolbarClick() }
         }
         val address = LinearLayout(context).apply {

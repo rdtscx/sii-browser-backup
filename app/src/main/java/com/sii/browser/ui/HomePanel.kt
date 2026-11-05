@@ -521,7 +521,8 @@ class HomePanel(
         val popup = topSuggestionPopup ?: SuggestionPopup(
             context, topSearchBox,
             horizontalShiftDp = 5,
-            frosted = { AppServices.settings.homeFrosted() }
+            frosted = { AppServices.settings.homeFrosted() },
+            fillAlpha = { searchFillAlpha() }
         ) { item -> pickTopSuggestion(item) }.also { topSuggestionPopup = it }
         popup.show(sorted)
     }
@@ -842,8 +843,8 @@ class HomePanel(
         val card = view.findViewById<View>(R.id.home_sites_card)
         card?.visibility = if (show) View.VISIBLE else View.GONE
         applySitesCardBg(card)
-        view.findViewById<View>(R.id.home_sites_title)?.visibility =
-            if (show && AppServices.settings.homeShowSitesTitle()) View.VISIBLE else View.GONE
+        // 标题不再提供开关：常隐。
+        view.findViewById<View>(R.id.home_sites_title)?.visibility = View.GONE
         grid.visibility = if (show) View.VISIBLE else View.GONE
     }
 
@@ -860,31 +861,36 @@ class HomePanel(
         return (base * (1f - 0.6f * strength / 100f)).toInt().coerceAtLeast(0)
     }
 
-    /** 常用网站卡片背景：关闭后站点直接浮在主页背景上。 */
+    /** 常用网站卡片背景：透明度控制填充，0 = 无背景。 */
     private fun applySitesCardBg(card: View?) {
         card ?: return
-        val on = AppServices.settings.homeSitesCardBg()
+        val alpha = AppServices.settings.homeGridAlpha().coerceIn(0, 100)
+        if (alpha <= 0) {
+            card.background = null
+            card.elevation = 0f
+            return
+        }
         val dark = AppServices.settings.isNightMode()
         val themeFill = ThemePalette.fill(context, ThemePart.SITES)
         val base = context.getColor(R.color.card)
+        val fillAlpha = alpha * 255 / 100
         card.background = when {
-            !on -> null
             // 磨砂：半透明填充 + 亮描边 + 高光，跟随日夜；开启时不再叠主题色淡底。
             AppServices.settings.homeFrosted() -> GlassStyle.frosted(context, dark, dp(24).toFloat())
             themeFill != null -> GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
-                setColor(themeFill)
+                setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(themeFill, fillAlpha))
             }
-            // 不透明卡 + 细描边 + 投影；不再受玻璃强度影响。
             else -> GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
-                setColor(base)
+                setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(base, fillAlpha))
                 setStroke(dp(1), if (dark) 0x1FFFFFFF else 0x14000000)
             }
         }
         card.outlineProvider = roundOutline(dp(24).toFloat())
-        val shadowOn = AppServices.settings.homeShadow()
-        card.elevation = if (!shadowOn || card.background == null) 0f
+        val shadowOn = AppServices.settings.homeShadow() &&
+            AppServices.settings.homeShadowGrid()
+        card.elevation = if (!shadowOn) 0f
         else dp(shadowDp(if (dark) 6f else 8f)).toFloat()
     }
 
@@ -940,7 +946,9 @@ class HomePanel(
             }
         }
         box.outlineProvider = roundOutline(radiusPx)
-        box.elevation = if (AppServices.settings.homeShadow()) {
+        val searchShadow = AppServices.settings.homeShadow() &&
+            AppServices.settings.homeShadowSearch()
+        box.elevation = if (searchShadow) {
             dp(shadowDp(if (focused) 9f else 6f)).toFloat()
         } else 0f
         // 高度选项改的是外框高度：内边距固定，否则只挤压内容、看不出变化。
@@ -1026,9 +1034,11 @@ class HomePanel(
             }
         }.getOrNull() ?: return null
         val shown = blurBitmap(decoded, blur, targetWidth)
-        val layers = mutableListOf<android.graphics.drawable.Drawable>(
-            android.graphics.drawable.BitmapDrawable(context.resources, shown)
-        )
+        val baseDrawable = android.graphics.drawable.BitmapDrawable(context.resources, shown).apply {
+            setFilterBitmap(true)
+            setDither(true)
+        }
+        val layers = mutableListOf<android.graphics.drawable.Drawable>(baseDrawable)
         if (overlay > 0) {
             layers.add(
                 android.graphics.drawable.ColorDrawable(
@@ -1062,22 +1072,35 @@ class HomePanel(
         }
     }
 
-    /** 先缩到屏幕宽度，再按模糊档位缩小；BitmapDrawable 负责拉伸，避免全尺寸副本。 */
+    /** 先缩到屏幕宽度，再逐级折半缩小；BitmapDrawable 负责拉伸，避免全尺寸副本。 */
     private fun blurBitmap(src: android.graphics.Bitmap, percent: Int, targetWidth: Int): android.graphics.Bitmap {
-        val base = if (src.width > targetWidth) {
+        var current = if (src.width > targetWidth) {
             android.graphics.Bitmap.createScaledBitmap(
                 src, targetWidth, (src.height * targetWidth / src.width).coerceAtLeast(1), true
-            )
+            ).also { if (it !== src) src.recycle() }
         } else src
-        if (base !== src) src.recycle()
         val p = percent.coerceIn(0, 100)
-        if (p <= 0) return base
-        val scale = 1f + p / 100f * 19f
-        val w = (base.width / scale).toInt().coerceAtLeast(1)
-        val h = (base.height / scale).toInt().coerceAtLeast(1)
-        val small = android.graphics.Bitmap.createScaledBitmap(base, w, h, true)
-        if (small !== base) base.recycle()
-        return small
+        if (p <= 0) return current
+        val target = (current.width / (1f + p / 100f * 19f)).toInt().coerceAtLeast(1)
+        // 一次缩太多会出方块和锯齿；分步折半相当于多次低通，接近高斯模糊。
+        while (current.width / 2 >= target && current.height >= 2) {
+            val next = android.graphics.Bitmap.createScaledBitmap(
+                current,
+                (current.width / 2).coerceAtLeast(1),
+                (current.height / 2).coerceAtLeast(1),
+                true
+            )
+            if (next !== current) current.recycle()
+            current = next
+        }
+        if (current.width > target) {
+            val next = android.graphics.Bitmap.createScaledBitmap(
+                current, target, (current.height * target / current.width).coerceAtLeast(1), true
+            )
+            if (next !== current) current.recycle()
+            current = next
+        }
+        return current
     }
 
     private fun submitSearch() {
@@ -1177,7 +1200,8 @@ class HomePanel(
             minWidthDp = 0,
             cornerRadiusDp = { searchCornerRadiusDp() },
             horizontalShiftDp = 5,
-            frosted = { AppServices.settings.homeFrosted() }
+            frosted = { AppServices.settings.homeFrosted() },
+            fillAlpha = { searchFillAlpha() }
         ) { item ->
             pickSuggestion(item)
         }.also { suggestionPopup = it }

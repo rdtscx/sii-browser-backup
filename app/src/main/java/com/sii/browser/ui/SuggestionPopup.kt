@@ -29,8 +29,10 @@ class SuggestionPopup(
     private val cornerRadiusDp: (() -> Int)? = null,
     /** 水平微调：正值向右、负值向左（相对锚点左边界，屏幕边缘仍会回收）。 */
     private val horizontalShiftDp: Int = 0,
-    /** 磨砂建议卡片（主页搜索框打开「磨砂质感」时生效）。 */
+    /** 磨砂建议卡片（主页搜索框打开「主页玻璃质感」时生效）。 */
     private val frosted: (() -> Boolean)? = null,
+    /** 填充不透明度（255 = 不透明），用于跟随搜索框透明度。 */
+    private val fillAlpha: (() -> Int)? = null,
     private val onPick: (Suggestion) -> Unit
 ) {
     private var popup: PopupWindow? = null
@@ -144,8 +146,7 @@ class SuggestionPopup(
             isVerticalScrollBarEnabled = true
             when {
                 frosted?.invoke() == true -> background = frostedBackground()
-                cornerRadiusDp != null -> background = panelBackground()
-                else -> setBackgroundResource(R.drawable.bg_suggestion_panel)
+                else -> background = panelBackground()
             }
             clipToOutline = true
             addView(
@@ -384,11 +385,16 @@ class SuggestionPopup(
         return Placement(above, xOffset, yOffset, width, height, measured)
     }
 
-    /** 主页搜索框的建议弹层跟随其圆角设置。 */
+    /** 建议弹层：圆角跟随搜索框，填充不透明度跟随搜索框透明度。 */
     private fun panelBackground(): GradientDrawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(cornerRadiusDp?.invoke() ?: 22).toFloat()
-        setColor(ContextCompat.getColor(context, R.color.card))
+        val alpha = fillAlpha?.invoke()?.coerceIn(0, 255) ?: 255
+        setColor(
+            androidx.core.graphics.ColorUtils.setAlphaComponent(
+                ContextCompat.getColor(context, R.color.card), alpha
+            )
+        )
         setStroke(dp(1), ContextCompat.getColor(context, R.color.line))
     }
 

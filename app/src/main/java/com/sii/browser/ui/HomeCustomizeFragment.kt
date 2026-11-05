@@ -545,6 +545,7 @@ class HomeCustomizeFragment : Fragment() {
             "搜索框透明度", settings.homeSearchTransparency(), 0, 100
         ) { value ->
             settings.setHomeSearchTransparency(value)
+            settings.setHomeShadowSearch(false)
             refreshPreview()
         }
         // 磨砂自带固定半透明，两者同时生效会互相抵消。
@@ -640,17 +641,40 @@ class HomeCustomizeFragment : Fragment() {
         )
         // 磨砂与阴影互斥：开启一个自动关掉另一个。
         rows.add(
-            switchRow("磨砂质感", settings.homeFrosted()) { on ->
+            switchRow("主页玻璃质感", settings.homeFrosted()) { on ->
                 settings.setHomeFrosted(on)
                 if (on) settings.setHomeShadow(false)
                 refreshPreview()
                 view?.post { buildControls() }
             }
         )
+        val unifiedRow = sliderRow(
+            "主页三大件统一透明度", settings.homeUnifiedAlpha(), 0, 100
+        ) { value ->
+            settings.setHomeUnifiedAlpha(value)
+            // 0 表示不生效；>0 时强制同步三个滑竿，并关闭三处阴影。
+            if (value > 0) {
+                settings.setHomeGridAlpha(value)
+                settings.setHomeSearchTransparency(value)
+                settings.setDockBgAlpha(value)
+                settings.setHomeShadowSearch(false)
+                settings.setHomeShadowGrid(false)
+                settings.setHomeShadowDock(false)
+            }
+            refreshPreview()
+            view?.post { buildControls() }
+        }
+        if (settings.homeFrosted()) disableRow(unifiedRow, true)
+        rows.add(unifiedRow)
         rows.add(
             switchRow("卡片与工具栏阴影", settings.homeShadow()) { on ->
                 settings.setHomeShadow(on)
-                if (on) settings.setHomeFrosted(false)
+                if (on) {
+                    settings.setHomeFrosted(false)
+                    settings.setHomeShadowSearch(true)
+                    settings.setHomeShadowGrid(true)
+                    settings.setHomeShadowDock(true)
+                }
                 refreshPreview()
                 view?.post { buildControls() }
             }
@@ -658,7 +682,17 @@ class HomeCustomizeFragment : Fragment() {
         return rows
     }
 
-    private fun favoriteRows(): List<View> = listOf(
+    private fun favoriteRows(): List<View> {
+        val sitesAlpha = sliderRow(
+            getString(R.string.settings_home_sites_card_bg),
+            settings.homeGridAlpha(), 0, 100
+        ) { value ->
+            settings.setHomeGridAlpha(value)
+            settings.setHomeShadowGrid(false)
+            refreshPreview()
+        }
+        if (settings.homeFrosted()) disableRow(sitesAlpha, true)
+        return listOf(
         choiceRow(
             getString(R.string.settings_home_grid_columns),
             arrayOf("4 列", "5 列", "6 列"),
@@ -707,30 +741,13 @@ class HomeCustomizeFragment : Fragment() {
             settings.setHomeCellGap(it)
             refreshPreview()
         },
-        switchRow(getString(R.string.settings_home_sites_title), settings.homeShowSitesTitle()) {
-            settings.setHomeShowSitesTitle(it)
-            refreshPreview()
-        },
         switchRow(getString(R.string.settings_show_sites), settings.showSites()) {
             settings.setShowSites(it)
             refreshPreview()
         },
-        switchRow(
-            getString(R.string.settings_home_sites_card_bg),
-            settings.homeSitesCardBg()
-        ) {
-            settings.setHomeSitesCardBg(it)
-            refreshPreview()
-            view?.post { buildControls() }
-        },
-        switchRow(
-            "卡片与工具栏阴影",
-            settings.homeShadow()
-        ) {
-            settings.setHomeShadow(it)
-            refreshPreview()
-        }
-    )
+        sitesAlpha
+        )
+    }
 
     private fun addressRows(): List<View> = listOf(
         choiceRow(
@@ -788,12 +805,15 @@ class HomeCustomizeFragment : Fragment() {
         rows.add(switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
             settings.setToolbarAutoHide(it)
         })
-        val dockBackgroundRow = switchRow("悬浮工具栏背景色", settings.dockBackground()) { on ->
-            settings.setDockBackground(on)
+        val dockAlphaRow = sliderRow(
+            "悬浮工具栏背景透明度", settings.dockBgAlpha(), 0, 100
+        ) { value ->
+            settings.setDockBgAlpha(value)
+            settings.setHomeShadowDock(false)
             refreshPreview()
         }
-        rows.add(dockBackgroundRow)
-        if (!modern) disableRow(dockBackgroundRow, true)
+        rows.add(dockAlphaRow)
+        if (!modern) disableRow(dockAlphaRow, true)
         val hideOnImageRow = switchRow(
             "看图时隐藏工具栏",
             settings.hideChromeOnImageView()
@@ -1301,6 +1321,7 @@ class HomeCustomizeFragment : Fragment() {
             settings.setGlassStrength(it)
             view?.post { refreshPreview() }
         },
+        captionRow("控制网页页底栏、菜单浮层、标签页按钮与标签面板的玻璃透明度"),
         navRow("网页主题色识别", null) { openThemeColorPage() }
     )
 
@@ -1550,6 +1571,14 @@ class HomeCustomizeFragment : Fragment() {
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
+
+    private fun captionRow(text: String): View =
+        TextView(requireContext()).apply {
+            this.text = text
+            setTextSize(12f)
+            setTextColor(requireContext().getColor(R.color.text_secondary))
+            setPadding(dp(16), dp(2), dp(16), dp(10))
+        }
 
     private fun sliderRow(title: String, initial: Int, min: Int, max: Int, onSave: (Int) -> Unit): View {
         val value = valueView(initial.toString())

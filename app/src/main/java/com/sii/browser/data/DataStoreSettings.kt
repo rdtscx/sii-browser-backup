@@ -1290,6 +1290,35 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeSitesCardBg(value: Boolean) =
         putBool(SettingsKeys.HOME_SITES_CARD_BG, value)
 
+    override fun homeGridAlpha(): Int {
+        // 旧开关关闭等价于 0；没写过新键时延续旧语义。
+        if (!cache.containsKey(SettingsKeys.HOME_GRID_ALPHA) &&
+            !bool(SettingsKeys.HOME_SITES_CARD_BG, SettingsDefaults.HOME_SITES_CARD_BG)
+        ) return 0
+        return int(SettingsKeys.HOME_GRID_ALPHA, SettingsDefaults.HOME_GRID_ALPHA)
+            .coerceIn(0, 100)
+    }
+
+    override fun setHomeGridAlpha(value: Int) =
+        putInt(SettingsKeys.HOME_GRID_ALPHA, value.coerceIn(0, 100))
+
+    override fun homeUnifiedAlpha(): Int =
+        int(SettingsKeys.HOME_UNIFIED_ALPHA, SettingsDefaults.HOME_UNIFIED_ALPHA)
+            .coerceIn(0, 100)
+
+    override fun setHomeUnifiedAlpha(value: Int) =
+        putInt(SettingsKeys.HOME_UNIFIED_ALPHA, value.coerceIn(0, 100))
+
+    override fun dockBgAlpha(): Int {
+        if (!cache.containsKey(SettingsKeys.DOCK_BG_ALPHA) &&
+            !bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)
+        ) return 0
+        return int(SettingsKeys.DOCK_BG_ALPHA, SettingsDefaults.DOCK_BG_ALPHA).coerceIn(0, 100)
+    }
+
+    override fun setDockBgAlpha(value: Int) =
+        putInt(SettingsKeys.DOCK_BG_ALPHA, value.coerceIn(0, 100))
+
     override fun homeFrosted(): Boolean =
         bool(SettingsKeys.HOME_FROSTED, SettingsDefaults.HOME_FROSTED)
 
@@ -1301,6 +1330,24 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setHomeShadow(value: Boolean) =
         putBool(SettingsKeys.HOME_SHADOW, value)
+
+    override fun homeShadowSearch(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW_SEARCH, true)
+
+    override fun setHomeShadowSearch(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW_SEARCH, value)
+
+    override fun homeShadowGrid(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW_GRID, true)
+
+    override fun setHomeShadowGrid(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW_GRID, value)
+
+    override fun homeShadowDock(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW_DOCK, true)
+
+    override fun setHomeShadowDock(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW_DOCK, value)
 
     override fun homeSearchTransparency(): Int =
         int(

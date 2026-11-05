@@ -60,7 +60,6 @@
     <string name="settings_home_label_size">网站名称字号</string>
     <string name="settings_home_cell_gap">网站行间距</string>
     <string name="settings_home_icon_accent">图标统一主题色</string>
-    <string name="settings_home_sites_title">显示「常用网站」标题</string>
     <string name="settings_home_bg_overlay">背景图遮罩</string>
     <string name="settings_language">语言</string>
     <string name="settings_language_custom">自定义语言代码</string>
@@ -809,7 +808,7 @@
     <string name="settings_wifi_img">仅 Wi-Fi 加载图片</string>
     <string name="settings_wifi_img_desc">移动网络下不加载图片，省流量</string>
     <string name="settings_show_sites">显示常用网站</string>
-    <string name="settings_home_sites_card_bg">常用网站背景</string>
+    <string name="settings_home_sites_card_bg">常用网站背景透明度</string>
     <string name="settings_tool_no_label">工具栏无字</string>
     <string name="settings_ua_simplify">简化浏览器标识</string>
     <string name="settings_ua_simplify_desc">UA 去掉设备型号与次要版本</string>
@@ -1259,7 +1258,7 @@
     <string name="settings_engine_url_hint">搜索地址，关键词用 %s 代替，例如 https://www.sogou.com/web?query=%s</string>
     <string name="home_tab_logo">Logo</string>
     <string name="home_tab_search">搜索框</string>
-    <string name="home_tab_background">背景</string>
+    <string name="home_tab_background">背景和主页</string>
     <string name="home_tab_sites">常用网站</string>
     <string name="home_tab_advanced">高级</string>
     <string name="home_tab_address">地址栏</string>
