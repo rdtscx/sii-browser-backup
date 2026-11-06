@@ -2917,6 +2917,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dialog.show()
     }
 
+    private fun openMenuEditor() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(
+                R.id.shell_root,
+                HomeCustomizeFragment().apply {
+                    arguments = android.os.Bundle().apply {
+                        putInt(HomeCustomizeFragment.ARG_TAB, 6)
+                    }
+                }
+            )
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun openSettings() {
         NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, SettingsFragment())
@@ -5719,6 +5733,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("share", getString(R.string.menu_share), R.drawable.ic_m_share, false, { false }, { hasWebPage() }) { shareCurrentUrl() },
         MenuEntry("copylink", getString(R.string.menu_copy_link), R.drawable.ic_m_copy, false, { false }, { hasWebPage() }) { copyCurrentUrl() },
         MenuEntry("settings", getString(R.string.menu_settings), R.drawable.ic_m_settings, false, { false }) { openSettings() },
+        MenuEntry("menuedit", getString(R.string.menu_edit_buttons), R.drawable.ic_m_settings, false, { false }) { openMenuEditor() },
         MenuEntry("reader", getString(R.string.menu_reader), R.drawable.ic_m_reader, false, { false }, { hasWebPage() }) { toggleReaderMode() },
         MenuEntry("sniff", getString(R.string.menu_sniff), R.drawable.ic_m_sniff, false, { false }, { hasWebPage() }) { openSniff() },
         MenuEntry("scan", getString(R.string.menu_scan), R.drawable.ic_m_scan, false, { false }) { startScan() },

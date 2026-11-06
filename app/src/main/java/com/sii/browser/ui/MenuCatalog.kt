@@ -17,6 +17,7 @@ object MenuCatalog {
         Item("netlog", R.string.settings_netlog, R.drawable.ic_m_netlog),
         Item("jsconsole", R.string.menu_js_console, R.drawable.ic_m_code),
         Item("devtools", R.string.menu_devtools, R.drawable.ic_m_code),
+        Item("menuedit", R.string.menu_edit_buttons, R.drawable.ic_m_settings),
         Item("history", R.string.menu_history, R.drawable.ic_m_history),
         Item("adblockstats", R.string.menu_adblock_stats, R.drawable.ic_m_shield_check),
         Item("find", R.string.menu_find, R.drawable.ic_m_find),

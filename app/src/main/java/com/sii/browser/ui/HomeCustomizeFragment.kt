@@ -214,7 +214,7 @@ class HomeCustomizeFragment : Fragment() {
                     true
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
-                    val chromeHeight = dp(48 + 18 + 52)
+                    val chromeHeight = dp(48 + 32 + 52)
                     val maxHeight = (root.height - chromeHeight - dp(110)).coerceAtLeast(dp(160))
                     val height = (startHeight + (event.rawY - startY).toInt())
                         .coerceIn(dp(160), maxHeight)

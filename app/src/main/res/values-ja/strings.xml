@@ -1346,4 +1346,5 @@
     <string name="mcp_notification_stop">停止</string>
     <string name="menu_devtools">開発者ツール</string>
     <string name="menu_user_scripts">ユーザースクリプト</string>
+    <string name="menu_edit_buttons">ボタンを編集</string>
 </resources>
