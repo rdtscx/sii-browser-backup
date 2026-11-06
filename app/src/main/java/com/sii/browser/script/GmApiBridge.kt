@@ -171,6 +171,8 @@ class GmApiBridge(private val context: Context) {
               window.GM_setClipboard = function(t){ api.setClipboard(String(t)); };
               window.GM_download = function(opt){ if(opt && opt.url) api.download(String(opt.url), opt.name ? String(opt.name) : null); };
               window.GM_addStyle = function(css){ var s = document.createElement('style'); s.textContent = css; (document.head || document.documentElement).appendChild(s); return s; };
+              window.GM_getResourceText = function(name){ try { var m = window.__siiGmResources || {}; return m[String(name)] || ''; } catch (e) { return ''; } };
+              window.GM_getResourceURL = function(name){ try { var m = window.__siiGmResourceUrls || {}; return m[String(name)] || ''; } catch (e) { return ''; } };
               window.GM_addElement = function(parent, el){ (typeof parent === 'string' ? document.querySelector(parent) : parent).appendChild(el); };
               window.GM_xmlhttpRequest = function(opt){
                 opt = opt || {};

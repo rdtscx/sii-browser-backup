@@ -8796,6 +8796,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bridge?.allowedUrl = null
             }
             if (scripts.isEmpty()) return@launch
+            // @resource：同步取缓存/下载后注入，给 GM_getResourceText 用。
+            val resources = parsedScripts.flatMap { it.resources }.toMap()
+            if (resources.isNotEmpty()) {
+                val resourceJson = withContext(Dispatchers.IO) {
+                    val obj = org.json.JSONObject()
+                    resources.forEach { (name, resUrl) ->
+                        com.sii.browser.script.ScriptRequireCache
+                            .fetchBlocking(requireContext(), resUrl)
+                            ?.let { obj.put(name, it) }
+                    }
+                    obj.toString()
+                }
+                webView.injectJavaScript(
+                    "window.__siiGmResources = $resourceJson;", null
+                )
+            }
             if (runAt == "document-end" && grants.isNotEmpty()) {
                 webView.injectJavaScript(GmApiBridge.GM_WRAPPER_JS)
             }
