@@ -215,9 +215,9 @@ class HomeCustomizeFragment : Fragment() {
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
                     val chromeHeight = dp(48 + 32 + 52)
-                    val maxHeight = (root.height - chromeHeight - dp(110)).coerceAtLeast(dp(160))
+                    val maxHeight = (root.height - chromeHeight - dp(110)).coerceAtLeast(dp(64))
                     val height = (startHeight + (event.rawY - startY).toInt())
-                        .coerceIn(dp(160), maxHeight)
+                        .coerceIn(dp(64), maxHeight)
                     val params = previewHost.layoutParams as LinearLayout.LayoutParams
                     params.weight = 0f
                     params.height = height
@@ -250,7 +250,7 @@ class HomeCustomizeFragment : Fragment() {
             handle?.visibility = View.VISIBLE
             val params = previewHost.layoutParams as LinearLayout.LayoutParams
             params.weight = 0f
-            params.height = savedPreviewHeight.coerceAtLeast(dp(180))
+            params.height = savedPreviewHeight.coerceAtLeast(dp(64))
             previewHost.layoutParams = params
         }
     }
