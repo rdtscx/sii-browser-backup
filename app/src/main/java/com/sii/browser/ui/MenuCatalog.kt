@@ -36,6 +36,7 @@ object MenuCatalog {
         Item("print", R.string.menu_print, R.drawable.ic_m_print),
         Item("passwords", R.string.menu_passwords, R.drawable.ic_m_key),
         Item("scriptmenu", R.string.menu_script_commands, R.drawable.ic_m_script),
+        Item("userscripts", R.string.menu_user_scripts, R.drawable.ic_m_script),
         Item("addhome", R.string.menu_add_home, R.drawable.ic_m_home_add),
         Item("cleardata", R.string.menu_clear_data, R.drawable.ic_m_clear_data),
         Item("adpick", R.string.menu_ad_pick, R.drawable.ic_m_pick),

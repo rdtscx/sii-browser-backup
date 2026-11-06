@@ -1638,6 +1638,86 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .show()
     }
 
+    /** 用户脚本菜单：本站开关 + 匹配脚本列表 + 管理入口。 */
+    private fun showUserScriptsDialog() {
+        val tab = tabManager.current ?: return
+        val url = tab.url.ifBlank { "" }
+        val host = runCatching { android.net.Uri.parse(url).host }.getOrNull() ?: return
+        val ctx = requireContext()
+        val density = resources.displayMetrics.density
+        fun dp(value: Int): Int = (value * density).toInt()
+
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(4), dp(16), 0)
+        }
+        val siteSwitch = android.widget.Switch(ctx).apply {
+            text = "本站运行用户脚本"
+            isChecked = siteScriptsEnabled(url)
+            setTextSize(13f)
+        }
+        siteSwitch.setOnCheckedChangeListener { _, checked ->
+            setSiteScriptsEnabled(host, checked)
+            Toast.makeText(ctx, "刷新页面生效", Toast.LENGTH_SHORT).show()
+        }
+        box.addView(siteSwitch)
+
+        val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = android.widget.ScrollView(ctx).apply {
+            addView(list)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(220)
+            )
+        }
+        box.addView(scroll)
+
+        val dialog = android.app.AlertDialog.Builder(ctx)
+            .setTitle(R.string.menu_user_scripts)
+            .setView(box)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton("管理脚本") { _, _ -> openScriptsPage() }
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch {
+            val scripts = withContext(Dispatchers.IO) {
+                AppServices.scriptRepository.matchingScripts(url)
+            }
+            if (!isAdded) return@launch
+            list.removeAllViews()
+            if (scripts.isEmpty()) {
+                list.addView(TextView(ctx).apply {
+                    text = "本站没有匹配的脚本"
+                    setTextSize(12f)
+                    setTextColor(ctx.getColor(R.color.text_secondary))
+                    setPadding(0, dp(8), 0, dp(8))
+                })
+                return@launch
+            }
+            scripts.forEach { script ->
+                val check = android.widget.CheckBox(ctx).apply {
+                    text = script.name
+                    setTextSize(12f)
+                    isChecked = script.enabled
+                    setOnCheckedChangeListener { _, checked ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            AppServices.scriptRepository.setEnabled(script, checked)
+                        }
+                        Toast.makeText(ctx, "刷新页面生效", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                list.addView(check)
+            }
+        }
+    }
+
+    private fun openScriptsPage() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, ScriptsFragment())
+            .addToBackStack(null)
+            .commit()
+    }
+
     /** Android 13+ 首次下载时动态申请通知权限（用户方案兼容底线）。 */
     @Suppress("DEPRECATION")
     private fun ensureNotificationPermission() {
@@ -5658,6 +5738,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("print", getString(R.string.menu_print), R.drawable.ic_m_print, false, { false }, { hasWebPage() }) { printPage() },
         MenuEntry("passwords", getString(R.string.menu_passwords), R.drawable.ic_m_key, false, { false }) { openPasswords() },
         MenuEntry("scriptmenu", getString(R.string.menu_script_commands), R.drawable.ic_m_script, false, { false }) { showScriptMenu() },
+        MenuEntry("userscripts", getString(R.string.menu_user_scripts), R.drawable.ic_m_script, false, { false }, { hasWebPage() }) { showUserScriptsDialog() },
         MenuEntry("addhome", getString(R.string.menu_add_home), R.drawable.ic_m_home_add, false, { false }) { addToHomeScreen() },
         MenuEntry("cleardata", getString(R.string.menu_clear_data), R.drawable.ic_m_clear_data, false, { false }) { clearMenuData() },
         MenuEntry("adpick", getString(R.string.menu_ad_pick), R.drawable.ic_m_pick, false, { false }, { hasWebPage() }) { startAdPick() },
@@ -6895,6 +6976,23 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun setSiteSniffEnabled(host: String, enabled: Boolean) {
         val text = SiteConfig.withSniffEnabled(
+            AppServices.siteConfigRepository.cachedConfig(host), enabled
+        )
+        AppServices.siteConfigRepository.cachePut(host, text)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            AppServices.siteConfigRepository.put(host, text)
+        }
+    }
+
+    /** 当前 URL 所在站点是否允许运行用户脚本（默认允许）。 */
+    private fun siteScriptsEnabled(url: String): Boolean {
+        val host = runCatching { android.net.Uri.parse(url).host }.getOrNull() ?: return true
+        val config = SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host))
+        return SiteConfig.scriptsEnabled(config)
+    }
+
+    private fun setSiteScriptsEnabled(host: String, enabled: Boolean) {
+        val text = SiteConfig.withScriptsEnabled(
             AppServices.siteConfigRepository.cachedConfig(host), enabled
         )
         AppServices.siteConfigRepository.cachePut(host, text)
@@ -8681,6 +8779,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 注入匹配当前 URL 的用户脚本及 GM_* 包装。 */
     private fun injectUserScripts(webView: SiiWebView?, url: String, runAt: String) {
         if (webView == null) return
+        if (!siteScriptsEnabled(url)) {
+            gmBridges[webView]?.allowed = false
+            gmBridges[webView]?.allowedUrl = null
+            return
+        }
         lifecycleScope.launch {
             val scripts = AppServices.scriptRepository.scriptsFor(url, runAt)
             val bridge = gmBridges[webView]

@@ -1347,4 +1347,5 @@
     <string name="mcp_notification_failed">启动失败，请在设置中检查端口或令牌</string>
     <string name="mcp_notification_stop">停止</string>
     <string name="menu_devtools">开发者工具</string>
+    <string name="menu_user_scripts">用户脚本</string>
 </resources>

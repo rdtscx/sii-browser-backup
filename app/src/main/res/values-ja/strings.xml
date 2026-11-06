@@ -1345,4 +1345,5 @@
     <string name="mcp_notification_failed">起動に失敗しました。設定でポートまたはトークンを確認してください</string>
     <string name="mcp_notification_stop">停止</string>
     <string name="menu_devtools">開発者ツール</string>
+    <string name="menu_user_scripts">ユーザースクリプト</string>
 </resources>
