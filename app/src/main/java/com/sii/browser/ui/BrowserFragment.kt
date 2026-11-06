@@ -7763,6 +7763,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             registerJsBridge("sii", DownloadJsBridge(requireContext().applicationContext, downloadSecret))
             GmApiBridge(requireContext().applicationContext).also { bridge ->
                 bridge.webView = this
+                bridge.onOpenTab = { url -> view?.post { openNewTab(url) } }
                 gmBridges[this] = bridge
                 registerJsBridge("sii_gm", bridge)
             }
@@ -8816,6 +8817,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 webView.injectJavaScript(GmApiBridge.GM_WRAPPER_JS)
             }
             parsedScripts.forEach { parsed ->
+                // 每个脚本执行前设置 GM_info，脚本可读自身元数据。
+                val info = org.json.JSONObject()
+                    .put(
+                        "script",
+                        org.json.JSONObject()
+                            .put("name", parsed.name)
+                            .put("version", parsed.version)
+                            .put("description", parsed.description)
+                            .put("namespace", parsed.namespace)
+                            .put("runAt", parsed.runAt)
+                            .put("matches", org.json.JSONArray(parsed.matches))
+                            .put("grants", org.json.JSONArray(parsed.grants))
+                    )
+                    .put("scriptHandler", "Sii")
+                    .put("version", "1.5.3")
+                webView.injectJavaScript("window.GM_info = $info;", null)
                 val prefix = parsed.requires.mapNotNull { requireUrl ->
                     com.sii.browser.script.ScriptRequireCache.cached(requireContext(), requireUrl)
                 }.joinToString("\n")

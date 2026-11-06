@@ -18,6 +18,9 @@ data class UserScript(
     val requires: List<String>,
     val grants: List<String>,
     val resources: List<Pair<String, String>> = emptyList(),
+    val version: String = "",
+    val description: String = "",
+    val namespace: String = "",
     val code: String
 ) {
     companion object {
@@ -33,6 +36,9 @@ data class UserScript(
             val excludes = metaValues(source, "@exclude-match") + metaValues(source, "@exclude")
             val requires = metaValues(source, "@require")
             val grants = metaValues(source, "@grant")
+            val version = metaValue(source, "@version") ?: ""
+            val description = metaValue(source, "@description") ?: ""
+            val namespace = metaValue(source, "@namespace") ?: ""
             val resources = metaValues(source, "@resource").mapNotNull { raw ->
                 val parts = raw.trim().split(Regex("\\s+"), limit = 2)
                 if (parts.size == 2 && parts[0].isNotBlank() && parts[1].startsWith("http")) {
@@ -49,6 +55,9 @@ data class UserScript(
                 requires = requires,
                 grants = grants,
                 resources = resources,
+                version = version,
+                description = description,
+                namespace = namespace,
                 code = source
             )
         }
