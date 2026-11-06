@@ -231,14 +231,14 @@ object SettingsDefaults {
 
     /** 菜单默认顺序：常用功能在前，新增项（用户脚本/开发者工具）也写进默认值。 */
     const val DEFAULT_MENU_ORDER =
-        "home,refresh,bookmarks,addbookmark,history," +
+        "home,privacy,bookmarks,addbookmark,history," +
             "sniff,share,copylink,adpick,adblock," +
             "reader,userscripts,desktop,translatepage,find," +
             "font,uiscale,netlog,readaloud,savepage," +
             "scriptmenu,jsconsole,noimg,adblockstats,readlaterlist," +
             "source,print,devtools,scan,passwords," +
             "addhome,closetabs,cleardata,newtab,closeothers," +
-            "recentclosed,downloads,settings,menuedit,dark,incog"
+            "recentclosed,downloads,settings,menuedit,dark,incog,refresh"
 
 
     /** 主页风格：0 玻璃 / 1 极简 / 2 杂志。 */

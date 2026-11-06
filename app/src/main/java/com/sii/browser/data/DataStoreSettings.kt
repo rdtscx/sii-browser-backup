@@ -52,6 +52,7 @@ class DataStoreSettings(private val context: Context) : Settings {
                 runBlocking {
                     dataStore.data.first().asMap().forEach { (key, value) -> cache[key.name] = value }
                 }
+                migrateMenuOrderPrivacy()
             }
             mirror.edit().putBoolean("migrated", true).apply()
             writeMirror()
@@ -62,10 +63,28 @@ class DataStoreSettings(private val context: Context) : Settings {
                     dataStore.data.first().asMap().forEach { (key, value) ->
                         cache.putIfAbsent(key.name, value)
                     }
+                    migrateMenuOrderPrivacy()
                     writeMirror()
                 }
             }
         }
+    }
+
+    /** 旧版菜单顺序没有「隐私保护」：把 privacy 插到 refresh 原位置，refresh 移到末尾；已有 privacy 时幂等。 */
+    private fun migrateMenuOrderPrivacy() {
+        val raw = cache[SettingsKeys.DISPLAYED_MENUS] as? String ?: return
+        val order = raw.split(",").filter { it.isNotEmpty() }
+        if (order.isEmpty() || "privacy" in order) return
+        val migrated = order.toMutableList()
+        val refreshAt = migrated.indexOf("refresh")
+        if (refreshAt >= 0) {
+            migrated[refreshAt] = "privacy"
+            migrated.removeAll { it == "refresh" }
+            migrated.add("refresh")
+        } else {
+            migrated.add("privacy")
+        }
+        putStr(SettingsKeys.DISPLAYED_MENUS, migrated.joinToString(","))
     }
 
     private fun writeMirror() {

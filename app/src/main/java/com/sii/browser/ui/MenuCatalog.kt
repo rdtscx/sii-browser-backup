@@ -10,6 +10,7 @@ object MenuCatalog {
 
     val ITEMS = listOf(
         Item("refresh", R.string.menu_refresh, R.drawable.ic_m_refresh),
+        Item("privacy", R.string.menu_privacy_protection, R.drawable.ic_m_privacy_lock),
         Item("home", R.string.menu_home, R.drawable.ic_m_home),
         Item("addbookmark", R.string.menu_add_bookmark, R.drawable.ic_m_bookmark_add),
         Item("bookmarks", R.string.menu_bookmarks, R.drawable.ic_m_bmlist),
@@ -49,7 +50,13 @@ object MenuCatalog {
         Item("desktop", R.string.menu_desktop, R.drawable.ic_m_desktop),
         Item("newtab", R.string.menu_new_tab, R.drawable.ic_m_new_tab),
         Item("closeothers", R.string.menu_close_others, R.drawable.ic_close),
-        Item("recentclosed", R.string.menu_recent_closed, R.drawable.ic_m_history)
+        Item("recentclosed", R.string.menu_recent_closed, R.drawable.ic_m_history),
+        Item("doh", R.string.menu_doh, R.drawable.ic_m_doh),
+        Item("nightauto", R.string.menu_night_auto, R.drawable.ic_m_night_auto),
+        Item("texttranslate", R.string.menu_text_translate, R.drawable.ic_m_translate),
+        Item("pagerequests", R.string.menu_page_requests, R.drawable.ic_m_netlog),
+        Item("game", R.string.menu_game_mode, R.drawable.ic_m_game),
+        Item("fullscreen", R.string.menu_fullscreen, R.drawable.ic_m_fullscreen)
     )
 
     val DEFAULT_FIXED = listOf("dark", "incog", "noimg", "desktop")
