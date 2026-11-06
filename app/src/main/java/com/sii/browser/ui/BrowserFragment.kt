@@ -9407,19 +9407,32 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 页面直接展示油猴脚本源码（如 greasyfork 的 /scripts/<id>）时也提示安装。 */
+    private val scriptCheckCount = mutableMapOf<String, Int>()
+
     private fun maybeOfferScriptFromPage(webView: SiiWebView?, url: String) {
         if (!isAdded || url.startsWith("about")) return
         if (isUserScriptUrl(url)) return
-        if (!scriptPromptedUrls.add(url)) return
+        if (scriptPromptedUrls.contains(url)) return
+        val attempt = scriptCheckCount[url] ?: 0
+        if (attempt >= 3) return
+        scriptCheckCount[url] = attempt + 1
         webView?.evaluateJavascript(
-            "(function(){try{var t=document.body?document.body.innerText:'';" +
+            "(function(){try{var b=document.body;if(!b)return '';" +
+                "var t=b.innerText||b.textContent||'';" +
                 "return t.length>2000000?t.slice(0,2000000):t}catch(e){return ''}})()"
         ) { raw ->
             val text = runCatching {
                 org.json.JSONTokener(raw.orEmpty()).nextValue().toString()
             }.getOrDefault("")
+            com.sii.browser.core.mcp.DiagLog.record(
+                "script-check", url + " len=" + text.length +
+                    " head=" + text.trimStart().take(24)
+            )
             if (text.trimStart().startsWith("// ==UserScript==") && text.contains("@name")) {
+                scriptPromptedUrls.add(url)
                 showScriptInstallDialog(url, text)
+            } else if (attempt + 1 < 3) {
+                view?.postDelayed({ maybeOfferScriptFromPage(webView, url) }, 800)
             }
         }
     }
