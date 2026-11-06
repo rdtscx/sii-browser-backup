@@ -9113,6 +9113,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 android.os.SystemClock.elapsedRealtime() - programmaticPrivacyLoadAt < 1200L
             if (recentlyProgrammatic) return false
             val mainFrame = request == null || request.isForMainFrame
+            // 页面内点击安装按钮进入 .user.js：不要真的加载源码，直接走安装确认。
+            if (mainFrame && isUserScriptUrl(url)) {
+                installUserScript(url)
+                return true
+            }
             if (mainFrame && webView != null &&
                 (url.startsWith("http://") || url.startsWith("https://"))
             ) {
