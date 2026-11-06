@@ -1117,7 +1117,7 @@ class DataStoreSettings(private val context: Context) : Settings {
         putInt(SettingsKeys.GESTURE_TOOLBAR_RIGHT, value)
     }
 
-    override fun displayedMenus(): String? = str(SettingsKeys.DISPLAYED_MENUS, "refresh,home,addbookmark,bookmarks,history,closeothers,adblock,sniff,adblockstats,readlaterlist,find,font,netlog,jsconsole,share,reader,uiscale,copylink,translatepage,readaloud,scan,savepage,source,print,passwords,scriptmenu,addhome,cleardata,recentclosed,noimg,adpick,closetabs,desktop,newtab")
+    override fun displayedMenus(): String? = str(SettingsKeys.DISPLAYED_MENUS, SettingsDefaults.DEFAULT_MENU_ORDER)
 
     override fun setDisplayedMenus(value: String?) {
         putStr(SettingsKeys.DISPLAYED_MENUS, value)

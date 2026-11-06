@@ -227,7 +227,14 @@ object SettingsDefaults {
     const val GLASS_STRENGTH = 40
 
     /** 看大图（网页自绘图片查看器）时自动隐藏悬浮工具栏。 */
-    const val HIDE_CHROME_ON_IMAGE_VIEW = true
+    const val HIDE_CHROME_ON_IMAGE_VIEW = false
+
+    /** 菜单默认顺序：常用功能在前，新增项（用户脚本/开发者工具）也写进默认值。 */
+    const val DEFAULT_MENU_ORDER =
+        "home,refresh,downloads,bookmarks,addbookmark,history,share,copylink,find,reader," +
+            "sniff,translatepage,settings,userscripts,scriptmenu,devtools," +
+            "font,uiscale,source,netlog,jsconsole,adblockstats,adpick,readlaterlist," +
+            "savepage,print,scan,readaloud,passwords,addhome,closetabs,cleardata,incog,dark"
 
 
     /** 主页风格：0 玻璃 / 1 极简 / 2 杂志。 */

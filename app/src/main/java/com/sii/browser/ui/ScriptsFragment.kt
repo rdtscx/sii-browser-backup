@@ -127,6 +127,42 @@ class ScriptsFragment : Fragment() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(10) }
             setOnClickListener { showEditScriptDialog(script) }
+            setOnLongClickListener {
+                val options = mutableListOf<String>()
+                val actions = mutableListOf<() -> Unit>()
+                if (!script.url.isNullOrBlank()) {
+                    options.add("复制脚本链接")
+                    actions.add {
+                        val cm = requireContext()
+                            .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        cm.setPrimaryClip(
+                            android.content.ClipData.newPlainText("script", script.url)
+                        )
+                        android.widget.Toast.makeText(
+                            requireContext(), "已复制脚本链接", android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                options.add("编辑")
+                actions.add { showEditScriptDialog(script) }
+                if (!script.url.isNullOrBlank()) {
+                    options.add("检查更新")
+                    actions.add { updateScript(script) }
+                }
+                options.add("删除")
+                actions.add {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        AppServices.scriptRepository.delete(script.id)
+                        toast(R.string.scripts_deleted)
+                    }
+                }
+                AlertDialog.Builder(requireContext())
+                    .setTitle(script.name)
+                    .setItems(options.toTypedArray()) { _, which -> actions[which]() }
+                    .show()
+                true
+            }
         }
 
         card.addView(TextView(context).apply {

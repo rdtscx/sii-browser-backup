@@ -389,6 +389,12 @@ class HomeCustomizeFragment : Fragment() {
         CardList.addRows(optionsCard, rows)
         controls.addView(optionsCard)
 
+        controls.addView(navRow("恢复默认菜单顺序", null) {
+            settings.setDisplayedMenus(com.sii.browser.data.SettingsDefaults.DEFAULT_MENU_ORDER)
+            refreshPreview()
+            view?.post { buildControls() }
+        })
+
         controls.addView(
             switchRow("展开全部菜单项", menuExpanded) {
                 menuExpanded = it

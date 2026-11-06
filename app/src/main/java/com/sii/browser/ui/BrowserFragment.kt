@@ -6003,6 +6003,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         "dark", "nightauto" -> SettingsDetailFragment.VIEW_V2_NIGHT
         "incog" -> SettingsDetailFragment.VIEW_V2_INCOG
         "newtab" -> SettingsDetailFragment.VIEW_V2_OPERATE
+        "userscripts", "scriptmenu" -> "scripts"
+        "font" -> "font"
+        "uiscale" -> "uiscale"
         else -> null
     }
 
@@ -6061,7 +6064,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         ).show()
     }
 
-    private fun openMenuSettings(viewId: String) {        hideMenuSheet()
+    private fun openMenuSettings(viewId: String) {
+        hideMenuSheet()
+        when (viewId) {
+            "scripts" -> {
+                openScriptsPage()
+                return
+            }
+            "font" -> {
+                showFontSizeSlider()
+                return
+            }
+            "uiscale" -> {
+                showUiScaleSlider()
+                return
+            }
+        }
         val target: androidx.fragment.app.Fragment = if (viewId == "rules") {
             RulesFragment()
         } else {
