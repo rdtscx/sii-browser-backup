@@ -149,6 +149,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var webViewContainer: FrameLayout? = null
     private val adPickBridges =
         java.util.WeakHashMap<SiiWebView, com.sii.browser.core.adblock.AdPickBridge>()
+    private var adPickBlockedAt = 0L
     private var tts: android.speech.tts.TextToSpeech? = null
     private var speaking = false
     private var ttsRate = 1.0f
@@ -2115,10 +2116,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 进入「标记广告」选取模式：点击页面元素即生成隐藏规则。 */
     private fun startAdPick() {
         val webView = tabManager.currentWebView ?: return
+        val bridge = adPickBridges[webView] ?: return
+        if (bridge.active) {
+            bridge.active = false
+            webView.injectJavaScript(com.sii.browser.core.adblock.AdPickBridge.EXIT_JS)
+            Toast.makeText(requireContext(), R.string.ad_pick_exit, Toast.LENGTH_SHORT).show()
+            return
+        }
         val host = tabManager.current?.url
             ?.let { runCatching { android.net.Uri.parse(it).host }.getOrNull() }
             ?: return
-        val bridge = adPickBridges[webView] ?: return
         bridge.host = host
         bridge.active = true
         webView.injectJavaScript(com.sii.browser.core.adblock.AdPickBridge.PICK_JS)
@@ -8462,6 +8469,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             isDialog: Boolean,
             resultMsg: android.os.Message
         ): Boolean {
+            if (webView != null && adPickBridges[webView]?.active == true) {
+                Toast.makeText(requireContext(), R.string.ad_pick_blocked, Toast.LENGTH_SHORT).show()
+                return true
+            }
             val transport = resultMsg.obj as? android.webkit.WebView.WebViewTransport ?: return false
             // 新标签在发起导航前继承当前页的电脑模式（此时 current 已切到新标签，不能用 URL 判定）。
             val inheritDesktop = webView?.settings?.userAgentString == desktopUserAgent()
@@ -9282,6 +9293,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 android.os.SystemClock.elapsedRealtime() - programmaticPrivacyLoadAt < 1200L
             if (recentlyProgrammatic) return false
             val mainFrame = request == null || request.isForMainFrame
+            // 选取广告元素期间不允许页面跳走（广告常靠触摸/链接直接导航）。
+            if (mainFrame && webView != null && adPickBridges[webView]?.active == true) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - adPickBlockedAt > 2000L) {
+                    adPickBlockedAt = now
+                    context?.let {
+                        Toast.makeText(it, R.string.ad_pick_blocked, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                return true
+            }
             // 页面内点击安装按钮进入 .user.js：不要真的加载源码，直接走安装确认。
             if (mainFrame && isUserScriptUrl(url)) {
                 installUserScript(url)

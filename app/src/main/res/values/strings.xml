@@ -351,6 +351,8 @@
     <string name="shortcut_unsupported">当前桌面不支持固定快捷方式</string>
     <string name="script_menu_empty">当前页面没有注册脚本菜单</string>
     <string name="ad_pick_hint">点击要隐藏的广告元素</string>
+    <string name="ad_pick_blocked">选取模式下已阻止页面跳转</string>
+    <string name="ad_pick_exit">已退出选取模式</string>
     <string name="settings_translate">翻译</string>
     <string name="settings_translate_baidu">百度配置</string>
     <string name="settings_translate_custom">自定义请求</string>

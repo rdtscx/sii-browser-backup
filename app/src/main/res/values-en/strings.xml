@@ -315,6 +315,8 @@
     <string name="shortcut_unsupported">Pinned shortcuts are not supported by this launcher</string>
     <string name="script_menu_empty">No script menu registered on this page</string>
     <string name="ad_pick_hint">Tap the ad element to hide</string>
+    <string name="ad_pick_blocked">Page navigation blocked while picking</string>
+    <string name="ad_pick_exit">Element picking cancelled</string>
     <string name="settings_translate">Translation</string>
     <string name="settings_translate_baidu">Baidu settings</string>
     <string name="settings_translate_custom">Custom request</string>

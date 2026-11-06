@@ -351,6 +351,8 @@
     <string name="shortcut_unsupported">このホーム画面は固定ショートカットに対応していません</string>
     <string name="script_menu_empty">このページにはスクリプトメニューがありません</string>
     <string name="ad_pick_hint">隠す広告要素をタップしてください</string>
+    <string name="ad_pick_blocked">要素選択中はページ遷移をブロックしました</string>
+    <string name="ad_pick_exit">要素選択を終了しました</string>
     <string name="settings_translate">翻訳</string>
     <string name="settings_translate_baidu">Baidu の設定</string>
     <string name="settings_translate_custom">カスタムリクエスト</string>
