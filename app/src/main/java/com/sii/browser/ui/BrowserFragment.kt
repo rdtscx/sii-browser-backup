@@ -9395,6 +9395,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         lifecycleScope.launch {
             val code = withContext(Dispatchers.IO) { fetchUserScript(url) }
             synchronized(installingScripts) { installingScripts.remove(url) }
+            com.sii.browser.core.mcp.DiagLog.record(
+                "script-install", url + " len=" + (code?.length ?: -1)
+            )
             if (code.isNullOrBlank()) {
                 if (isAdded) {
                     Toast.makeText(requireContext(), R.string.scripts_install_failed, Toast.LENGTH_SHORT).show()
@@ -9439,6 +9442,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun showScriptInstallDialog(url: String, code: String) {
         val parsed = UserScript.parse(code)
+        com.sii.browser.core.mcp.DiagLog.record(
+            "script-parse", url + " name=" + parsed.name + " size=" + code.length
+        )
         val matchText = parsed.matches.take(5).joinToString("\n").ifEmpty { "*" }
         val message = buildString {
             append(getString(R.string.scripts_install_name, parsed.name))
