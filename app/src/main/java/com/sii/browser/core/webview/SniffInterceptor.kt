@@ -18,6 +18,14 @@ class SniffInterceptor(private val key: Any) : ResourceInterceptor {
     ): WebResourceResponse? {
         if (!com.sii.browser.di.AppServices.settings.sniffEnabled()) return null
         if (!url.startsWith("http")) return null
+        // 仅对已启用嗅探的站点记录（默认全部关闭）。
+        val host = runCatching {
+            android.net.Uri.parse(pageUrl ?: url).host
+        }.getOrNull()
+        if (host == null || !com.sii.browser.data.SiteConfig.sniffEnabledRaw(
+                com.sii.browser.di.AppServices.siteConfigRepository.cachedConfig(host)
+            )
+        ) return null
         val headers = request?.requestHeaders
         val accept = headers?.get("Accept").orEmpty()
         val dest = headers?.get("Sec-Fetch-Dest").orEmpty().lowercase()

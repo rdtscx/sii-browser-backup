@@ -264,33 +264,57 @@ object AppServices {
     @Volatile
     var onUpdatePromptReady: (() -> Unit)? = null
 
-    /** 启动时自动检查更新：每天最多一次，发现新版本交给界面弹窗，失败静默。 */
+    /** 检查间隔：12 小时；失败后 5 分钟重试。 */
+    private val updateIntervalMs = 12L * 60 * 60 * 1000
+    private val updateRetryMs = 5L * 60 * 1000
+
+    /** 回到前台时调用：距上次成功检查超过 12 小时才发请求。 */
+    fun checkUpdatesOnForeground(app: Application) {
+        CoroutineScope(Dispatchers.IO).launch { runCatching { autoCheckUpdate(app) } }
+    }
+
+    /** 自动检查更新：12 小时一次，成功才落时间；发现新版本按版本去重弹窗。 */
     private suspend fun autoCheckUpdate(app: Application) {
         if (settings.updatePrompt() <= 0) return
+        val debuggable = app.applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         val now = System.currentTimeMillis()
-        if (now - settings.updateLastCheck() < 24L * 60 * 60 * 1000) return
-        // 先落时间戳：失败也算一次，避免网络异常时反复要请求耗尽 GitHub 限流。
+        // 测试包跳过 12 小时间隔，方便直接验证弹窗。
+        if (!debuggable && now - settings.updateLastCheck() < updateIntervalMs) return
+        val info = com.sii.browser.data.UpdateChecker.check()
+        if (info == null) {
+            // 失败不占用完整间隔：5 分钟后可重试。
+            settings.setUpdateLastCheck(now - updateIntervalMs + updateRetryMs)
+            return
+        }
         settings.setUpdateLastCheck(now)
-        val info = com.sii.browser.data.UpdateChecker.check() ?: return
-        val local = runCatching {
+        var local = runCatching {
             val packageInfo = app.packageManager.getPackageInfo(app.packageName, 0)
             val code = if (android.os.Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode
             else @Suppress("DEPRECATION") packageInfo.versionCode.toLong()
             packageInfo.versionName.orEmpty() to code
         }.getOrNull() ?: return
+        // 测试包：假装本地是 1.4.0，便于验证更新弹窗与下载流程。
+        if (debuggable) {
+            local = "1.4.0" to 10L
+        }
         if (!com.sii.browser.data.UpdateChecker.isUpdate(info, local.first, local.second)) {
             settings.setUpdateLatest(null)
             return
         }
         val name = info.versionName.ifBlank { info.versionCode.toString() }
+        settings.setUpdateLatest(listOf(name, info.url).joinToString("|"))
         if (name == settings.updateIgnoredVersion()) return
-        settings.setUpdateLatest(
-            listOf(name, info.url, info.notes.orEmpty()).joinToString("|")
-        )
-        // 同一版本 24 小时内只弹一次。
-        if (now - settings.updateLastNotified() < 24L * 60 * 60 * 1000) return
+        val sameVersion = settings.updateNotifiedVersion() == name
+        if (sameVersion && now - settings.updateLastNotified() < updateIntervalMs) return
         settings.setUpdateLastNotified(now)
-        pendingUpdatePrompt = listOf(name, info.url, info.notes.orEmpty()).joinToString("|")
+        settings.setUpdateNotifiedVersion(name)
+        pendingUpdatePrompt = org.json.JSONObject()
+            .put("name", name)
+            .put("url", info.url)
+            .put("notes", info.notes.orEmpty())
+            .put("size", info.size)
+            .toString()
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             onUpdatePromptReady?.invoke()
         }

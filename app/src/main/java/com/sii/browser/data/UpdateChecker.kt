@@ -23,7 +23,8 @@ object UpdateChecker {
         val versionCode: Long,
         val versionName: String,
         val url: String,
-        val notes: String?
+        val notes: String?,
+        val size: Long = 0L
     )
 
     private const val GITHUB_LATEST =
@@ -53,11 +54,13 @@ object UpdateChecker {
             if (tag.isBlank()) return null
             val assets = json.optJSONArray("assets")
             var apk: String? = null
+            var apkSize = 0L
             if (assets != null) {
                 for (i in 0 until assets.length()) {
                     val item = assets.optJSONObject(i) ?: continue
                     if (item.optString("name").endsWith(".apk", ignoreCase = true)) {
                         apk = item.optString("browser_download_url")
+                        apkSize = item.optLong("size", 0L)
                         break
                     }
                 }
@@ -66,7 +69,8 @@ object UpdateChecker {
                 versionCode = 0L,
                 versionName = tag,
                 url = apk ?: json.optString("html_url"),
-                notes = json.optString("body").ifBlank { null }
+                notes = json.optString("body").ifBlank { null },
+                size = apkSize
             )
         }
     }.getOrNull()

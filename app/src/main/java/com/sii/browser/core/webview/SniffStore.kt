@@ -5,13 +5,14 @@ package com.sii.browser.core.webview
 /** 嗅探到的资源类型（用于列表分类）。 */
 enum class SniffType { HLS, VIDEO, AUDIO, IMAGE, DOC, MSE, OTHER }
 
-/** 一条嗅探到的资源。 */
+/** 一条嗅探到的资源。addedAt 为首次发现时间，用于把同一次播放产生的多个地址归为一批。 */
 data class SniffedResource(
     val url: String,
     val type: SniffType,
     val mime: String? = null,
     val size: Long = 0L,
-    val pageUrl: String? = null
+    val pageUrl: String? = null,
+    val addedAt: Long = System.currentTimeMillis()
 )
 
 /**
@@ -54,6 +55,7 @@ object SniffStore {
         synchronized(lock) {
             val map = store.getOrPut(key) { LinkedHashMap() }
             val existing = map[resource.url]
+            // addedAt 不随重复上报刷新，否则同一条资源每次上报都会被当成新资源。
             val merged = if (existing == null) {
                 resource
             } else {
@@ -108,6 +110,31 @@ object SniffStore {
     fun trim() {
         synchronized(lock) { store.clear() }
     }
+
+    /** 两个 URL 是否属于同一文档：忽略 query/hash 与末尾斜杠，任一缺失时视为同页。 */
+    fun samePage(a: String?, b: String?): Boolean {
+        if (a.isNullOrBlank() || b.isNullOrBlank()) return true
+        val ua = runCatching { android.net.Uri.parse(a) }.getOrNull() ?: return true
+        val ub = runCatching { android.net.Uri.parse(b) }.getOrNull() ?: return true
+        if (ua.host != ub.host || ua.scheme != ub.scheme) return false
+        return ua.path.orEmpty().trimEnd('/') == ub.path.orEmpty().trimEnd('/')
+    }
+
+    /** HLS 分片（.ts/.m4s），不单独提示也不作为播放单元。 */
+    fun isSegment(url: String): Boolean {
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        return path.endsWith(".ts") || path.endsWith(".m4s")
+    }
+
+    fun isPlayable(type: SniffType): Boolean =
+        type == SniffType.VIDEO || type == SniffType.HLS || type == SniffType.AUDIO
+
+    /** 可播放资源（排除分片），按发现顺序；pageUrl 非空时只取同页。 */
+    fun playable(key: Any, pageUrl: String? = null): List<SniffedResource> =
+        list(key).filter {
+            isPlayable(it.type) && !isSegment(it.url) &&
+                (pageUrl.isNullOrBlank() || samePage(it.pageUrl, pageUrl))
+        }
 
     /** 按 URL 扩展名（必要时结合 MIME）判断资源类型。 */
     fun typeOf(url: String, mime: String? = null): SniffType {

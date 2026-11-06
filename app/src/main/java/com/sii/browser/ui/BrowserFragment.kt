@@ -131,6 +131,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var sniffPromptKey: Any? = null
     private val sniffPromptedUrls = java.util.HashSet<String>()
     private val sniffPromptDismissedUrls = java.util.HashSet<String>()
+
+    /** 浮条 5 秒无操作自动收起。 */
+    private val autoHideSniffPrompt = Runnable { hideSniffPrompt() }
     private var menuOverlay: View? = null
     private var menuToggles: LinearLayout? = null
     private var menuGrid: LinearLayout? = null
@@ -264,6 +267,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_play)?.setOnClickListener { playSniffResource() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_download)?.setOnClickListener { downloadSniffResource() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_close)?.setOnClickListener { dismissSniffPrompt() }
+        sniffPrompt?.findViewById<View>(R.id.sniff_prompt_ignore)?.setOnClickListener { ignoreSiteSniff() }
         com.sii.browser.core.webview.SniffStore.onResource = { key, res ->
             view?.post { maybeShowSniffPrompt(key, res) }
         }
@@ -807,11 +811,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         bar.postDelayed(autoDismiss, 5000)
     }
 
-    /** 启动时的更新弹窗：只在主页、无浮层、无恢复提示时展示，展示后清空待处理标记。 */
+    /** 更新弹窗：显示版本、大小与说明，支持稍后/忽略。 */
     private fun maybeShowUpdatePrompt() {
         if (!isAdded || view == null) return
         val raw = AppServices.pendingUpdatePrompt ?: return
-        if (homeContainer?.visibility != View.VISIBLE) return
         if (addressEditing || homePanel?.isSearchActive() == true) return
         if (menuOverlay?.visibility == View.VISIBLE ||
             tabsOverlay?.visibility == View.VISIBLE
@@ -820,29 +823,57 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             view?.postDelayed({ maybeShowUpdatePrompt() }, 3000)
             return
         }
-        val parts = raw.split("|")
-        if (parts.size < 2) {
+        val json = runCatching { org.json.JSONObject(raw) }.getOrNull()
+        val name = json?.optString("name").orEmpty()
+        val url = json?.optString("url").orEmpty()
+        if (name.isBlank() || url.isBlank()) {
             AppServices.pendingUpdatePrompt = null
             return
         }
-        val name = parts[0]
-        val url = parts[1]
-        val summary = parts.getOrNull(2).orEmpty()
-            .trim()
-            .split("\n\n")
-            .firstOrNull()
-            .orEmpty()
-            .take(200)
+        val notes = json?.optString("notes").orEmpty().trim()
+        val size = json?.optLong("size", 0L) ?: 0L
         AppServices.pendingUpdatePrompt = null
-        android.app.AlertDialog.Builder(requireContext())
-            .setTitle(getString(R.string.update_available, name))
-            .setMessage(summary.ifBlank { getString(R.string.update_tap_to_download) })
-            .setPositiveButton(R.string.update_download) { _, _ -> loadUrlFor(url) }
-            .setNeutralButton(R.string.update_ignore_version) { _, _ ->
-                AppServices.settings.setUpdateIgnoredVersion(name)
-                AppServices.settings.setUpdateLatest(null)
+
+        val context = requireContext()
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(20), dpToPx(4), dpToPx(20), 0)
+        }
+        if (size > 0L) {
+            content.addView(TextView(context).apply {
+                text = getString(
+                    R.string.update_size_text,
+                    android.text.format.Formatter.formatShortFileSize(context, size)
+                )
+                setTextSize(12.5f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(0, 0, 0, dpToPx(8))
+            })
+        }
+        if (notes.isNotEmpty()) {
+            val notesView = TextView(context).apply {
+                text = notes
+                setTextSize(13f)
+                setTextColor(context.getColor(R.color.text_primary))
+                setLineSpacing(dpToPx(3).toFloat(), 1.15f)
+                setTextIsSelectable(true)
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            val scroll = android.widget.ScrollView(context).apply {
+                addView(notesView)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(220)
+                )
+            }
+            content.addView(scroll)
+        }
+        android.app.AlertDialog.Builder(context)
+            .setTitle(getString(R.string.update_available, name))
+            .setView(content)
+            .setPositiveButton(R.string.update_download) { _, _ -> loadUrlFor(url) }
+            .setNeutralButton(R.string.update_later, null)
+            .setNegativeButton(R.string.update_ignore_version) { _, _ ->
+                AppServices.settings.setUpdateIgnoredVersion(name)
+            }
             .show()
     }
 
@@ -1268,8 +1299,26 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
-    /** 资源嗅探列表（当前标签）。 */
-    private fun openSniff() {        NavAnim.apply(parentFragmentManager.beginTransaction())
+    /** 资源嗅探列表（当前标签）：未启用时先把本站加入嗅探（并重载一次），已启用则直接打开。 */
+    private fun openSniff() {
+        currentPageHost()?.let { host ->
+            if (!siteSniffEnabled(host)) {
+                setSiteSniffEnabled(host, true)
+                // 先清掉上一个站的旧条目，避免打开列表时看到别的站点资源。
+                tabManager.currentWebView?.let { webView ->
+                    com.sii.browser.core.webview.SniffStore.clear(webView)
+                    webView.injectJavaScript(
+                        com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
+                    )
+                    // 站点刚加入嗅探：重载一次，把已经错过的请求重新采集完整。
+                    webView.reload()
+                }
+                Toast.makeText(
+                    requireContext(), R.string.site_prompt_enabled_reload, Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        NavAnim.apply(parentFragmentManager.beginTransaction())
             .replace(R.id.shell_root, SniffFragment())
             .addToBackStack(null)
             .commit()
@@ -4546,30 +4595,41 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!AppServices.settings.sniffEnabled()) return
         if (key !== tabManager.currentWebView) return
         if (homeContainer?.visibility == View.VISIBLE) return
-        if (sniffPromptedUrls.contains(res.url) || sniffPromptDismissedUrls.contains(res.url)) return
-        if (sniffPrompt?.visibility == View.VISIBLE) return
+        val pageHost = runCatching {
+            android.net.Uri.parse(tabManager.current?.url.orEmpty()).host
+        }.getOrNull()
+        if (pageHost == null || !siteSniffEnabled(pageHost)) return
         if (res.type != com.sii.browser.core.webview.SniffType.HLS &&
             res.type != com.sii.browser.core.webview.SniffType.VIDEO
         ) return
-        if (res.type == com.sii.browser.core.webview.SniffType.VIDEO && isSniffSegment(res.url)) return
+        if (com.sii.browser.core.webview.SniffStore.isSegment(res.url)) return
+        if (sniffPromptedUrls.contains(res.url) || sniffPromptDismissedUrls.contains(res.url)) return
         sniffPromptedUrls.add(res.url)
         view?.postDelayed({
             if (!isAdded || key !== tabManager.currentWebView) return@postDelayed
             if (!sniffPromptedUrls.contains(res.url)) return@postDelayed
-            val list = com.sii.browser.core.webview.SniffStore.list(key)
-            val best = list.firstOrNull { it.type == com.sii.browser.core.webview.SniffType.HLS }
-                ?: list.firstOrNull {
-                    it.type == com.sii.browser.core.webview.SniffType.VIDEO &&
-                        !isSniffSegment(it.url)
-                }
-                ?: return@postDelayed
+            val shown = sniffPromptResource
+            if (sniffPrompt?.visibility == View.VISIBLE && shown != null) {
+                // 同一段视频的 mp4/m3u8 会在同一批到达，只提示一次；更早的资源不覆盖新提示。
+                if (res.addedAt - shown.addedAt < SNIFF_PROMPT_BURST_MS) return@postDelayed
+            }
+            val best = preferStream(key, res)
+            sniffPromptedUrls.add(best.url)
             showSniffPrompt(key, best)
         }, 1200L)
     }
 
-    private fun isSniffSegment(url: String): Boolean {
-        val path = url.substringBefore('?').substringBefore('#').lowercase()
-        return path.endsWith(".ts") || path.endsWith(".m4s")
+    /** 同一次播放会同时出现 mp4 与 m3u8，能取同页流媒体就不给渐进式文件。 */
+    private fun preferStream(
+        key: Any,
+        res: com.sii.browser.core.webview.SniffedResource
+    ): com.sii.browser.core.webview.SniffedResource {
+        if (res.type == com.sii.browser.core.webview.SniffType.HLS) return res
+        return com.sii.browser.core.webview.SniffStore.list(key).firstOrNull {
+            it.type == com.sii.browser.core.webview.SniffType.HLS &&
+                com.sii.browser.core.webview.SniffStore.samePage(it.pageUrl, res.pageUrl) &&
+                kotlin.math.abs(it.addedAt - res.addedAt) < SNIFF_PROMPT_BURST_MS
+        } ?: res
     }
 
     private fun showSniffPrompt(key: Any, res: com.sii.browser.core.webview.SniffedResource) {
@@ -4587,9 +4647,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             getString(R.string.sniff_prompt_found) + " · " + label + " · " + name
         prompt.bringToFront()
         prompt.visibility = View.VISIBLE
+        view?.removeCallbacks(autoHideSniffPrompt)
+        view?.postDelayed(autoHideSniffPrompt, 5000L)
     }
 
     private fun hideSniffPrompt() {
+        view?.removeCallbacks(autoHideSniffPrompt)
         sniffPrompt?.visibility = View.GONE
         sniffPromptKey = null
         sniffPromptResource = null
@@ -4602,14 +4665,19 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun playSniffResource() {
         val res = sniffPromptResource ?: return
-        val isHls = res.type == com.sii.browser.core.webview.SniffType.HLS
+        val key = sniffPromptKey ?: tabManager.currentWebView
         hideSniffPrompt()
+        val pageUrl = res.pageUrl ?: tabManager.current?.url
+        val items = (key?.let {
+            com.sii.browser.core.webview.SniffStore.playable(it, pageUrl)
+        }).orEmpty().ifEmpty { listOf(res) }
+        val index = items.indexOfFirst { it.url == res.url }.coerceAtLeast(0)
         parentFragmentManager.beginTransaction()
             .replace(
                 R.id.shell_root,
                 PlayerFragment.newInstance(
-                    res.url,
-                    isHls,
+                    items,
+                    index,
                     tabManager.current?.url,
                     tabManager.currentWebView?.settings?.userAgentString
                 )
@@ -6795,6 +6863,31 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
+    /** 本站是否启用了资源嗅探：站点配置 sn=1。缺省=未启用。 */
+    private fun siteSniffEnabled(host: String): Boolean =
+        SiteConfig.sniffEnabledRaw(AppServices.siteConfigRepository.cachedConfig(host))
+
+    private fun setSiteSniffEnabled(host: String, enabled: Boolean) {
+        val text = SiteConfig.withSniffEnabled(
+            AppServices.siteConfigRepository.cachedConfig(host), enabled
+        )
+        AppServices.siteConfigRepository.cachePut(host, text)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            AppServices.siteConfigRepository.put(host, text)
+        }
+    }
+
+    /** 浮条上的「忽略本站」：关闭本站嗅探，并清掉已记录的条目。 */
+    private fun ignoreSiteSniff() {
+        val host = currentPageHost() ?: return
+        setSiteSniffEnabled(host, false)
+        (sniffPromptKey ?: tabManager.currentWebView)?.let {
+            com.sii.browser.core.webview.SniffStore.clear(it)
+        }
+        hideSniffPrompt()
+        Toast.makeText(requireContext(), R.string.site_prompt_paused, Toast.LENGTH_SHORT).show()
+    }
+
     private fun siteSettingsEnabled(host: String): Boolean {
         val raw = AppServices.siteConfigRepository.cachedConfig(host) ?: return false
         return runCatching { org.json.JSONObject(raw).optBoolean("on", true) }.getOrDefault(false)
@@ -7632,10 +7725,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             onScrollDy = { dy -> handleToolbarAutoHide(dy) }
             onTouchDown = {
                 // 触摸网页时清掉之前的滚动累计与待执行方向，防止回弹把隐藏的工具栏弹回来。
+                this@BrowserFragment.webTouching = true
                 this@BrowserFragment.scrollAccum = 0
+                this@BrowserFragment.scrollDir = 0
                 this@BrowserFragment.pendingScrollDir = 0
                 this@BrowserFragment.view?.removeCallbacks(this@BrowserFragment.applyScrollDirection)
             }
+            onTouchUp = { this@BrowserFragment.settleRevealOnTouchUp() }
             onDoubleTap = {
                 if (!AppServices.settings.gameMode()) {
                     when (AppServices.settings.gestureDoubleTap()) {
@@ -7940,6 +8036,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 revealToolbarOnNavigate()
             }
             homeForwardAvailable = false
+            // 导航会打断触摸流，抬手回调可能收不到，这里兜底复位。
+            webTouching = false
             webView?.let {
                 sniffPromptedUrls.clear()
                 sniffPromptDismissedUrls.clear()
@@ -7947,7 +8045,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             markPageLoading(webView)
             // 尽早 hook fetch/XHR，否则页面初始化阶段的媒体请求会错过。
-            if (AppServices.settings.sniffEnabled()) {
+            val sniffHost = runCatching { android.net.Uri.parse(url).host }.getOrNull()
+            if (AppServices.settings.sniffEnabled() &&
+                sniffHost != null && siteSniffEnabled(sniffHost)
+            ) {
                 webView?.injectJavaScript(com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS)
             }
             val startedUrl = url.ifBlank { webView?.url.orEmpty() }
@@ -9394,6 +9495,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 回到浏览器即结束密码库本次解锁，下次打开重新验证。
         AppServices.passwordUnlockedAt = 0L
         (activity as? ShellActivity)?.refreshDialogTheme()
+        AppServices.checkUpdatesOnForeground(
+            requireContext().applicationContext as android.app.Application
+        )
+        view?.postDelayed({ maybeShowUpdatePrompt() }, 2000)
         applyKeepScreenOn()
         applyIncognitoBadge()
         applyTabActionLayout()
@@ -10834,28 +10939,65 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var scrollAccum = 0
     private var pendingScrollDir = 0
     private var lastToggleAt = 0L
-    private val applyScrollDirection = Runnable {
+    private var scrollDir = 0
+
+    /** 手指是否还按在网页上：按着时只收起、不显示工具栏。 */
+    private var webTouching = false
+    private val applyScrollDirection: Runnable = Runnable {
         val dir = pendingScrollDir
         pendingScrollDir = 0
         if (dir == 0) return@Runnable
-        // 同一方向的收展保持 220ms 冷却，避免滚动中反方向抖动。
-        val now = System.currentTimeMillis()
-        if (now - lastToggleAt < 220L) return@Runnable
-        lastToggleAt = now
+        // 冷却只用来抑制刚切换方向就来回横跳；命中时顺延到冷却结束，不丢动作。
+        val wait = SCROLL_TOGGLE_COOLDOWN_MS - (System.currentTimeMillis() - lastToggleAt)
+        if (wait > 0L) {
+            pendingScrollDir = dir
+            view?.postDelayed(applyScrollDirection, wait)
+            return@Runnable
+        }
+        lastToggleAt = System.currentTimeMillis()
         handleQuickEngineAutoHide(dir * 10)
         applyToolbarScrollHidden(dir * 10)
     }
 
     private fun handleToolbarAutoHide(rawDy: Int) {
         if (rawDy == 0) return
-        // 累计 40dp 后短暂停顿（60ms）即执行，兼顾跟手与去抖。
-        if ((rawDy > 0) != (scrollAccum > 0)) scrollAccum = 0
+        val dir = if (rawDy > 0) 1 else -1
+        // 方向必须单独记：累计值达标后会归零，不能再用它判断方向，否则同方向滚动会被当成反转。
+        if (scrollDir != 0 && scrollDir != dir) {
+            scrollAccum = 0
+            pendingScrollDir = 0
+            view?.removeCallbacks(applyScrollDirection)
+        }
+        scrollDir = dir
         scrollAccum += rawDy
-        if (kotlin.math.abs(scrollAccum) < 40) return
-        pendingScrollDir = if (scrollAccum > 0) 1 else -1
+        val show = dir < 0
+        // 目标状态已达成：清掉累计，避免状态变化后拿着旧累计直接触发。
+        if (show != toolbarHidden) {
+            scrollAccum = 0
+            return
+        }
+        val threshold = if (show) dp(SCROLL_SHOW_THRESHOLD_DP) else dp(SCROLL_HIDE_THRESHOLD_DP)
+        if (kotlin.math.abs(scrollAccum) < threshold) return
+        val pending = if (show) -1 else 1
         scrollAccum = 0
+        // 同一方向已在排队时不再重复排期，否则持续滚动会把执行时间一直往后推。
+        if (pendingScrollDir == pending) return
+        pendingScrollDir = pending
+        // 按住时的“显示”先记下，松手时立即结算，不依赖松手后的惯性。
+        if (show && webTouching) return
         view?.removeCallbacks(applyScrollDirection)
-        view?.postDelayed(applyScrollDirection, 60L)
+        view?.postDelayed(
+            applyScrollDirection,
+            if (show) SCROLL_SHOW_DELAY_MS else SCROLL_HIDE_DELAY_MS
+        )
+    }
+
+    /** 松手时结算：按住期间已经攒够的“显示”动作立即执行。 */
+    private fun settleRevealOnTouchUp() {
+        webTouching = false
+        if (pendingScrollDir != -1) return
+        view?.removeCallbacks(applyScrollDirection)
+        applyScrollDirection.run()
     }
 
     private fun applyToolbarScrollHidden(dy: Int) {
@@ -10868,15 +11010,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             val hidden = (dock.height.takeIf { it > 0 } ?: dp(56)) + dp(12)
             if (dy > 0 && !toolbarHidden) {
                 toolbarHidden = true
-                dock.animate().translationY(hidden.toFloat()).setDuration(180)
+                dock.animate().translationY(hidden.toFloat()).setDuration(150)
                     .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
-                progressBar?.animate()?.translationY(hidden.toFloat())?.setDuration(180)
+                progressBar?.animate()?.translationY(hidden.toFloat())?.setDuration(150)
                     ?.setInterpolator(android.view.animation.DecelerateInterpolator())?.start()
             } else if (dy < 0 && toolbarHidden) {
                 toolbarHidden = false
-                dock.animate().translationY(0f).setDuration(180)
+                dock.animate().translationY(0f).setDuration(120)
                     .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
-                progressBar?.animate()?.translationY(0f)?.setDuration(180)
+                progressBar?.animate()?.translationY(0f)?.setDuration(120)
                     ?.setInterpolator(android.view.animation.DecelerateInterpolator())?.start()
             }
             return
@@ -10913,7 +11055,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
         }
         val animator = android.animation.ValueAnimator.ofFloat(if (show) 0f else 1f, if (show) 1f else 0f)
-        animator.duration = 180
+        animator.duration = if (show) 120L else 150L
         animator.addUpdateListener { animation ->
             val fraction = animation.animatedValue as Float
             views.forEach { target ->
@@ -11023,6 +11165,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabsList = null
         pageLoadingCover = null
         com.sii.browser.core.webview.SniffStore.onResource = null
+        view?.removeCallbacks(autoHideSniffPrompt)
         sniffPrompt = null
         sniffPromptResource = null
         sniffPromptKey = null
@@ -11304,6 +11447,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressTextProgrammatic = false
 
     private companion object {
+        /** 滚动收展工具栏：向上显示 12dp 且立即执行，向下隐藏 24dp、32ms 防抖。 */
+        private const val SCROLL_SHOW_THRESHOLD_DP = 12
+        private const val SCROLL_HIDE_THRESHOLD_DP = 24
+        private const val SCROLL_SHOW_DELAY_MS = 0L
+        private const val SCROLL_HIDE_DELAY_MS = 32L
+        private const val SCROLL_TOGGLE_COOLDOWN_MS = 120L
+
+        /** 同一次播放触发的资源归为一批的时间窗。 */
+        private const val SNIFF_PROMPT_BURST_MS = 1500L
         const val KEY_URL = "sii_browser_url"
         const val KEY_TABS = "sii_browser_tabs"
         /** 固定栏默认项：夜间/隐身/无图/电脑模式。 */

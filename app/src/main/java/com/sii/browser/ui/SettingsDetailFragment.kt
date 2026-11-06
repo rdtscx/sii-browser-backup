@@ -399,7 +399,10 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_sniff),
                 settings.sniffEnabled(),
                 getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) }
+            ) { settings.setSniffEnabled(it) },
+            navRow(getString(R.string.settings_sniff_sites)) {
+                openFragment(SniffSitesFragment())
+            }
         )
         aboutText(R.string.about_general)
     }
@@ -1100,7 +1103,10 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_sniff),
                 settings.sniffEnabled(),
                 getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) }
+            ) { settings.setSniffEnabled(it) },
+            navRow(getString(R.string.settings_sniff_sites)) {
+                openFragment(SniffSitesFragment())
+            }
         )
     }
 
@@ -3423,64 +3429,185 @@ class SettingsDetailFragment : Fragment() {
         private val DEFAULT_FIXED_IDS = listOf("dark", "incog", "noimg", "desktop")
     }
     private fun applyImport(uri: android.net.Uri) {
-        val text = FileExchange.readText(requireContext(), uri)
-        if (text.isNullOrBlank()) {
+        val bytes = FileExchange.readBytes(requireContext(), uri)
+        if (bytes == null || bytes.isEmpty()) {
             toast(R.string.rules_import_empty)
             return
         }
+        if (bytes.size > 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) {
+            openZipBackup(bytes)
+            return
+        }
+        val text = bytes.toString(Charsets.UTF_8)
         if (com.sii.browser.data.ExportCrypto.isEncrypted(text)) {
             promptImportPassword { password ->
                 val plain = com.sii.browser.data.ExportCrypto.decrypt(text, password)
                 if (plain == null) toast(R.string.import_password_wrong)
-                else applyImportText(plain)
+                else previewAndImport(plain)
             }
             return
         }
-        applyImportText(text)
+        previewAndImport(text)
     }
 
-    private fun applyImportText(text: String) {
+    /** 读取 zip 备份：data.json 明文，或 data.enc 需密码。 */
+    private fun openZipBackup(bytes: ByteArray) {
+        val entries = mutableMapOf<String, String>()
+        val ok = runCatching {
+            java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    if (entry.name == "data.json" || entry.name == "data.enc") {
+                        entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
+                    }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
+                }
+            }
+        }.isSuccess
+        if (!ok) {
+            toast(R.string.rules_import_failed)
+            return
+        }
+        when {
+            entries["data.enc"] != null -> promptImportPassword { password ->
+                val plain = com.sii.browser.data.ExportCrypto.decrypt(
+                    entries.getValue("data.enc"), password
+                )
+                if (plain == null) toast(R.string.import_password_wrong)
+                else previewAndImport(plain)
+            }
+            entries["data.json"] != null -> previewAndImport(entries.getValue("data.json"))
+            else -> toast(R.string.rules_import_failed)
+        }
+    }
+
+    /** 导入前先显示类别与条目数，可勾选要恢复的项。 */
+    private fun previewAndImport(text: String) {
+        val root = runCatching { org.json.JSONObject(text) }.getOrNull()
+        if (root == null) {
+            toast(R.string.rules_import_failed)
+            return
+        }
+        val cats = listOf(
+            Triple("bookmarks", R.string.backup_cat_bookmarks, root.optJSONArray("bookmarks")?.length() ?: 0),
+            Triple("history", R.string.backup_cat_history, root.optJSONArray("history")?.length() ?: 0),
+            Triple("favorites", R.string.backup_cat_favorites, root.optJSONArray("favorites")?.length() ?: 0),
+            Triple("downloads", R.string.backup_cat_downloads, root.optJSONArray("downloads")?.length() ?: 0),
+            Triple("passwords", R.string.backup_cat_passwords, root.optJSONArray("passwords")?.length() ?: 0),
+            Triple("scripts", R.string.backup_cat_scripts, root.optJSONArray("scripts")?.length() ?: 0),
+            Triple("siteConfigs", R.string.backup_cat_site_configs, root.optJSONArray("siteConfigs")?.length() ?: 0),
+            Triple("adblock", R.string.backup_cat_adblock, root.optJSONArray("adblock")?.length() ?: 0),
+            Triple("settings", R.string.backup_cat_settings, root.optJSONObject("settings")?.length() ?: 0)
+        ).filter { it.third > 0 }
+        if (cats.isEmpty()) {
+            toast(R.string.rules_import_empty)
+            return
+        }
+        val labels = cats.map { getString(it.second) + "（" + it.third + "）" }.toTypedArray()
+        val checked = BooleanArray(cats.size) { true }
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.backup_import_title)
+            .setMultiChoiceItems(labels, checked) { _, which, value -> checked[which] = value }
+            .setPositiveButton(R.string.backup_import_confirm_button) { _, _ ->
+                val selected = cats.filterIndexed { index, _ -> checked[index] }
+                    .map { it.first }.toSet()
+                if (selected.isEmpty()) return@setPositiveButton
+                android.app.AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.backup_import_mode_title)
+                    .setMessage(R.string.backup_import_mode_message)
+                    .setPositiveButton(R.string.backup_import_merge) { _, _ ->
+                        performImport(root, selected, overwrite = false)
+                    }
+                    .setNeutralButton(R.string.backup_import_overwrite) { _, _ ->
+                        android.app.AlertDialog.Builder(requireContext())
+                            .setTitle(R.string.backup_import_overwrite)
+                            .setMessage(R.string.backup_import_overwrite_confirm)
+                            .setPositiveButton(R.string.backup_import_overwrite) { _, _ ->
+                                performImport(root, selected, overwrite = true)
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun performImport(
+        root: org.json.JSONObject,
+        selected: Set<String>,
+        overwrite: Boolean
+    ) {
         viewLifecycleOwner.lifecycleScope.launch {
             val ok = runCatching {
-                val root = org.json.JSONObject(text)
-                root.optJSONArray("bookmarks")?.let { arr ->
+                if (overwrite) {
+                    if ("bookmarks" in selected) {
+                        AppServices.bookmarkRepository.allItemsOnce().forEach {
+                            AppServices.bookmarkRepository.deleteItem(it.id)
+                        }
+                    }
+                    if ("history" in selected) AppServices.historyRepository.clearAll()
+                    if ("favorites" in selected) AppServices.favoriteRepository.clearAll()
+                    if ("passwords" in selected) AppServices.passwordRepository.clearAll()
+                    if ("scripts" in selected) AppServices.scriptRepository.clearAll()
+                    if ("siteConfigs" in selected) AppServices.siteConfigRepository.clearAll()
+                    if ("adblock" in selected) AppServices.adBlock.clearCustomRules()
+                }
+                if ("bookmarks" in selected) root.optJSONArray("bookmarks")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.bookmarkRepository.addItem(
-                            item.optString("url"), item.optString("title"), null
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.bookmarkRepository.findItemByUrl(url) == null) {
+                            AppServices.bookmarkRepository.addItem(url, item.optString("title"), null)
+                        }
                     }
                 }
-                root.optJSONArray("history")?.let { arr ->
+                if ("history" in selected) root.optJSONArray("history")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.historyRepository.recordVisit(
-                            item.optString("url"), item.optString("title")
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.historyRepository.findByUrl(url) == null) {
+                            AppServices.historyRepository.recordVisit(url, item.optString("title"))
+                        }
                     }
                 }
-                root.optJSONArray("favorites")?.let { arr ->
+                if ("favorites" in selected) root.optJSONArray("favorites")?.let { arr ->
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
-                        AppServices.favoriteRepository.add(
-                            item.optString("url"), item.optString("title")
-                        )
+                        val url = item.optString("url")
+                        if (url.isBlank()) continue
+                        if (AppServices.favoriteRepository.findByUrl(url) == null) {
+                            AppServices.favoriteRepository.add(url, item.optString("title"))
+                        }
                     }
                 }
-                root.optJSONArray("scripts")?.let { arr ->
+                if ("scripts" in selected) root.optJSONArray("scripts")?.let { arr ->
+                    val existing = AppServices.scriptRepository.all().first()
+                    val names = existing.map { it.name }.toMutableSet()
+                    val urls = existing.mapNotNull { it.url?.takeIf { u -> u.isNotBlank() } }.toMutableSet()
                     for (i in 0 until arr.length()) {
                         val item = arr.optJSONObject(i) ?: continue
+                        val name = item.optString("name")
+                        val url = item.optString("url")
+                        if (name in names || (url.isNotBlank() && url in urls)) continue
                         AppServices.scriptRepository.saveScript(
                             existing = null,
-                            name = item.optString("name"),
+                            name = name,
                             match = item.optString("match"),
                             runAt = item.optString("runAt"),
                             code = item.optString("code"),
-                            sourceUrl = item.optString("url").ifBlank { null }
+                            sourceUrl = url.ifBlank { null }
                         )
+                        if (name.isNotBlank()) names.add(name)
+                        if (url.isNotBlank()) urls.add(url)
                     }
                 }
-                root.optJSONArray("siteConfigs")?.let { arr ->
+                if ("siteConfigs" in selected) root.optJSONArray("siteConfigs")?.let { arr ->
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         for (i in 0 until arr.length()) {
                             val item = arr.optJSONObject(i) ?: continue
@@ -3490,12 +3617,17 @@ class SettingsDetailFragment : Fragment() {
                         }
                     }
                 }
-                root.optJSONArray("adblock")?.let { arr ->
+                if ("adblock" in selected) root.optJSONArray("adblock")?.let { arr ->
                     for (i in 0 until arr.length()) {
-                        AppServices.adBlock.addCustomRule(arr.optString(i))
+                        val line = arr.optString(i)
+                        if (line.isNotBlank() &&
+                            !AppServices.adBlock.hasCustomRule(line)
+                        ) {
+                            AppServices.adBlock.addCustomRule(line)
+                        }
                     }
                 }
-                root.optJSONObject("settings")?.let { obj ->
+                if ("settings" in selected) root.optJSONObject("settings")?.let { obj ->
                     val values = mutableMapOf<String, Any>()
                     obj.keys().forEach { key ->
                         when (val value = obj.get(key)) {
@@ -3505,6 +3637,17 @@ class SettingsDetailFragment : Fragment() {
                         }
                     }
                     AppServices.settings.restore(values)
+                }
+                if ("passwords" in selected) root.optJSONArray("passwords")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optJSONObject(i) ?: continue
+                        val host = item.optString("host")
+                        val username = item.optString("username")
+                        val password = item.optString("password")
+                        if (host.isNotBlank() && password.isNotEmpty()) {
+                            AppServices.passwordRepository.save(host, username, password)
+                        }
+                    }
                 }
                 true
             }.getOrDefault(false)
@@ -3666,7 +3809,15 @@ class SettingsDetailFragment : Fragment() {
             .show()
     }
     private fun importData() {
-        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        importLauncher.launch(
+            arrayOf(
+                "application/zip",
+                "application/json",
+                "application/octet-stream",
+                "text/plain",
+                "*/*"
+            )
+        )
     }
     private fun toast(resId: Int) {
         android.widget.Toast.makeText(requireContext(), resId, android.widget.Toast.LENGTH_SHORT).show()
@@ -3752,17 +3903,27 @@ class SettingsDetailFragment : Fragment() {
                     }
                 })
             }
+            var passwordsSkipped = 0
             if ("passwords" in selected) {
                 val passwords = AppServices.passwordRepository.all().first()
-                root.put("passwords", org.json.JSONArray().apply {
-                    passwords.forEach { p ->
-                        put(org.json.JSONObject().apply {
-                            put("host", p.host)
-                            put("username", p.username)
-                            put("cipher", p.cipher)
-                        })
-                    }
-                })
+                if (password.isNullOrBlank()) {
+                    passwordsSkipped = passwords.size
+                } else {
+                    root.put("passwords", org.json.JSONArray().apply {
+                        passwords.forEach { p ->
+                            val plain = AppServices.passwordRepository.decrypt(p)
+                            if (plain == null) {
+                                passwordsSkipped++
+                            } else {
+                                put(org.json.JSONObject().apply {
+                                    put("host", p.host)
+                                    put("username", p.username)
+                                    put("password", plain)
+                                })
+                            }
+                        }
+                    })
+                }
             }
             if ("scripts" in selected) {
                 val scripts = AppServices.scriptRepository.all().first()
@@ -3807,7 +3968,7 @@ class SettingsDetailFragment : Fragment() {
                 }
                 root.put("settings", values)
             }
-            val name = "sii-backup-${System.currentTimeMillis()}.json"
+            val name = "sii-backup-${System.currentTimeMillis()}.zip"
             val payload = runCatching {
                 if (password.isNullOrBlank()) root.toString()
                 else com.sii.browser.data.ExportCrypto.encrypt(root.toString(), password)
@@ -3816,9 +3977,41 @@ class SettingsDetailFragment : Fragment() {
                 toast(R.string.export_failed)
                 return@launch
             }
-            val path = FileExchange.writeToDownloads(requireContext(), name, payload)
+            val bytes = runCatching {
+                val out = java.io.ByteArrayOutputStream()
+                java.util.zip.ZipOutputStream(out).use { zip ->
+                    zip.putNextEntry(java.util.zip.ZipEntry("info.json"))
+                    zip.write(
+                        org.json.JSONObject()
+                            .put("format", 2)
+                            .put("exportedAt", System.currentTimeMillis())
+                            .put("counts", org.json.JSONObject().apply {
+                                root.optJSONArray("bookmarks")?.let { put("bookmarks", it.length()) }
+                                root.optJSONArray("history")?.let { put("history", it.length()) }
+                                root.optJSONArray("passwords")?.let { put("passwords", it.length()) }
+                                root.optJSONArray("scripts")?.let { put("scripts", it.length()) }
+                            })
+                            .toString().toByteArray(Charsets.UTF_8)
+                    )
+                    zip.closeEntry()
+                    zip.putNextEntry(
+                        java.util.zip.ZipEntry(if (password.isNullOrBlank()) "data.json" else "data.enc")
+                    )
+                    zip.write(payload.toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
+                }
+                out.toByteArray()
+            }.getOrNull()
+            if (bytes == null) {
+                toast(R.string.export_failed)
+                return@launch
+            }
+            val path = FileExchange.writeBytesToDownloads(
+                requireContext(), name, "application/zip", bytes
+            )
             if (path != null) {
                 toast(getString(R.string.data_exported_path, path))
+                if (passwordsSkipped > 0) toast(R.string.backup_passwords_skipped)
             } else {
                 toast(R.string.rules_import_failed)
             }

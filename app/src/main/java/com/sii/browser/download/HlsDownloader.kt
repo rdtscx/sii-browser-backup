@@ -21,6 +21,20 @@ import javax.crypto.spec.SecretKeySpec
  */
 object HlsDownloader {
 
+    @Volatile
+    private var cancelled = false
+
+    @Volatile
+    private var activeCall: okhttp3.Call? = null
+
+    /** 取消进行中的下载：中止当前请求，分片循环在下一个检查点退出。 */
+    fun cancel() {
+        cancelled = true
+        runCatching { activeCall?.cancel() }
+    }
+
+    val isCancelled: Boolean get() = cancelled
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -36,6 +50,7 @@ object HlsDownloader {
         outFile: File,
         onProgress: (Progress) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
+        cancelled = false
         runCatching {
             val mediaPlaylist = resolveMediaPlaylist(playlistUrl, referer, userAgent)
             val segments = parseSegments(mediaPlaylist, referer, userAgent)
@@ -46,6 +61,7 @@ object HlsDownloader {
             onProgress(Progress(segments.size, 0, 0))
             FileOutputStream(outFile).use { out ->
                 segments.forEach { seg ->
+                    if (cancelled) throw java.util.concurrent.CancellationException("hls cancelled")
                     val data = fetchSegment(seg, referer, userAgent)
                     out.write(data)
                     bytes += data.size
@@ -126,6 +142,7 @@ object HlsDownloader {
     private fun fetchSegment(seg: Segment, referer: String?, ua: String?): ByteArray {
         var lastError: Exception? = null
         repeat(3) {
+            if (cancelled) throw java.util.concurrent.CancellationException("hls cancelled")
             try {
                 val data = fetchBytes(seg.url, referer, ua)
                 val key = seg.key
@@ -177,8 +194,18 @@ object HlsDownloader {
             }
         }.build()
 
+    private fun exec(req: Request): okhttp3.Response {
+        val call = client.newCall(req)
+        activeCall = call
+        try {
+            return call.execute()
+        } finally {
+            activeCall = null
+        }
+    }
+
     private fun fetchText(url: String, referer: String?, ua: String?): String =
-        client.newCall(request(url, referer, ua)).execute().use { resp ->
+        exec(request(url, referer, ua)).use { resp ->
             if (resp.code == 401 || resp.code == 403) {
                 throw IOException("HTTP ${resp.code}：需要登录或链接已过期")
             }
@@ -187,7 +214,7 @@ object HlsDownloader {
         }
 
     private fun fetchBytes(url: String, referer: String?, ua: String?): ByteArray =
-        client.newCall(request(url, referer, ua)).execute().use { resp ->
+        exec(request(url, referer, ua)).use { resp ->
             if (resp.code == 401 || resp.code == 403) {
                 throw IOException("HTTP ${resp.code}：需要登录或链接已过期")
             }

@@ -9,6 +9,7 @@ import android.os.Environment
 import com.sii.browser.data.db.DownloadChunk
 import com.sii.browser.data.db.DownloadState
 import com.sii.browser.data.db.DownloadTask
+import com.sii.browser.data.db.DownloadTaskFlags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -290,7 +291,9 @@ class DownloadEngine(
         // 先把当前进度推给通知栏，避免等首个 4MB/1 秒才出现。
         onTaskProgress?.invoke(taskId, task.downloadedSize, task.totalSize)
         try {
-            if (resolved.totalSize <= 0L) {
+            if (resolved.totalSize <= 0L ||
+                (resolved.flags and DownloadTaskFlags.NO_RANGE) != 0
+            ) {
                 downloadStream(taskId, resolved, sink)
                 return
             }
@@ -477,6 +480,8 @@ class DownloadEngine(
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             var downloaded = 0L
             var lastFlush = 0L
+            // NO_RANGE 的任务总大小已知，进度按真实总量上报；未知总量才在结束时回填。
+            val knownTotal = task.totalSize
             try {
                 while (true) {
                     currentCoroutineContext().ensureActive()
@@ -486,7 +491,7 @@ class DownloadEngine(
                     downloaded += read
                     if (downloaded - lastFlush >= 256 * 1024L) {
                         repository.updateProgress(taskId, downloaded)
-                        onTaskProgress?.invoke(taskId, downloaded, 0L)
+                        onTaskProgress?.invoke(taskId, downloaded, knownTotal)
                         lastFlush = downloaded
                     }
                 }
@@ -498,7 +503,7 @@ class DownloadEngine(
             }
             if (downloaded <= 0L) throw IOException("empty body")
             repository.updateProgress(taskId, downloaded)
-            repository.updateTotalSize(taskId, downloaded)
+            if (knownTotal <= 0L) repository.updateTotalSize(taskId, downloaded)
         }
         if (repository.taskById(taskId)?.state == DownloadState.PAUSED) return
         repository.setState(taskId, DownloadState.COMPLETED)

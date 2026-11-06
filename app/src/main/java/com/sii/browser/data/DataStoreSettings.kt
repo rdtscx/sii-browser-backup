@@ -1658,6 +1658,12 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setUpdateLastNotified(value: Long) = putLong(SettingsKeys.UPDATE_LAST_NOTIFIED, value)
 
+    override fun updateNotifiedVersion(): String? =
+        str(SettingsKeys.UPDATE_NOTIFIED_VERSION, null)?.takeIf { it.isNotBlank() }
+
+    override fun setUpdateNotifiedVersion(value: String?) =
+        putStr(SettingsKeys.UPDATE_NOTIFIED_VERSION, value)
+
     override fun passwordBiometric(): Boolean = bool(SettingsKeys.PASSWORD_BIOMETRIC, true)
 
     override fun setPasswordBiometric(value: Boolean) =
@@ -1813,6 +1819,7 @@ class DataStoreSettings(private val context: Context) : Settings {
         SettingsKeys.HIDDEN_MENUS, SettingsKeys.SEARCH_SHORTCUTS, SettingsKeys.TOOLBAR_ORDER,
         SettingsKeys.BOOKMARK_SORT, SettingsKeys.BOOKMARK_SIZE, SettingsKeys.BOOKMARK_ICON,
         SettingsKeys.UPDATE_IGNORED, SettingsKeys.UPDATE_LATEST,
+        SettingsKeys.UPDATE_NOTIFIED_VERSION,
         SettingsKeys.PRIVACY_ALLOWED_HOSTS,
         SettingsKeys.PRIVACY_COMPAT
     )

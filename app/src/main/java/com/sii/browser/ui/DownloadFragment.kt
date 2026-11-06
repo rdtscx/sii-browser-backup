@@ -335,6 +335,7 @@ class DownloadFragment : Fragment() {
                     bar.setProgressPercent(percent)
                     bar.setRunning(task.state == DownloadState.DOWNLOADING)
                 }
+                is android.widget.ProgressBar -> Unit
                 is LineProgressView -> bar.setProgressPercent(percent)
                 is SegmentProgressView -> bar.setProgressPercent(percent)
                 is ShimmerProgressView -> {
@@ -344,7 +345,12 @@ class DownloadFragment : Fragment() {
                 is PercentProgressView -> bar.setProgressPercent(percent)
                 is DotsProgressView -> bar.setProgressPercent(percent)
             }
-            bar.visibility = if (task.state == DownloadState.COMPLETED) View.GONE else View.VISIBLE
+            bar.visibility = when {
+                bar is android.widget.ProgressBar ->
+                    if (task.state == DownloadState.DOWNLOADING) View.VISIBLE else View.GONE
+                task.state == DownloadState.COMPLETED -> View.GONE
+                else -> View.VISIBLE
+            }
         }
         applyProgressFill(row, task)
         boundTasks[task.id] = task
@@ -468,6 +474,30 @@ class DownloadFragment : Fragment() {
     ): View {
         val running = task.state == DownloadState.DOWNLOADING
         val style = progressStyle()
+        // 总大小未知时百分比永远算不出来，直接用不确定态动画条。
+        // 行是在 PENDING 时构建的，这里不能依赖 running，否则下载开始后不会补建。
+        if (task.totalSize <= 0L && style != 0) {
+            return android.widget.ProgressBar(
+                context, null, android.R.attr.progressBarStyleHorizontal
+            ).apply {
+                id = R.id.download_progress
+                isIndeterminate = true
+                indeterminateTintList = android.content.res.ColorStateList.valueOf(
+                    ThemeAccent.color(context)
+                )
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(
+                    0x33888888
+                )
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(4)
+                ).apply {
+                    topMargin = dp(8)
+                    bottomMargin = dp(2)
+                }
+                visibility = if (running) View.VISIBLE else View.GONE
+            }
+        }
         val bar: View = when (style) {
             1 -> LineProgressView(context).apply { setProgressPercent(progress) }
             2 -> SegmentProgressView(context).apply { setProgressPercent(progress) }

@@ -5,10 +5,13 @@ package com.sii.browser.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -35,6 +38,17 @@ class SniffFragment : Fragment() {
     private var sniffHint: View? = null
     private var filter: SniffType? = null
     private var showAllPages = false
+    private var rowCard: LinearLayout? = null
+    private var pendingRows: List<SniffedResource> = emptyList()
+    private var pendingIndex = 0
+    private val thumbRows = mutableListOf<ThumbRow>()
+
+    private class ThumbRow(
+        val res: SniffedResource,
+        val box: View,
+        val image: ImageView,
+        val placeholder: TextView
+    )
     private val storeListener: (Any) -> Unit = { key ->
         if (key === AppServices.sniffTarget) {
             view?.post { render() }
@@ -45,19 +59,23 @@ class SniffFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = LinearLayout(requireContext()).apply {
-        orientation = LinearLayout.VERTICAL
-        setBackgroundColor(requireContext().getColor(R.color.bg))
-        addView(PageHeader.build(
+    ): View {
+        val root = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(requireContext().getColor(R.color.bg))
+        }
+        val header = PageHeader.build(
             requireContext(),
             getString(R.string.menu_sniff),
             onBack = { parentFragmentManager.popBackStack() },
-            onMenu = { _ -> confirmClear() }
-        ))
-        addView(View(requireContext()).apply {
+            onMenu = { showHeaderMenu() }
+        )
+        root.addView(header)
+        val divider = View(requireContext()).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
             setBackgroundColor(requireContext().getColor(R.color.divider))
-        })
+        }
+        root.addView(divider)
         sniffHint = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(2))
@@ -81,18 +99,39 @@ class SniffFragment : Fragment() {
                 setOnClickListener { enableSniff() }
             })
         }
-        addView(sniffHint)
+        root.addView(sniffHint)
         chips = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(8), dp(12), dp(4))
         }
-        addView(chips)
+        // 分类按钮一屏放不下，横向可滚动，否则靠后的几项点不到。
+        val chipsHost = android.widget.HorizontalScrollView(requireContext()).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(
+                chips,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        root.addView(chipsHost)
         val content = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(4), dp(12), dp(8))
         }
-        addView(CardList.scroll(requireContext(), content), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        this@SniffFragment.container = content
+        val list = CardList.scroll(requireContext(), content)
+        root.addView(
+            list,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        )
+        list.setOnScrollChangeListener { v, _, _, _, _ ->
+            if (!v.canScrollVertically(1)) appendRows()
+            loadVisibleThumbs()
+        }
+        this.container = content
+        return root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -109,6 +148,10 @@ class SniffFragment : Fragment() {
     override fun onDestroyView() {
         SniffStore.removeListener(storeListener)
         sniffHint = null
+        rowCard = null
+        pendingRows = emptyList()
+        pendingIndex = 0
+        thumbRows.clear()
         super.onDestroyView()
     }
 
@@ -119,20 +162,9 @@ class SniffFragment : Fragment() {
             if (AppServices.settings.sniffEnabled()) View.GONE else View.VISIBLE
         renderChips()
         container.removeAllViews()
-        val target = key()
-        val all = target?.let { SniffStore.list(it) }.orEmpty()
-        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
-        var visible = if (showAllPages || current.isNullOrEmpty()) {
-            all
-        } else {
-            all.filter { samePage(it.pageUrl, current) }
-        }
-        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时自动退到全部页面。
-        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
-            showAllPages = true
-            visible = all
-        }
-        val items = if (filter == null) visible else visible.filter { it.type == filter }
+        thumbRows.clear()
+        val all = key()?.let { SniffStore.list(it) }.orEmpty()
+        val items = displayedItems()
         if (items.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
                 text = getString(if (all.isEmpty()) R.string.sniff_empty else R.string.search_no_match)
@@ -143,18 +175,47 @@ class SniffFragment : Fragment() {
             return
         }
         val card = CardList.card(requireContext())
-        CardList.addRows(card, items.map { row(it) })
+        rowCard = card
+        pendingRows = items
+        pendingIndex = 0
+        appendRows()
         container.addView(card)
+        view?.post { loadVisibleThumbs() }
     }
 
-    /** 两个 URL 是否属于同一文档：忽略 query/hash 与末尾斜杠，任一缺失时视为同页。 */
-    private fun samePage(a: String?, b: String?): Boolean {
-        if (a.isNullOrBlank() || b.isNullOrBlank()) return true
-        val ua = runCatching { android.net.Uri.parse(a) }.getOrNull() ?: return true
-        val ub = runCatching { android.net.Uri.parse(b) }.getOrNull() ?: return true
-        if (ua.host != ub.host || ua.scheme != ub.scheme) return false
-        return ua.path.orEmpty().trimEnd('/') == ub.path.orEmpty().trimEnd('/')
+    /** 分批建行：资源上百条时一次性构视图会让进入页面卡住。 */
+    private fun appendRows() {
+        val card = rowCard ?: return
+        if (pendingIndex >= pendingRows.size) return
+        val end = minOf(pendingIndex + ROW_CHUNK, pendingRows.size)
+        for (i in pendingIndex until end) {
+            if (i > 0) card.addView(CardList.styledDivider(requireContext()))
+            card.addView(row(pendingRows[i]))
+        }
+        pendingIndex = end
+        view?.post { loadVisibleThumbs() }
     }
+
+    /** 当前列表实际展示的资源（当前页/全部页面 + 类型筛选），播放器左右切换也用这份顺序。 */
+    private fun displayedItems(): List<SniffedResource> {
+        val target = key()
+        val all = target?.let { SniffStore.list(it) }.orEmpty()
+        val current = (target as? com.sii.browser.core.webview.SiiWebView)?.url
+        var visible = if (showAllPages || current.isNullOrEmpty()) {
+            all
+        } else {
+            all.filter { SniffStore.samePage(it.pageUrl, current) }
+        }
+        // 两个采集源记录的页面 URL 可能不一致（SPA/重定向），匹配不到时只在**同站点**内兑底。
+        if (visible.isEmpty() && all.isNotEmpty() && !showAllPages) {
+            val host = hostOf(current)
+            if (host != null) visible = all.filter { hostOf(it.pageUrl) == host }
+        }
+        return if (filter == null) visible else visible.filter { it.type == filter }
+    }
+
+    private fun hostOf(url: String?): String? =
+        runCatching { android.net.Uri.parse(url.orEmpty()).host }.getOrNull()
 
     private fun renderChips() {
         chips.removeAllViews()
@@ -175,7 +236,7 @@ class SniffFragment : Fragment() {
             }
         })
         val options = listOf<SniffType?>(
-            null, SniffType.VIDEO, SniffType.HLS, SniffType.AUDIO,
+            null, SniffType.HLS, SniffType.VIDEO, SniffType.AUDIO,
             SniffType.IMAGE, SniffType.DOC, SniffType.MSE, SniffType.OTHER
         )
         options.forEach { type ->
@@ -220,6 +281,77 @@ class SniffFragment : Fragment() {
         SniffType.OTHER -> getString(R.string.sniff_other)
     }
 
+    /** 行首缩略图：图片类加载真实缩略图，其余类型显示类型首字占位。 */
+    private fun thumbBox(res: SniffedResource): View {
+        val context = requireContext()
+        val night = AppServices.settings.isNightMode()
+        val image = ImageView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+        }
+        val mark = TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = android.view.Gravity.CENTER
+            setTextSize(15f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            text = typeLabel(res.type).take(1)
+        }
+        val box = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                marginEnd = dp(10)
+            }
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(if (night) 0x1FFFFFFF else 0x14000000)
+            }
+            clipToOutline = true
+            addView(image)
+            addView(mark)
+        }
+        if (res.type == SniffType.IMAGE || res.type == SniffType.VIDEO) {
+            thumbRows.add(ThumbRow(res, box, image, mark))
+        }
+        return box
+    }
+
+    /** 只给可见行拉缩略图，避免一打开就同时下载上百张图。 */
+    private fun loadVisibleThumbs() {
+        if (thumbRows.isEmpty()) return
+        if (AppServices.privacyManager.isIncognito) return
+        val target = AppServices.sniffTarget
+        val userAgent = target?.settings?.userAgentString
+        val rect = android.graphics.Rect()
+        thumbRows.forEach { row ->
+            if (row.image.tag != null) return@forEach
+            // 用外层方框判断可见性：内部 ImageView 加载前是 GONE，永远不可见。
+            if (!row.box.getGlobalVisibleRect(rect)) return@forEach
+            val url = row.res.url
+            row.image.tag = url
+            val onReady = ready@ { bitmap: android.graphics.Bitmap? ->
+                if (row.image.tag != url || bitmap == null) return@ready
+                row.image.setImageBitmap(bitmap)
+                row.image.visibility = View.VISIBLE
+                row.placeholder.visibility = View.GONE
+            }
+            when (row.res.type) {
+                SniffType.IMAGE -> SniffThumbs.load(
+                    url, userAgent, row.res.pageUrl ?: target?.url, onReady
+                )
+                SniffType.VIDEO -> SniffThumbs.loadVideoFrame(
+                    url, userAgent, row.res.pageUrl ?: target?.url, onReady
+                )
+                else -> Unit
+            }
+        }
+    }
+
     private fun row(res: SniffedResource): View {
         val title = TextView(requireContext()).apply {
             text = fileName(res.url)
@@ -236,8 +368,7 @@ class SniffFragment : Fragment() {
             setTextSize(11.5f)
             setTextColor(requireContext().getColor(R.color.text_secondary))
         }
-        val playable = res.type == SniffType.VIDEO ||
-            res.type == SniffType.HLS || res.type == SniffType.AUDIO
+        val playable = SniffStore.isPlayable(res.type)
         val mse = res.type == SniffType.MSE
         val actions = TextView(requireContext()).apply {
             text = when {
@@ -263,6 +394,7 @@ class SniffFragment : Fragment() {
             addView(LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(thumbBox(res))
                 addView(LinearLayout(requireContext()).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(title)
@@ -287,8 +419,7 @@ class SniffFragment : Fragment() {
 
     /** 长按资源：播放 / 下载 / 复制 / 新标签打开。 */
     private fun showActions(res: SniffedResource) {
-        val playable = res.type == SniffType.VIDEO ||
-            res.type == SniffType.HLS || res.type == SniffType.AUDIO
+        val playable = SniffStore.isPlayable(res.type)
         val mse = res.type == SniffType.MSE
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         if (!mse) {
@@ -319,12 +450,16 @@ class SniffFragment : Fragment() {
     /** 用内建播放器打开嗅探到的视频/音频/流媒体，带上当前页面的 Referer/UA。 */
     private fun play(res: SniffedResource) {
         val target = AppServices.sniffTarget
+        val items = displayedItems()
+            .filter { SniffStore.isPlayable(it.type) }
+            .ifEmpty { listOf(res) }
+        val index = items.indexOfFirst { it.url == res.url }.coerceAtLeast(0)
         parentFragmentManager.beginTransaction()
             .replace(
                 R.id.shell_root,
                 PlayerFragment.newInstance(
-                    res.url,
-                    res.type == SniffType.HLS,
+                    items,
+                    index,
                     target?.url,
                     target?.settings?.userAgentString
                 )
@@ -379,6 +514,55 @@ class SniffFragment : Fragment() {
         Toast.makeText(requireContext(), R.string.sniff_download_started, Toast.LENGTH_SHORT).show()
     }
 
+    private fun showHeaderMenu() {
+        val target = key() as? com.sii.browser.core.webview.SiiWebView
+        val host = runCatching { android.net.Uri.parse(target?.url.orEmpty()).host }.getOrNull()
+        val enabled = host != null && com.sii.browser.data.SiteConfig.sniffEnabledRaw(
+            AppServices.siteConfigRepository.cachedConfig(host)
+        )
+        val labels = mutableListOf(getString(R.string.sniff_menu_clear))
+        if (host != null) {
+            labels.add(
+                getString(
+                    if (enabled) R.string.site_menu_prompt_pause
+                    else R.string.site_menu_prompt_resume
+                )
+            )
+        }
+        android.app.AlertDialog.Builder(requireContext())
+            .setItems(labels.toTypedArray()) { _, which ->
+                when {
+                    which == 0 -> confirmClear()
+                    host != null -> {
+                        val text = com.sii.browser.data.SiteConfig.withSniffEnabled(
+                            AppServices.siteConfigRepository.cachedConfig(host), !enabled
+                        )
+                        AppServices.siteConfigRepository.cachePut(host, text)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            AppServices.siteConfigRepository.put(host, text)
+                        }
+                        // 切换开关后都从零开始，避免看到旧站/旧条目。
+                        target?.let { com.sii.browser.core.webview.SniffStore.clear(it) }
+                        if (!enabled) {
+                            target?.injectJavaScript(
+                                com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS
+                            )
+                            // 站点刚加入嗅探：重载一次，把错过的请求重新采集。
+                            target?.reload()
+                        }
+                        Toast.makeText(
+                            requireContext(),
+                            if (enabled) R.string.site_prompt_paused
+                            else R.string.site_prompt_enabled_reload,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        render()
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun enableSniff() {
         AppServices.settings.setSniffEnabled(true)
         AppServices.sniffTarget?.injectJavaScript(
@@ -413,4 +597,9 @@ class SniffFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private companion object {
+        /** 每批渲染的行数，滚到底部再追加。 */
+        const val ROW_CHUNK = 30
+    }
 }

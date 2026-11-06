@@ -89,14 +89,21 @@ class BrowserApp : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        // UI_HIDDEN(20) 的数值高于 RUNNING_LOW(10)，不能用 >= 判断，否则每次切后台都会清空嗅探结果。
         // 缩略图只在进程真的要结束时释放，RUNNING_LOW 在前台也会频繁触发。
-        if (level >= TRIM_MEMORY_COMPLETE) {
-            com.sii.browser.data.SiteIconCache.trim()
-            com.sii.browser.core.webview.SniffStore.trim()
-            com.sii.browser.di.AppServices.trimThumbnails?.invoke()
-        } else if (level >= TRIM_MEMORY_RUNNING_LOW) {
-            com.sii.browser.data.SiteIconCache.trim()
-            com.sii.browser.core.webview.SniffStore.trim()
+        when {
+            level >= TRIM_MEMORY_COMPLETE -> {
+                com.sii.browser.data.SiteIconCache.trim()
+                com.sii.browser.core.webview.SniffStore.trim()
+                com.sii.browser.di.AppServices.trimThumbnails?.invoke()
+            }
+            level == TRIM_MEMORY_RUNNING_CRITICAL -> {
+                com.sii.browser.data.SiteIconCache.trim()
+                com.sii.browser.core.webview.SniffStore.trim()
+            }
+            level == TRIM_MEMORY_RUNNING_LOW -> {
+                com.sii.browser.data.SiteIconCache.trim()
+            }
         }
     }
 
