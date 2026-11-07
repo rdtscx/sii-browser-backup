@@ -42,13 +42,17 @@ object McpRuntime {
         }
         val config = config() ?: return
         if (AppServices.settings.mcpForeground()) {
+            // 先同步把端口起来，设置页能立刻读到运行状态；服务只负责前台通知与保活。
+            if (!AppServices.mcpServer.isRunning ||
+                AppServices.mcpServer.currentConfig() != config
+            ) {
+                AppServices.mcpServer.start(config)
+            }
             runCatching {
                 ContextCompat.startForegroundService(
                     context,
                     Intent(context, McpService::class.java)
                 )
-            }.onFailure {
-                AppServices.mcpServer.start(config)
             }
         } else {
             context.stopService(Intent(context, McpService::class.java))

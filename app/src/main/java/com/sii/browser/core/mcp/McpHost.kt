@@ -80,6 +80,12 @@ interface McpHost {
 
     suspend fun evaluateJavascript(tab: Int?, code: String): String?
 
+    /** 当前标签视口截图（PNG）；不可用时返回 null。 */
+    suspend fun screenshot(): ByteArray?
+
+    /** 开关应用内开发者工具面板。 */
+    suspend fun openDevTools(): Boolean
+
     suspend fun captureList(
         tab: Int?,
         limit: Int,

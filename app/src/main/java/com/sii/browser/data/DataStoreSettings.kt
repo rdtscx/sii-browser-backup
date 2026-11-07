@@ -52,6 +52,7 @@ class DataStoreSettings(private val context: Context) : Settings {
                 runBlocking {
                     dataStore.data.first().asMap().forEach { (key, value) -> cache[key.name] = value }
                 }
+                migrateMenuOrderPrivacy()
             }
             mirror.edit().putBoolean("migrated", true).apply()
             writeMirror()
@@ -62,10 +63,28 @@ class DataStoreSettings(private val context: Context) : Settings {
                     dataStore.data.first().asMap().forEach { (key, value) ->
                         cache.putIfAbsent(key.name, value)
                     }
+                    migrateMenuOrderPrivacy()
                     writeMirror()
                 }
             }
         }
+    }
+
+    /** 旧版菜单顺序没有「隐私保护」：把 privacy 插到 refresh 原位置，refresh 移到末尾；已有 privacy 时幂等。 */
+    private fun migrateMenuOrderPrivacy() {
+        val raw = cache[SettingsKeys.DISPLAYED_MENUS] as? String ?: return
+        val order = raw.split(",").filter { it.isNotEmpty() }
+        if (order.isEmpty() || "privacy" in order) return
+        val migrated = order.toMutableList()
+        val refreshAt = migrated.indexOf("refresh")
+        if (refreshAt >= 0) {
+            migrated[refreshAt] = "privacy"
+            migrated.removeAll { it == "refresh" }
+            migrated.add("refresh")
+        } else {
+            migrated.add("privacy")
+        }
+        putStr(SettingsKeys.DISPLAYED_MENUS, migrated.joinToString(","))
     }
 
     private fun writeMirror() {
@@ -1117,7 +1136,7 @@ class DataStoreSettings(private val context: Context) : Settings {
         putInt(SettingsKeys.GESTURE_TOOLBAR_RIGHT, value)
     }
 
-    override fun displayedMenus(): String? = str(SettingsKeys.DISPLAYED_MENUS, "refresh,home,addbookmark,bookmarks,history,closeothers,adblock,sniff,adblockstats,readlaterlist,find,font,netlog,jsconsole,share,reader,uiscale,copylink,translatepage,readaloud,scan,savepage,source,print,passwords,scriptmenu,addhome,cleardata,recentclosed,noimg,adpick,closetabs,desktop,newtab")
+    override fun displayedMenus(): String? = str(SettingsKeys.DISPLAYED_MENUS, SettingsDefaults.DEFAULT_MENU_ORDER)
 
     override fun setDisplayedMenus(value: String?) {
         putStr(SettingsKeys.DISPLAYED_MENUS, value)
@@ -1290,6 +1309,24 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeSitesCardBg(value: Boolean) =
         putBool(SettingsKeys.HOME_SITES_CARD_BG, value)
 
+    override fun homeGridAlpha(): Int {
+        // 旧开关关闭等价于 0；没写过新键时延续旧语义。
+        if (!cache.containsKey(SettingsKeys.HOME_GRID_ALPHA) &&
+            !bool(SettingsKeys.HOME_SITES_CARD_BG, SettingsDefaults.HOME_SITES_CARD_BG)
+        ) return 0
+        return int(SettingsKeys.HOME_GRID_ALPHA, SettingsDefaults.HOME_GRID_ALPHA)
+            .coerceIn(0, 100)
+    }
+
+    override fun setHomeGridAlpha(value: Int) =
+        putInt(SettingsKeys.HOME_GRID_ALPHA, value.coerceIn(0, 100))
+
+    override fun homeDockAlpha(): Int =
+        int(SettingsKeys.HOME_DOCK_ALPHA, SettingsDefaults.HOME_DOCK_ALPHA).coerceIn(0, 100)
+
+    override fun setHomeDockAlpha(value: Int) =
+        putInt(SettingsKeys.HOME_DOCK_ALPHA, value.coerceIn(0, 100))
+
     override fun homeFrosted(): Boolean =
         bool(SettingsKeys.HOME_FROSTED, SettingsDefaults.HOME_FROSTED)
 
@@ -1302,6 +1339,18 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setHomeShadow(value: Boolean) =
         putBool(SettingsKeys.HOME_SHADOW, value)
 
+    override fun homeShadowSearch(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW_SEARCH, true)
+
+    override fun setHomeShadowSearch(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW_SEARCH, value)
+
+    override fun homeShadowGrid(): Boolean =
+        bool(SettingsKeys.HOME_SHADOW_GRID, true)
+
+    override fun setHomeShadowGrid(value: Boolean) =
+        putBool(SettingsKeys.HOME_SHADOW_GRID, value)
+
     override fun homeSearchTransparency(): Int =
         int(
             SettingsKeys.HOME_SEARCH_TRANSPARENCY,
@@ -1310,12 +1359,6 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setHomeSearchTransparency(value: Int) =
         putInt(SettingsKeys.HOME_SEARCH_TRANSPARENCY, value.coerceIn(0, 100))
-
-    override fun dockBackground(): Boolean =
-        bool(SettingsKeys.DOCK_BACKGROUND, SettingsDefaults.DOCK_BACKGROUND)
-
-    override fun setDockBackground(value: Boolean) =
-        putBool(SettingsKeys.DOCK_BACKGROUND, value)
 
     override fun hideChromeOnImageView(): Boolean =
         bool(

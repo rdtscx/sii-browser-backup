@@ -110,6 +110,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
     private var allowRedirectOnce: String? = null
     private val installingScripts = mutableSetOf<String>()
+    private val scriptPromptedUrls = mutableSetOf<String>()
     private val scriptInstallClient by lazy {
         OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     }
@@ -135,6 +136,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 浮条 5 秒无操作自动收起。 */
     private val autoHideSniffPrompt = Runnable { hideSniffPrompt() }
     private var menuOverlay: View? = null
+    private var devToolsPanel: DevToolsPanel? = null
     private var menuToggles: LinearLayout? = null
     private var menuGrid: LinearLayout? = null
     private var menuGridHorizontal: LinearLayout? = null
@@ -147,6 +149,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var webViewContainer: FrameLayout? = null
     private val adPickBridges =
         java.util.WeakHashMap<SiiWebView, com.sii.browser.core.adblock.AdPickBridge>()
+    private var adPickBlockedAt = 0L
     private var tts: android.speech.tts.TextToSpeech? = null
     private var speaking = false
     private var ttsRate = 1.0f
@@ -272,6 +275,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             view?.post { maybeShowSniffPrompt(key, res) }
         }
         menuOverlay = view.findViewById(R.id.menu_overlay)
+        devToolsPanel = DevToolsPanel(
+            requireContext(),
+            view.findViewById(R.id.devtools_host),
+            { tabManager.currentWebView },
+            {}
+        )
         view.findViewById<View>(R.id.menu_open_settings)?.setOnClickListener {
             hideMenuSheet()
             openSettings()
@@ -490,6 +499,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 返回键/返回手势统一处理：游戏模式 → 全屏 → 浮层 → 网页后退 → 关标签 → 交还系统。 */
     private fun handleBack(): Boolean {
+        if (devToolsPanel?.onBack() == true) return true
         if (AppServices.settings.gameMode()) {
             if (gameExitArmed) {
                 gameExitArmed = false
@@ -633,8 +643,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
             },
             isUiReady = { isAdded && view != null },
-            uiStateProvider = { uiStateJson() }
+            uiStateProvider = { uiStateJson() },
+            windowProvider = { activity?.window }
         )
+        (AppServices.mcpHost as? BrowserMcpHost)?.onOpenDevTools = {
+            devToolsPanel?.toggle()
+            devToolsPanel?.isShowing == true
+        }
     }
 
     private fun persistTabs() {
@@ -1624,6 +1639,86 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .show()
     }
 
+    /** 用户脚本菜单：本站开关 + 匹配脚本列表 + 管理入口。 */
+    private fun showUserScriptsDialog() {
+        val tab = tabManager.current ?: return
+        val url = tab.url.ifBlank { "" }
+        val host = runCatching { android.net.Uri.parse(url).host }.getOrNull() ?: return
+        val ctx = requireContext()
+        val density = resources.displayMetrics.density
+        fun dp(value: Int): Int = (value * density).toInt()
+
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(4), dp(16), 0)
+        }
+        val siteSwitch = android.widget.Switch(ctx).apply {
+            text = "本站运行用户脚本"
+            isChecked = siteScriptsEnabled(url)
+            setTextSize(13f)
+        }
+        siteSwitch.setOnCheckedChangeListener { _, checked ->
+            setSiteScriptsEnabled(host, checked)
+            Toast.makeText(ctx, "刷新页面生效", Toast.LENGTH_SHORT).show()
+        }
+        box.addView(siteSwitch)
+
+        val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = android.widget.ScrollView(ctx).apply {
+            addView(list)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(220)
+            )
+        }
+        box.addView(scroll)
+
+        val dialog = android.app.AlertDialog.Builder(ctx)
+            .setTitle(R.string.menu_user_scripts)
+            .setView(box)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton("管理脚本") { _, _ -> openScriptsPage() }
+            .create()
+        dialog.show()
+
+        lifecycleScope.launch {
+            val scripts = withContext(Dispatchers.IO) {
+                AppServices.scriptRepository.matchingScripts(url)
+            }
+            if (!isAdded) return@launch
+            list.removeAllViews()
+            if (scripts.isEmpty()) {
+                list.addView(TextView(ctx).apply {
+                    text = "本站没有匹配的脚本"
+                    setTextSize(12f)
+                    setTextColor(ctx.getColor(R.color.text_secondary))
+                    setPadding(0, dp(8), 0, dp(8))
+                })
+                return@launch
+            }
+            scripts.forEach { script ->
+                val check = android.widget.CheckBox(ctx).apply {
+                    text = script.name
+                    setTextSize(12f)
+                    isChecked = script.enabled
+                    setOnCheckedChangeListener { _, checked ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            AppServices.scriptRepository.setEnabled(script, checked)
+                        }
+                        Toast.makeText(ctx, "刷新页面生效", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                list.addView(check)
+            }
+        }
+    }
+
+    private fun openScriptsPage() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, ScriptsFragment())
+            .addToBackStack(null)
+            .commit()
+    }
+
     /** Android 13+ 首次下载时动态申请通知权限（用户方案兼容底线）。 */
     @Suppress("DEPRECATION")
     private fun ensureNotificationPermission() {
@@ -2021,10 +2116,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 进入「标记广告」选取模式：点击页面元素即生成隐藏规则。 */
     private fun startAdPick() {
         val webView = tabManager.currentWebView ?: return
+        val bridge = adPickBridges[webView] ?: return
+        if (bridge.active) {
+            bridge.active = false
+            webView.injectJavaScript(com.sii.browser.core.adblock.AdPickBridge.EXIT_JS)
+            Toast.makeText(requireContext(), R.string.ad_pick_exit, Toast.LENGTH_SHORT).show()
+            return
+        }
         val host = tabManager.current?.url
             ?.let { runCatching { android.net.Uri.parse(it).host }.getOrNull() }
             ?: return
-        val bridge = adPickBridges[webView] ?: return
         bridge.host = host
         bridge.active = true
         webView.injectJavaScript(com.sii.browser.core.adblock.AdPickBridge.PICK_JS)
@@ -2731,6 +2832,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
+    private fun openDevTools() {
+        devToolsPanel?.toggle()
+    }
+
     /** 内置 JS 控制台：查看 console 输出并执行 JS。 */
     private fun openJsConsole() {
         val webView = tabManager.currentWebView ?: return
@@ -2817,6 +2922,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dialog.setOnDismissListener { com.sii.browser.core.webview.JsConsoleStore.onChange = null }
         render()
         dialog.show()
+    }
+
+    private fun openMenuEditor() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(
+                R.id.shell_root,
+                HomeCustomizeFragment().apply {
+                    arguments = android.os.Bundle().apply {
+                        putInt(HomeCustomizeFragment.ARG_TAB, 6)
+                    }
+                }
+            )
+            .addToBackStack(null)
+            .commit()
     }
 
     private fun openSettings() {
@@ -3910,6 +4029,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         showCloseTabHint()
         if (wasCurrent) applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 关闭标签后删掉对应的磁盘缩略图，避免缓存文件越积越多。 */
@@ -3959,6 +4079,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         updateAddressBarForCurrent()
         applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
@@ -4774,6 +4895,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabManager.currentWebView?.onResume()
         updateAddressBarForCurrent()
         applyTranslateTabState(tabManager.currentWebView)
+        devToolsPanel?.onWebViewChanged()
     }
 
     /** 主页原生视图懒创建（直接加入 home_container）。 */
@@ -5608,6 +5730,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("downloads", getString(R.string.menu_downloads), R.drawable.ic_m_download, false, { false }) { openDownloads() },
         MenuEntry("netlog", getString(R.string.settings_netlog), R.drawable.ic_m_netlog, false, { false }) { openNetlog() },
         MenuEntry("jsconsole", getString(R.string.menu_js_console), R.drawable.ic_m_code, false, { false }, { hasWebPage() }) { openJsConsole() },
+        MenuEntry("devtools", getString(R.string.menu_devtools), R.drawable.ic_m_code, false, { false }, { hasWebPage() }) { openDevTools() },
         MenuEntry("history", getString(R.string.menu_history), R.drawable.ic_m_history, false, { false }) { openHistory() },
         MenuEntry("adblockstats", getString(R.string.menu_adblock_stats), R.drawable.ic_m_shield_check, false, { false }) { openAdblockStats() },
         MenuEntry("pagerequests", getString(R.string.menu_page_requests), R.drawable.ic_m_netlog, false, { false }, { hasWebPage() }) { showPageRequests() },
@@ -5617,6 +5740,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("share", getString(R.string.menu_share), R.drawable.ic_m_share, false, { false }, { hasWebPage() }) { shareCurrentUrl() },
         MenuEntry("copylink", getString(R.string.menu_copy_link), R.drawable.ic_m_copy, false, { false }, { hasWebPage() }) { copyCurrentUrl() },
         MenuEntry("settings", getString(R.string.menu_settings), R.drawable.ic_m_settings, false, { false }) { openSettings() },
+        MenuEntry("menuedit", getString(R.string.menu_edit_buttons), R.drawable.ic_m_settings, false, { false }) { openMenuEditor() },
         MenuEntry("reader", getString(R.string.menu_reader), R.drawable.ic_m_reader, false, { false }, { hasWebPage() }) { toggleReaderMode() },
         MenuEntry("sniff", getString(R.string.menu_sniff), R.drawable.ic_m_sniff, false, { false }, { hasWebPage() }) { openSniff() },
         MenuEntry("scan", getString(R.string.menu_scan), R.drawable.ic_m_scan, false, { false }) { startScan() },
@@ -5636,6 +5760,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("print", getString(R.string.menu_print), R.drawable.ic_m_print, false, { false }, { hasWebPage() }) { printPage() },
         MenuEntry("passwords", getString(R.string.menu_passwords), R.drawable.ic_m_key, false, { false }) { openPasswords() },
         MenuEntry("scriptmenu", getString(R.string.menu_script_commands), R.drawable.ic_m_script, false, { false }) { showScriptMenu() },
+        MenuEntry("userscripts", getString(R.string.menu_user_scripts), R.drawable.ic_m_script, false, { false }, { hasWebPage() }) { showUserScriptsDialog() },
         MenuEntry("addhome", getString(R.string.menu_add_home), R.drawable.ic_m_home_add, false, { false }) { addToHomeScreen() },
         MenuEntry("cleardata", getString(R.string.menu_clear_data), R.drawable.ic_m_clear_data, false, { false }) { clearMenuData() },
         MenuEntry("adpick", getString(R.string.menu_ad_pick), R.drawable.ic_m_pick, false, { false }, { hasWebPage() }) { startAdPick() },
@@ -5900,6 +6025,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         "dark", "nightauto" -> SettingsDetailFragment.VIEW_V2_NIGHT
         "incog" -> SettingsDetailFragment.VIEW_V2_INCOG
         "newtab" -> SettingsDetailFragment.VIEW_V2_OPERATE
+        "userscripts", "scriptmenu" -> "scripts"
+        "font" -> "font"
+        "uiscale" -> "uiscale"
         else -> null
     }
 
@@ -5958,7 +6086,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         ).show()
     }
 
-    private fun openMenuSettings(viewId: String) {        hideMenuSheet()
+    private fun openMenuSettings(viewId: String) {
+        hideMenuSheet()
+        when (viewId) {
+            "scripts" -> {
+                openScriptsPage()
+                return
+            }
+            "font" -> {
+                showFontSizeSlider()
+                return
+            }
+            "uiscale" -> {
+                showUiScaleSlider()
+                return
+            }
+        }
         val target: androidx.fragment.app.Fragment = if (viewId == "rules") {
             RulesFragment()
         } else {
@@ -6463,7 +6606,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             requireContext(),
             view?.findViewById<View>(R.id.address_bar) ?: input,
             minWidthDp = 320,
-            cornerRadiusDp = { if (AppServices.settings.uiStyle() == 1) 28 else 22 }
+            cornerRadiusDp = { if (AppServices.settings.uiStyle() == 1) 28 else 22 },
+            frosted = { AppServices.settings.homeFrosted() },
+            fillAlpha = {
+                255 - AppServices.settings.homeSearchTransparency().coerceIn(0, 100) * 255 / 100
+            }
         ) { item ->
             pickSuggestion(item)
         }.also { suggestionPopup = it }
@@ -6869,6 +7016,23 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun setSiteSniffEnabled(host: String, enabled: Boolean) {
         val text = SiteConfig.withSniffEnabled(
+            AppServices.siteConfigRepository.cachedConfig(host), enabled
+        )
+        AppServices.siteConfigRepository.cachePut(host, text)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            AppServices.siteConfigRepository.put(host, text)
+        }
+    }
+
+    /** 当前 URL 所在站点是否允许运行用户脚本（默认允许）。 */
+    private fun siteScriptsEnabled(url: String): Boolean {
+        val host = runCatching { android.net.Uri.parse(url).host }.getOrNull() ?: return true
+        val config = SiteConfig.parse(AppServices.siteConfigRepository.cachedConfig(host))
+        return SiteConfig.scriptsEnabled(config)
+    }
+
+    private fun setSiteScriptsEnabled(host: String, enabled: Boolean) {
+        val text = SiteConfig.withScriptsEnabled(
             AppServices.siteConfigRepository.cachedConfig(host), enabled
         )
         AppServices.siteConfigRepository.cachePut(host, text)
@@ -7639,6 +7803,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             registerJsBridge("sii", DownloadJsBridge(requireContext().applicationContext, downloadSecret))
             GmApiBridge(requireContext().applicationContext).also { bridge ->
                 bridge.webView = this
+                bridge.onOpenTab = { url -> view?.post { openNewTab(url) } }
                 gmBridges[this] = bridge
                 registerJsBridge("sii_gm", bridge)
             }
@@ -8187,6 +8352,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 hidePageLoadingCover()
             }
             markPageFinished(webView)
+            maybeOfferScriptFromPage(webView, url)
             // 补注入抓包 hook：onPageStarted 的注入可能落在旧文档上，
             // 加载完成后补一次，确保后续 XHR/接口请求被记录（脚本自身幂等）。
             if (webView != null && AppServices.settings.mcpAllowCapture()) {
@@ -8303,6 +8469,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             isDialog: Boolean,
             resultMsg: android.os.Message
         ): Boolean {
+            if (webView != null && adPickBridges[webView]?.active == true) {
+                Toast.makeText(requireContext(), R.string.ad_pick_blocked, Toast.LENGTH_SHORT).show()
+                return true
+            }
             val transport = resultMsg.obj as? android.webkit.WebView.WebViewTransport ?: return false
             // 新标签在发起导航前继承当前页的电脑模式（此时 current 已切到新标签，不能用 URL 判定）。
             val inheritDesktop = webView?.settings?.userAgentString == desktopUserAgent()
@@ -8654,6 +8824,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 注入匹配当前 URL 的用户脚本及 GM_* 包装。 */
     private fun injectUserScripts(webView: SiiWebView?, url: String, runAt: String) {
         if (webView == null) return
+        if (!siteScriptsEnabled(url)) {
+            gmBridges[webView]?.allowed = false
+            gmBridges[webView]?.allowedUrl = null
+            return
+        }
         lifecycleScope.launch {
             val scripts = AppServices.scriptRepository.scriptsFor(url, runAt)
             val bridge = gmBridges[webView]
@@ -8666,10 +8841,42 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bridge?.allowedUrl = null
             }
             if (scripts.isEmpty()) return@launch
+            // @resource：同步取缓存/下载后注入，给 GM_getResourceText 用。
+            val resources = parsedScripts.flatMap { it.resources }.toMap()
+            if (resources.isNotEmpty()) {
+                val resourceJson = withContext(Dispatchers.IO) {
+                    val obj = org.json.JSONObject()
+                    resources.forEach { (name, resUrl) ->
+                        com.sii.browser.script.ScriptRequireCache
+                            .fetchBlocking(requireContext(), resUrl)
+                            ?.let { obj.put(name, it) }
+                    }
+                    obj.toString()
+                }
+                webView.injectJavaScript(
+                    "window.__siiGmResources = $resourceJson;", null
+                )
+            }
             if (runAt == "document-end" && grants.isNotEmpty()) {
                 webView.injectJavaScript(GmApiBridge.GM_WRAPPER_JS)
             }
             parsedScripts.forEach { parsed ->
+                // 每个脚本执行前设置 GM_info，脚本可读自身元数据。
+                val info = org.json.JSONObject()
+                    .put(
+                        "script",
+                        org.json.JSONObject()
+                            .put("name", parsed.name)
+                            .put("version", parsed.version)
+                            .put("description", parsed.description)
+                            .put("namespace", parsed.namespace)
+                            .put("runAt", parsed.runAt)
+                            .put("matches", org.json.JSONArray(parsed.matches))
+                            .put("grants", org.json.JSONArray(parsed.grants))
+                    )
+                    .put("scriptHandler", "Sii")
+                    .put("version", "1.5.3")
+                webView.injectJavaScript("window.GM_info = $info;", null)
                 val prefix = parsed.requires.mapNotNull { requireUrl ->
                     com.sii.browser.script.ScriptRequireCache.cached(requireContext(), requireUrl)
                 }.joinToString("\n")
@@ -9086,6 +9293,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 android.os.SystemClock.elapsedRealtime() - programmaticPrivacyLoadAt < 1200L
             if (recentlyProgrammatic) return false
             val mainFrame = request == null || request.isForMainFrame
+            // 选取广告元素期间不允许页面跳走（广告常靠触摸/链接直接导航）。
+            if (mainFrame && webView != null && adPickBridges[webView]?.active == true) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - adPickBlockedAt > 2000L) {
+                    adPickBlockedAt = now
+                    context?.let {
+                        Toast.makeText(it, R.string.ad_pick_blocked, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                return true
+            }
+            // 页面内点击安装按钮进入 .user.js：不要真的加载源码，直接走安装确认。
+            if (mainFrame && isUserScriptUrl(url)) {
+                installUserScript(url)
+                return true
+            }
             if (mainFrame && webView != null &&
                 (url.startsWith("http://") || url.startsWith("https://"))
             ) {
@@ -9368,6 +9591,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         lifecycleScope.launch {
             val code = withContext(Dispatchers.IO) { fetchUserScript(url) }
             synchronized(installingScripts) { installingScripts.remove(url) }
+            com.sii.browser.core.mcp.DiagLog.record(
+                "script-install", url + " len=" + (code?.length ?: -1)
+            )
             if (code.isNullOrBlank()) {
                 if (isAdded) {
                     Toast.makeText(requireContext(), R.string.scripts_install_failed, Toast.LENGTH_SHORT).show()
@@ -9375,29 +9601,67 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 return@launch
             }
             if (!isAdded) return@launch
-            val parsed = UserScript.parse(code)
-            val matchText = parsed.matches.take(5).joinToString("\n").ifEmpty { "*" }
-            val message = buildString {
-                append(getString(R.string.scripts_install_name, parsed.name))
-                append("\n")
-                append(getString(R.string.scripts_install_author, parsed.author ?: "-"))
-                append("\n")
-                append(getString(R.string.scripts_install_match, matchText))
-                append("\n")
-                append(getString(R.string.scripts_install_source, url))
-            }
-            android.app.AlertDialog.Builder(requireContext())
-                .setTitle(R.string.scripts_install_title)
-                .setMessage(message)
-                .setPositiveButton(R.string.scripts_install_confirm) { _, _ ->
-                    lifecycleScope.launch {
-                        runCatching { AppServices.scriptRepository.add(code, url) }
-                        Toast.makeText(requireContext(), R.string.scripts_installed, Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            showScriptInstallDialog(url, code)
         }
+    }
+
+    /** 页面直接展示油猴脚本源码（如 greasyfork 的 /scripts/<id>）时也提示安装。 */
+    private val scriptCheckCount = mutableMapOf<String, Int>()
+
+    private fun maybeOfferScriptFromPage(webView: SiiWebView?, url: String) {
+        if (!isAdded || url.startsWith("about")) return
+        if (isUserScriptUrl(url)) return
+        if (scriptPromptedUrls.contains(url)) return
+        val attempt = scriptCheckCount[url] ?: 0
+        if (attempt >= 3) return
+        scriptCheckCount[url] = attempt + 1
+        webView?.evaluateJavascript(
+            "(function(){try{var b=document.body;if(!b)return '';" +
+                "var t=b.innerText||b.textContent||'';" +
+                "return t.length>2000000?t.slice(0,2000000):t}catch(e){return ''}})()"
+        ) { raw ->
+            val text = runCatching {
+                org.json.JSONTokener(raw.orEmpty()).nextValue().toString()
+            }.getOrDefault("")
+            com.sii.browser.core.mcp.DiagLog.record(
+                "script-check", url + " len=" + text.length +
+                    " head=" + text.trimStart().take(24)
+            )
+            if (text.trimStart().startsWith("// ==UserScript==") && text.contains("@name")) {
+                scriptPromptedUrls.add(url)
+                showScriptInstallDialog(url, text)
+            } else if (attempt + 1 < 3) {
+                view?.postDelayed({ maybeOfferScriptFromPage(webView, url) }, 800)
+            }
+        }
+    }
+
+    private fun showScriptInstallDialog(url: String, code: String) {
+        val parsed = UserScript.parse(code)
+        com.sii.browser.core.mcp.DiagLog.record(
+            "script-parse", url + " name=" + parsed.name + " size=" + code.length
+        )
+        val matchText = parsed.matches.take(5).joinToString("\n").ifEmpty { "*" }
+        val message = buildString {
+            append(getString(R.string.scripts_install_name, parsed.name))
+            append("\n")
+            append(getString(R.string.scripts_install_author, parsed.author ?: "-"))
+            append("\n")
+            append(getString(R.string.scripts_install_match, matchText))
+            append("\n")
+            append(getString(R.string.scripts_install_source, url))
+        }
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.scripts_install_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.scripts_install_confirm) { _, _ ->
+                lifecycleScope.launch {
+                    runCatching { AppServices.scriptRepository.add(code, url) }
+                    Toast.makeText(requireContext(), R.string.scripts_installed, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun fetchUserScript(url: String): String? = runCatching {
@@ -10423,7 +10687,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 outline.setRoundRect(0, 0, view.width, view.height, dp(28).toFloat())
             }
         }
-        dock.elevation = if (AppServices.settings.homeShadow()) dp(12).toFloat() else 0f
+        // 主页底栏阴影跟透明度走；网页页只跟总开关（不受主页透明度滑竿影响）。
+        val onHomeNow = homeContainer?.visibility == View.VISIBLE
+        val homeDockShadow = !onHomeNow ||
+            AppServices.settings.homeDockAlpha().coerceIn(0, 100) == 100
+        dock.elevation = if (AppServices.settings.homeShadow() && homeDockShadow) {
+            dp(12).toFloat()
+        } else 0f
         addressHost.layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
         address.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -10851,7 +11121,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val dock = view?.findViewById<LinearLayout>(R.id.modern_chrome) ?: return
         val night = AppServices.settings.isNightMode()
         val strength = AppServices.settings.glassStrength()
-        val showBackground = AppServices.settings.dockBackground()
         val radius = dp(28).toFloat()
         // 进度用胶囊本身的背景表达：一层从左往右裁剪的主色，插在填充与高光之间。
         val accent = ThemeAccent.color(requireContext())
@@ -10865,18 +11134,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         dockProgressClip = clip
         val frosted = AppServices.settings.homeFrosted()
+        val dockAlpha = AppServices.settings.homeDockAlpha().coerceIn(0, 100)
+        val bgAlpha = dockAlpha * 255 / 100
         // 主页上底栏与搜索框/常用网站同一套材质；网页页仍是玻璃（需透出网页内容）。
         val onHome = homeContainer?.visibility == View.VISIBLE
         dock.background = when {
-            !showBackground -> GlassStyle.surface(
-                requireContext(), night, radius, strength,
-                highlight = 0f,
-                shade = 0f,
-                strokeOverride = android.graphics.Color.TRANSPARENT,
-                overlay = clip,
-                // 关背景色：只留图标与进度填充。
-                fillOverride = android.graphics.Color.TRANSPARENT
-            )
             onHome && frosted ->
                 GlassStyle.frosted(requireContext(), night, radius, overlay = clip)
             onHome -> GlassStyle.surface(
@@ -10885,8 +11147,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 shade = 0f,
                 strokeOverride = if (night) 0x1FFFFFFF else 0x14000000,
                 overlay = clip,
-                // 实心卡：与搜索框/常用网站卡片同底色、同一描边。
-                fillOverride = dockBaseColor() ?: requireContext().getColor(R.color.card)
+                // 实心卡：与搜索框/常用网站卡片同底色、同一描边，填充跟随透明度。
+                fillOverride = androidx.core.graphics.ColorUtils.setAlphaComponent(
+                    dockBaseColor() ?: requireContext().getColor(R.color.card), bgAlpha
+                )
             )
             else -> GlassStyle.surface(
                 requireContext(), night, radius, strength,
@@ -11170,6 +11434,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPromptResource = null
         sniffPromptKey = null
         menuOverlay = null
+        devToolsPanel = null
         menuToggles = null
         menuGrid = null
         backButton = null

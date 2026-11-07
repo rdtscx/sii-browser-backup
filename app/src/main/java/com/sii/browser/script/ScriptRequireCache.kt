@@ -29,6 +29,20 @@ object ScriptRequireCache {
         if (file.exists() && file.length() > 0) file.readText() else null
     }.getOrNull()
 
+    /** 同步取资源：缓存命中直接返回，否则同步下载并缓存（供 @resource 使用）。 */
+    fun fetchBlocking(context: Context, url: String): String? {
+        cached(context, url)?.let { return it }
+        return runCatching {
+            val request = Request.Builder().url(url).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string() ?: return null
+                if (body.isNotBlank()) file(context, url).writeText(body)
+                body
+            }
+        }.getOrNull()
+    }
+
     fun ensure(context: Context, url: String) {
         if (cached(context, url) != null) return
         if (downloading.putIfAbsent(url, true) != null) return

@@ -18,7 +18,11 @@ enum class McpGroup {
     DIAG
 }
 
-data class ToolResult(val text: String, val isError: Boolean = false)
+data class ToolResult(
+    val text: String,
+    val isError: Boolean = false,
+    val imagePng: ByteArray? = null
+)
 
 /**
  * MCP 工具表。工具是否暴露由设置里的分组开关决定；
@@ -26,8 +30,7 @@ data class ToolResult(val text: String, val isError: Boolean = false)
  */
 class McpTools(
     private val settings: Settings,
-    private val hostProvider: () -> McpHost?,
-    private val debugBuild: Boolean
+    private val hostProvider: () -> McpHost?
 ) {
 
     private data class ToolSpec(
@@ -557,6 +560,252 @@ class McpTools(
                 okOrNot(host.captureClear(tab(args)))
             }
         )
+        add(
+            ToolSpec(
+                "sii_wait_for",
+                "Wait for element/text",
+                "Poll until a CSS selector or text appears (or disappears). Useful after clicks on SPA pages.",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector to watch."))
+                        .put("text", prop("string", "Text to watch when selector is absent."))
+                        .put("state", prop("string", "present (default) | absent"))
+                        .put("timeout_ms", prop("integer", "Default 8000, max 15000.")),
+                    listOf()
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                val text = args.optString("text")
+                if (selector.isBlank() && text.isBlank()) {
+                    return@ToolSpec ToolResult("selector or text required", true)
+                }
+                val want = args.optString("state", "present").lowercase() != "absent"
+                val timeout = args.optInt("timeout_ms", 8000).coerceIn(500, 15000)
+                val script = if (selector.isNotBlank()) {
+                    "(function(){try{return document.querySelector(" + JSONObject.quote(selector) +
+                        ")?'1':'0';}catch(e){return '0'}})()"
+                } else {
+                    "(function(){try{return document.body&&document.body.innerText.indexOf(" +
+                        JSONObject.quote(text) + ")>=0?'1':'0';}catch(e){return '0'}})()"
+                }
+                val deadline = System.currentTimeMillis() + timeout
+                while (System.currentTimeMillis() < deadline) {
+                    val value = host.evaluateJavascript(tab(args), script)
+                        ?.trim()?.trim('"')
+                    val present = value == "1"
+                    if (present == want) return@ToolSpec ToolResult("ok")
+                    kotlinx.coroutines.delay(150)
+                }
+                ToolResult("timeout after " + timeout + "ms", true)
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_get_dom_outline",
+                "DOM outline",
+                "List visible interactive elements (links, buttons, inputs) with text and position.",
+                McpGroup.READ,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("limit", prop("integer", "Default 60, max 200."))
+                )
+            ) { host, args ->
+                val limit = args.optInt("limit", 60).coerceIn(1, 200)
+                val script = "(function(){try{var out=[];var els=document.querySelectorAll('a,button,input,select,textarea,[role=button],[onclick]');" +
+                    "for(var i=0;i<els.length&&out.length<" + limit + ";i++){var e=els[i];var r=e.getBoundingClientRect();" +
+                    "if(r.width<=0||r.height<=0)continue;var c=e.className;if(c&&c.baseVal!==undefined)c=c.baseVal;" +
+                    "out.push({tag:e.tagName.toLowerCase(),id:e.id||'',cls:(c||'').toString().slice(0,80)," +
+                    "text:(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().slice(0,80)," +
+                    "type:e.getAttribute('type')||'',href:(e.getAttribute('href')||'').slice(0,200)," +
+                    "x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)});}" +
+                    "return JSON.stringify({count:out.length,items:out});}catch(e){return 'ERR:'+e}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_element_info",
+                "Element info",
+                "Inspect one element by CSS selector or visible text: attributes, rect, visibility, key styles.",
+                McpGroup.READ,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector."))
+                        .put("text", prop("string", "Visible text to locate when selector is absent.")),
+                    listOf()
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                val text = args.optString("text")
+                if (selector.isBlank() && text.isBlank()) {
+                    return@ToolSpec ToolResult("selector or text required", true)
+                }
+                val script = "(function(){try{var sel=" + JSONObject.quote(selector) +
+                    ";var txt=" + JSONObject.quote(text) +
+                    ";var el=null;if(sel){el=document.querySelector(sel);}else{" +
+                    "var all=document.querySelectorAll('*');var best=null;for(var i=0;i<all.length&&i<3000;i++){" +
+                    "var e=all[i];var t=e.innerText;if(!t||t.trim().indexOf(txt)<0)continue;" +
+                    "var deeper=false;for(var j=0;j<e.children.length;j++){var ct=e.children[j].innerText;" +
+                    "if(ct&&ct.trim().indexOf(txt)>=0){deeper=true;break;}}" +
+                    "if(!deeper){el=e;break;}if(!best)best=e;}" +
+                    "if(!el)el=best;}" +
+                    "if(!el)return 'NOT_FOUND';var r=el.getBoundingClientRect();var cs=getComputedStyle(el);" +
+                    "var c=el.className;if(c&&c.baseVal!==undefined)c=c.baseVal;" +
+                    "return JSON.stringify({tag:el.tagName.toLowerCase(),id:el.id||'',cls:(c||'').toString()," +
+                    "text:(el.innerText||'').slice(0,200),href:(el.getAttribute('href')||'')," +
+                    "src:(el.getAttribute('src')||''),type:(el.getAttribute('type')||'')," +
+                    "name:(el.getAttribute('name')||''),value:(el.value||'').toString().slice(0,100)," +
+                    "rect:{x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}," +
+                    "visible:!!(r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none')," +
+                    "style:{display:cs.display,position:cs.position,color:cs.color,fontSize:cs.fontSize,opacity:cs.opacity}});" +
+                    "}catch(e){return 'ERR:'+e}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_press_key",
+                "Press key",
+                "Dispatch a keyboard event (Enter, Escape, Tab, arrows, single char) to the focused element or a selector.",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("key", prop("string", "Key name, e.g. Enter / Escape / Tab / a"))
+                        .put("selector", prop("string", "Optional target element.")),
+                    listOf("key")
+                )
+            ) { host, args ->
+                val key = args.optString("key")
+                if (key.isBlank()) return@ToolSpec ToolResult("key required", true)
+                val selector = args.optString("selector")
+                val script = "(function(){try{var key=" + JSONObject.quote(key) +
+                    ";var sel=" + JSONObject.quote(selector) +
+                    ";var el=sel?document.querySelector(sel):document.activeElement;if(!el)return 'NOT_FOUND';" +
+                    "var codes={Enter:13,Escape:27,Tab:9,Backspace:8,ArrowUp:38,ArrowDown:40,ArrowLeft:37,ArrowRight:39};" +
+                    "var kc=codes[key]||(key.length===1?key.toUpperCase().charCodeAt(0):0);" +
+                    "['keydown','keypress','keyup'].forEach(function(t){el.dispatchEvent(new KeyboardEvent(t," +
+                    "{key:key,code:key,keyCode:kc,which:kc,bubbles:true,cancelable:true}));});return 'OK';}catch(e){return 'ERR:'+e}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_select_option",
+                "Select option",
+                "Choose an option in a native <select> by value or visible text.",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector of the <select>."))
+                        .put("value", prop("string", "Option value."))
+                        .put("text", prop("string", "Option label when value is absent.")),
+                    listOf("selector")
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                val value = args.optString("value")
+                val text = args.optString("text")
+                if (selector.isBlank()) return@ToolSpec ToolResult("selector required", true)
+                val script = "(function(){try{var sel=document.querySelector(" + JSONObject.quote(selector) +
+                    ");if(!sel)return 'NOT_FOUND';if(sel.tagName!=='SELECT')return 'NOT_SELECT';" +
+                    "var v=" + JSONObject.quote(value) + ";var t=" + JSONObject.quote(text) +
+                    ";var opt=null;if(v){opt=Array.prototype.slice.call(sel.options).filter(function(o){return o.value===v})[0]||null;}" +
+                    "if(!opt&&t){opt=Array.prototype.slice.call(sel.options).filter(function(o){return (o.text||'').trim()===t})[0]||null;}" +
+                    "if(!opt)return 'OPTION_NOT_FOUND';sel.value=opt.value;" +
+                    "sel.dispatchEvent(new Event('input',{bubbles:true}));" +
+                    "sel.dispatchEvent(new Event('change',{bubbles:true}));return 'OK:'+sel.value;}catch(e){return 'ERR:'+e}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_screenshot",
+                "Screenshot",
+                "Capture the current tab viewport as PNG.",
+                McpGroup.READ,
+                schema(JSONObject())
+            ) { host, _ ->
+                val png = host.screenshot()
+                if (png == null) ToolResult("screenshot unavailable", true)
+                else ToolResult("screenshot " + png.size + " bytes", imagePng = png)
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_highlight_element",
+                "Highlight element",
+                "Outline an element and scroll it into view (same logic as the in-app devtools).",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector."))
+                        .put("clear", prop("boolean", "true to remove the outline instead.")),
+                    listOf("selector")
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                if (selector.isBlank()) return@ToolSpec ToolResult("selector required", true)
+                val clear = args.optBoolean("clear", false)
+                val script = if (clear) {
+                    "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                        ");if(!e)return 'NOT_FOUND';e.style.outline='';return 'OK';}catch(x){return 'ERR:'+x}})()"
+                } else {
+                    "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                        ");if(!e)return 'NOT_FOUND';e.style.outline='2px solid #2F7CF6';" +
+                        "e.style.outlineOffset='1px';e.scrollIntoView({block:'center'});return 'OK';" +
+                        "}catch(x){return 'ERR:'+x}})()"
+                }
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_edit_element",
+                "Edit element",
+                "Edit id / class / text and inline CSS of an element (same logic as the in-app devtools).",
+                McpGroup.PAGE_ACTION,
+                schema(
+                    JSONObject()
+                        .put("tab", prop("integer", "Tab index; omit for current tab."))
+                        .put("selector", prop("string", "CSS selector."))
+                        .put("id", prop("string", "New id (omit to keep)."))
+                        .put("class_name", prop("string", "New class attribute (omit to keep)."))
+                        .put("text", prop("string", "New text content (omit to keep)."))
+                        .put("styles", prop("object", "Inline CSS properties, e.g. {\"color\":\"#f00\"}.")),
+                    listOf("selector")
+                )
+            ) { host, args ->
+                val selector = args.optString("selector")
+                if (selector.isBlank()) return@ToolSpec ToolResult("selector required", true)
+                val styles = args.optJSONObject("styles")?.toString() ?: "{}"
+                val script = "(function(){try{var e=document.querySelector(" + JSONObject.quote(selector) +
+                    ");if(!e)return 'NOT_FOUND';var changed=[];" +
+                    (if (args.has("id")) "e.id=" + JSONObject.quote(args.optString("id")) + ";changed.push('id');" else "") +
+                    (if (args.has("class_name")) "e.className=" + JSONObject.quote(args.optString("class_name")) + ";changed.push('class');" else "") +
+                    (if (args.has("text")) "e.textContent=" + JSONObject.quote(args.optString("text")) + ";changed.push('text');" else "") +
+                    "var st=" + styles + ";for(var k in st){e.style.setProperty(k,st[k]);changed.push(k);}" +
+                    "return 'OK:'+changed.join(',');}catch(x){return 'ERR:'+x}})()"
+                ToolResult(host.evaluateJavascript(tab(args), script) ?: "NO_RESULT")
+            }
+        )
+        add(
+            ToolSpec(
+                "sii_open_devtools",
+                "Open devtools",
+                "Toggle the in-app developer tools panel.",
+                McpGroup.PAGE_ACTION,
+                schema(JSONObject())
+            ) { host, _ ->
+                okOrNot(host.openDevTools())
+            }
+        )
     }
 
     fun availableTools(): List<JSONObject> = tools
@@ -571,7 +820,7 @@ class McpTools(
 
     fun enabledCount(): Int = tools.count { isAllowed(it.group) }
 
-    fun totalCount(): Int = tools.count { debugBuild || it.group != McpGroup.DIAG }
+    fun totalCount(): Int = tools.size
 
     suspend fun call(name: String, arguments: JSONObject): ToolResult {
         val spec = tools.firstOrNull { it.name == name }
@@ -598,7 +847,7 @@ class McpTools(
         McpGroup.BOOKMARK_WRITE -> settings.mcpAllowBookmarkWrite()
         McpGroup.HISTORY_WRITE -> settings.mcpAllowHistoryWrite()
         McpGroup.CAPTURE -> settings.mcpAllowCapture()
-        McpGroup.DIAG -> debugBuild && settings.mcpAllowDiag()
+        McpGroup.DIAG -> settings.mcpAllowDiag()
     }
 
     private fun tab(args: JSONObject): Int? =

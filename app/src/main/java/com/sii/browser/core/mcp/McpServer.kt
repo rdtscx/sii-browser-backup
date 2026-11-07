@@ -34,8 +34,7 @@ import kotlinx.coroutines.withTimeout
  */
 class McpServer(
     private val settingsProvider: () -> Settings,
-    private val hostProvider: () -> McpHost?,
-    debugBuild: Boolean
+    private val hostProvider: () -> McpHost?
 ) {
 
     data class Config(val port: Int, val lan: Boolean, val token: String)
@@ -64,7 +63,7 @@ class McpServer(
     var lastError: String? = null
         private set
 
-    private val tools: McpTools = McpTools(settingsProvider(), hostProvider, debugBuild)
+    private val tools: McpTools = McpTools(settingsProvider(), hostProvider)
 
     val isRunning: Boolean get() = running.get()
 
@@ -336,13 +335,19 @@ class McpServer(
                     ToolResult("tool failed: ${it.message ?: it.javaClass.simpleName}", true)
                 }
                 recordAudit(name, !output.isError, System.currentTimeMillis() - started, client)
-                JSONObject()
-                    .put(
-                        "content",
-                        JSONArray().put(
-                            JSONObject().put("type", "text").put("text", output.text)
-                        )
+                val content = JSONArray().put(
+                    JSONObject().put("type", "text").put("text", output.text)
+                )
+                output.imagePng?.let { png ->
+                    content.put(
+                        JSONObject()
+                            .put("type", "image")
+                            .put("mimeType", "image/png")
+                            .put("data", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
                     )
+                }
+                JSONObject()
+                    .put("content", content)
                     .put("isError", output.isError)
             }
             "resources/list", "prompts/list" -> JSONObject()

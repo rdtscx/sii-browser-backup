@@ -74,11 +74,28 @@
         android:clipToOutline="true"
         android:elevation="2dp" />
 
-    <View
+    <LinearLayout
         android:id="@+id/home_custom_resize_handle"
         android:layout_width="match_parent"
-        android:layout_height="18dp"
-        android:background="@color/bg_page" />
+        android:layout_height="32dp"
+        android:background="@color/bg_page"
+        android:contentDescription="上下拖动调整预览大小"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <View
+            android:layout_width="44dp"
+            android:layout_height="4dp"
+            android:background="@drawable/bg_handle_bar" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="3dp"
+            android:text="上下拖动调整预览大小"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
 
     <HorizontalScrollView
         android:layout_width="match_parent"

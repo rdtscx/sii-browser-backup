@@ -31,8 +31,11 @@ class BrowserMcpHost(
     private val onCloseTab: (Int) -> Unit,
     private val onNavigate: (String) -> Boolean,
     private val isUiReady: () -> Boolean,
-    private val uiStateProvider: () -> String
+    private val uiStateProvider: () -> String,
+    private val windowProvider: () -> android.view.Window?
 ) : McpHost {
+
+    var onOpenDevTools: (() -> Boolean)? = null
 
     private suspend fun <T> main(block: suspend () -> T): T =
         withContext(Dispatchers.Main.immediate) { block() }
@@ -228,6 +231,44 @@ class BrowserMcpHost(
     override suspend fun evaluateJavascript(tab: Int?, code: String): String? = main {
         val webView = tabAt(tab)?.webView ?: return@main null
         eval(webView, code)
+    }
+
+    override suspend fun screenshot(): ByteArray? = main {
+        if (!isUiReady()) return@main null
+        val window = windowProvider() ?: return@main null
+        val webView = tabManager.currentWebView ?: return@main null
+        if (webView.width <= 0 || webView.height <= 0) return@main null
+        val location = IntArray(2)
+        webView.getLocationInWindow(location)
+        val rect = android.graphics.Rect(
+            location[0], location[1],
+            location[0] + webView.width, location[1] + webView.height
+        )
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            webView.width, webView.height, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val copied = withTimeoutOrNull(4000L) {
+            suspendCancellableCoroutine { cont ->
+                android.view.PixelCopy.request(
+                    window, rect, bitmap,
+                    { result -> if (cont.isActive) cont.resume(result == android.view.PixelCopy.SUCCESS) },
+                    android.os.Handler(android.os.Looper.getMainLooper())
+                )
+            }
+        } ?: false
+        if (!copied) {
+            bitmap.recycle()
+            return@main null
+        }
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        bitmap.recycle()
+        out.toByteArray()
+    }
+
+    override suspend fun openDevTools(): Boolean = main {
+        if (!isUiReady()) return@main false
+        onOpenDevTools?.invoke() ?: false
     }
 
     override suspend fun captureList(

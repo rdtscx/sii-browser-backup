@@ -213,13 +213,11 @@ object AppServices {
         }
         passwordRepository = PasswordRepository(db.passwordDao())
         readLaterRepository = ReadLaterRepository(db.readLaterDao())
-        val debugBuild = application.applicationInfo != null &&
-            (application.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        com.sii.browser.core.mcp.DiagLog.enabled = debugBuild
+        // 诊断接口在正式包与测试包一致开放（默认权限开关仍为关）。
+        com.sii.browser.core.mcp.DiagLog.enabled = true
         mcpServer = com.sii.browser.core.mcp.McpServer(
             { settings },
-            { mcpHost },
-            debugBuild = debugBuild
+            { mcpHost }
         )
         CoroutineScope(Dispatchers.IO).launch {
             kotlinx.coroutines.delay(3000)

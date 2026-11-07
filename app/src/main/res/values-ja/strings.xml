@@ -60,7 +60,6 @@
     <string name="settings_home_label_size">サイト名の文字サイズ</string>
     <string name="settings_home_cell_gap">サイトの行間</string>
     <string name="settings_home_icon_accent">アイコンをテーマ色で統一</string>
-    <string name="settings_home_sites_title">「よく使うサイト」の見出しを表示</string>
     <string name="settings_home_bg_overlay">背景画像のオーバーレイ</string>
     <string name="settings_language">言語</string>
     <string name="settings_language_custom">言語コードを直接入力</string>
@@ -352,6 +351,8 @@
     <string name="shortcut_unsupported">このホーム画面は固定ショートカットに対応していません</string>
     <string name="script_menu_empty">このページにはスクリプトメニューがありません</string>
     <string name="ad_pick_hint">隠す広告要素をタップしてください</string>
+    <string name="ad_pick_blocked">要素選択中はページ遷移をブロックしました</string>
+    <string name="ad_pick_exit">要素選択を終了しました</string>
     <string name="settings_translate">翻訳</string>
     <string name="settings_translate_baidu">Baidu の設定</string>
     <string name="settings_translate_custom">カスタムリクエスト</string>
@@ -809,7 +810,7 @@
     <string name="settings_wifi_img">Wi-Fi 接続時のみ画像を読み込む</string>
     <string name="settings_wifi_img_desc">モバイル通信では画像を読み込まず、通信量を節約します</string>
     <string name="settings_show_sites">よく使うサイトを表示</string>
-    <string name="settings_home_sites_card_bg">よく使うサイトの背景</string>
+    <string name="settings_home_sites_card_bg">よく使うサイトの背景の不透明度</string>
     <string name="settings_tool_no_label">ツールバーに文字を出さない</string>
     <string name="settings_ua_simplify">ユーザーエージェントを簡略化</string>
     <string name="settings_ua_simplify_desc">UA から端末名とマイナーバージョンを削除します</string>
@@ -1259,7 +1260,7 @@
     <string name="settings_engine_url_hint">検索 URL。キーワードは %s に置き換えます（例：https://www.sogou.com/web?query=%s）</string>
     <string name="home_tab_logo">ロゴ</string>
     <string name="home_tab_search">検索ボックス</string>
-    <string name="home_tab_background">背景</string>
+    <string name="home_tab_background">背景とホーム</string>
     <string name="home_tab_sites">よく使うサイト</string>
     <string name="home_tab_advanced">詳細</string>
     <string name="home_tab_address">アドレスバー</string>
@@ -1345,4 +1346,7 @@
     <string name="mcp_notification_text_lan">ポート %1$d · LAN</string>
     <string name="mcp_notification_failed">起動に失敗しました。設定でポートまたはトークンを確認してください</string>
     <string name="mcp_notification_stop">停止</string>
+    <string name="menu_devtools">開発者ツール</string>
+    <string name="menu_user_scripts">ユーザースクリプト</string>
+    <string name="menu_edit_buttons">ボタンを編集</string>
 </resources>

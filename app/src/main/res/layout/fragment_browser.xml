@@ -778,4 +778,12 @@
         android:layout_height="match_parent"
         android:background="#000000"
         android:visibility="gone" />
+
+    <!-- 开发者工具半屏浮层 -->
+    <FrameLayout
+        android:id="@+id/devtools_host"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="30dp"
+        android:visibility="gone" />
 </FrameLayout>

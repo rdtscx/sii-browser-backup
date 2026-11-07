@@ -1541,9 +1541,6 @@ class SettingsDetailFragment : Fragment() {
                         0, 24
                     ) { settings.setHomeCellGap(it) }
                 }
-            },
-            switchRow(getString(R.string.settings_home_sites_title), settings.homeShowSitesTitle()) {
-                settings.setHomeShowSitesTitle(it)
             }
         )
     }
@@ -2526,19 +2523,15 @@ class SettingsDetailFragment : Fragment() {
         )
 
         sectionTitle(R.string.mcp_section_permissions)
-        val diagPerms: List<View> = if (isDebuggableBuild()) {
-            listOf(
-                switchRow(
-                    getString(R.string.mcp_perm_diag),
-                    settings.mcpAllowDiag(),
-                    getString(R.string.mcp_perm_diag_desc)
-                ) { value ->
-                    settings.setMcpAllowDiag(value)
-                    if (!value) com.sii.browser.core.mcp.DiagLog.clear()
-                }
-            )
-        } else emptyList()
         card(
+            switchRow(
+                getString(R.string.mcp_perm_diag),
+                settings.mcpAllowDiag(),
+                getString(R.string.mcp_perm_diag_desc)
+            ) { value ->
+                settings.setMcpAllowDiag(value)
+                if (!value) com.sii.browser.core.mcp.DiagLog.clear()
+            },
             switchRow(
                 getString(R.string.mcp_perm_read),
                 settings.mcpAllowPageRead(),
@@ -2573,8 +2566,7 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.mcp_perm_incognito),
                 settings.mcpAllowIncognito(),
                 getString(R.string.mcp_perm_incognito_desc)
-            ) { settings.setMcpAllowIncognito(it) },
-            *diagPerms.toTypedArray()
+            ) { settings.setMcpAllowIncognito(it) }
         )
 
         sectionTitle(R.string.mcp_section_capture)
@@ -2611,11 +2603,7 @@ class SettingsDetailFragment : Fragment() {
         aboutText(R.string.mcp_about)
     }
 
-    /** 诊断接口只在测试包里出现；正式包不显示入口也不下发工具。 */
-    private fun isDebuggableBuild(): Boolean =
-        (requireContext().applicationInfo.flags and
-            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-
+    /** 诊断接口在正式包与测试包一致开放。 */
     private fun tokenMask(token: String): String =
         if (token.length <= 12) token.ifEmpty { "-" }
         else "${token.take(6)}…${token.takeLast(4)}"

@@ -986,6 +986,16 @@ interface WebPageSettings {
 
     fun setHomeSitesCardBg(value: Boolean)
 
+    /** 常用网站背景透明度：0 无背景 → 100 不透明。 */
+    fun homeGridAlpha(): Int
+
+    fun setHomeGridAlpha(value: Int)
+
+    /** 主页悬浮工具栏背景透明度：0 无背景 → 100 不透明。 */
+    fun homeDockAlpha(): Int
+
+    fun setHomeDockAlpha(value: Int)
+
     /** 主页磨砂质感：搜索框、常用网站卡片、悬浮工具栏与建议弹层共用。 */
     fun homeFrosted(): Boolean
 
@@ -996,15 +1006,19 @@ interface WebPageSettings {
 
     fun setHomeShadow(value: Boolean)
 
+    /** 单个对象的阴影开关：改对应透明度后自动关闭。 */
+    fun homeShadowSearch(): Boolean
+
+    fun setHomeShadowSearch(value: Boolean)
+
+    fun homeShadowGrid(): Boolean
+
+    fun setHomeShadowGrid(value: Boolean)
+
     /** 主页搜索框透明度：0 不透明 → 100 全透明。 */
     fun homeSearchTransparency(): Int
 
     fun setHomeSearchTransparency(value: Int)
-
-    /** 悬浮工具栏背景色。 */
-    fun dockBackground(): Boolean
-
-    fun setDockBackground(value: Boolean)
 
     /** 看大图（网页自绘图片查看器）时自动隐藏悬浮工具栏。 */
     fun hideChromeOnImageView(): Boolean

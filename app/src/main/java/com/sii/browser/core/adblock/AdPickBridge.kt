@@ -44,8 +44,10 @@ class AdPickBridge {
 
     companion object {
         /**
-         * 选取脚本：触摸跟随高亮，点击时收集「选中元素 + 最近的 fixed/高 z-index 祖先 + 覆盖视口的兄弟遮罩」，
+         * 选取脚本：按下即高亮，抬手时拦截默认点击（否则触摸阶段就跳去广告），
+         * 收集「选中元素 + 链接容器 + 最近的 fixed/高 z-index 祖先 + 覆盖视口的兄弟遮罩」，
          * 选择器优先 id / 稳定 class / data-* 属性，跳过哈希类名；回传每个选择器的匹配数量。
+         * 选取期间关闭 iframe/frame 的指针事件，让广告框的点击落在主文档上。
          * 用原始字符串书写，避免 JS 正则与引号被 Kotlin 转义层改写。
          */
         val PICK_JS: String = """
@@ -53,6 +55,8 @@ class AdPickBridge {
 if(window.__siiAdPick)return;
 window.__siiAdPick=true;
 var cur=null;
+var startX=0,startY=0,startTarget=null,moved=false,finished=false;
+var disabledFrames=[];
 var HASH=/^[a-f0-9]{6,}$/i;
 function stableClass(el){
   try{
@@ -127,43 +131,118 @@ function hl(el){
   cur=el;
   if(cur)cur.style.outline='2px solid #f44336';
 }
-function onMove(ev){
+function disableFrames(){
   try{
-    var t=ev.touches[0];
-    hl(document.elementFromPoint(t.clientX,t.clientY));
+    var frames=document.querySelectorAll('iframe,frame');
+    for(var i=0;i<frames.length;i++){
+      var f=frames[i];
+      try{
+        disabledFrames.push({el:f,old:f.style.pointerEvents});
+        f.style.pointerEvents='none';
+      }catch(e){}
+    }
   }catch(e){}
 }
-function onClick(ev){
+function restoreFrames(){
+  for(var i=0;i<disabledFrames.length;i++){
+    try{disabledFrames[i].el.style.pointerEvents=disabledFrames[i].old;}catch(e){}
+  }
+  disabledFrames=[];
+}
+function finishAt(x,y,target){
+  if(finished)return;
+  finished=true;
   try{
-    ev.preventDefault();
-    ev.stopPropagation();
-    var target=ev.target;
+    var t=target||document.elementFromPoint(x,y);
     var list=[];
-    add(list,target,'选中的元素');
-    var e=target?target.parentElement:null;
+    add(list,t,'选中的元素');
+    var link=t&&t.closest?t.closest('a'):null;
+    if(link)add(list,link,'链接容器');
+    var e=t?t.parentElement:null;
     var up=0;
     while(e&&up<5){
       if(isOverlay(e)){add(list,e,'弹窗容器');break;}
       e=e.parentElement;
       up++;
     }
-    var p=target?target.parentElement:null;
+    var p=t?t.parentElement:null;
     if(p){
       for(var i=0;i<p.children.length&&i<20;i++){
         var sib=p.children[i];
-        if(sib===target)continue;
+        if(sib===t)continue;
         if(covers(sib))add(list,sib,'遮罩层');
       }
     }
     if(window.SiiAdPick&&list.length)window.SiiAdPick.pick(JSON.stringify(list));
-    if(cur)cur.style.outline='';
   }catch(e){}
+  cleanup();
+}
+function cleanup(){
+  if(cur)cur.style.outline='';
+  cur=null;
+  restoreFrames();
+  document.removeEventListener('touchstart',onTouchStart,true);
   document.removeEventListener('touchmove',onMove,true);
+  document.removeEventListener('touchend',onTouchEnd,true);
+  document.removeEventListener('touchcancel',onTouchCancel,true);
   document.removeEventListener('click',onClick,true);
   window.__siiAdPick=false;
+  window.__siiAdPickCleanup=null;
 }
+function onTouchStart(ev){
+  try{
+    var t=ev.touches[0];
+    startX=t.clientX;startY=t.clientY;
+    startTarget=document.elementFromPoint(startX,startY);
+    moved=false;
+    hl(startTarget);
+  }catch(e){}
+}
+function onMove(ev){
+  try{
+    var t=ev.touches[0];
+    if(Math.abs(t.clientX-startX)>10||Math.abs(t.clientY-startY)>10)moved=true;
+    hl(document.elementFromPoint(t.clientX,t.clientY));
+  }catch(e){}
+}
+function onTouchEnd(ev){
+  try{
+    if(finished)return;
+    if(moved){hl(null);return;}
+    ev.preventDefault();
+    ev.stopPropagation();
+    finishAt(startX,startY,startTarget);
+  }catch(e){}
+}
+function onTouchCancel(){
+  try{hl(null);}catch(e){}
+}
+function onClick(ev){
+  try{
+    if(finished)return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    finishAt(ev.clientX||0,ev.clientY||0,ev.target);
+  }catch(e){}
+}
+window.__siiAdPickCleanup=cleanup;
+disableFrames();
+document.addEventListener('touchstart',onTouchStart,{capture:true,passive:true});
 document.addEventListener('touchmove',onMove,{capture:true,passive:true});
+document.addEventListener('touchend',onTouchEnd,{capture:true,passive:false});
+document.addEventListener('touchcancel',onTouchCancel,true);
 document.addEventListener('click',onClick,true);
+})();
+        """.trimIndent()
+
+        /** 退出选取：移除监听、恢复 iframe 指针事件，避免残留状态吞掉正常点击。 */
+        val EXIT_JS: String = """
+(function(){
+  if(window.__siiAdPickCleanup){
+    try{window.__siiAdPickCleanup();}catch(e){}
+  }
+  window.__siiAdPick=false;
+  window.__siiAdPickCleanup=null;
 })();
         """.trimIndent()
     }

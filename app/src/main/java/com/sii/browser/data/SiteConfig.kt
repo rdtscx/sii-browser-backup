@@ -41,6 +41,16 @@ object SiteConfig {
     fun text(config: JSONObject?, key: String): String? =
         config?.optString(key)?.takeIf { it.isNotBlank() && it != "null" }
 
+    /** 本站是否启用用户脚本（js=2 表示本站停用）。 */
+    fun scriptsEnabled(config: JSONObject?): Boolean = tri(config, "js") != 2
+
+    /** 生成写入后的站点配置：enabled=false 写 js=2，true 则移除该键。 */
+    fun withScriptsEnabled(raw: String?, enabled: Boolean): String {
+        val json = parse(raw) ?: JSONObject().put("on", true)
+        if (enabled) json.remove("js") else json.put("js", 2)
+        return json.toString()
+    }
+
     /** 本站是否启用了资源嗅探（sn=1）。缺省=未启用。 */
     fun sniffEnabled(config: JSONObject?): Boolean = tri(config, "sn") == 1
 

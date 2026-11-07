@@ -78,6 +78,26 @@ class GmApiBridge(private val context: Context) {
         clipboard.setPrimaryClip(ClipData.newPlainText(null, text))
     }
 
+    /** 新开标签回调，由浏览器 Fragment 注入。 */
+    var onOpenTab: ((String) -> Unit)? = null
+
+    @JavascriptInterface
+    fun notify(title: String, text: String) {
+        if (!isAllowed() || !isGranted("GM_notification")) return
+        val message = listOf(title.trim(), text.trim()).filter { it.isNotEmpty() }
+            .joinToString("：").take(300)
+        if (message.isEmpty()) return
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @JavascriptInterface
+    fun openTab(url: String) {
+        if (!isAllowed() || !isGranted("GM_openInTab") || !url.startsWith("http")) return
+        onOpenTab?.invoke(url)
+    }
+
     @JavascriptInterface
     fun download(url: String, name: String?) {
         if (!isAllowed() || !isGranted("GM_download")) return
@@ -164,14 +184,40 @@ class GmApiBridge(private val context: Context) {
               window.__sii_gm_ready__ = true;
               var api = window.sii_gm;
               if (!api) return;
+              window.unsafeWindow = window;
+              var valueListeners = {};
+              window.GM_addValueChangeListener = function(k, fn){
+                (valueListeners[String(k)] = valueListeners[String(k)] || []).push(fn);
+                return fn;
+              };
+              window.GM_removeValueChangeListener = function(fn){
+                for (var k in valueListeners) {
+                  var arr = valueListeners[k];
+                  var i = arr.indexOf(fn);
+                  if (i >= 0) arr.splice(i, 1);
+                }
+              };
               window.GM_getValue = function(k, d){ var v = api.getValue(String(k), null); return (v === null || v === undefined) ? d : JSON.parse(v); };
-              window.GM_setValue = function(k, v){ api.setValue(String(k), JSON.stringify(v)); };
+              window.GM_setValue = function(k, v){
+                api.setValue(String(k), JSON.stringify(v));
+                var arr = valueListeners[String(k)] || [];
+                for (var i = 0; i < arr.length; i++) {
+                  try { arr[i](String(k), undefined, v, false); } catch (e) {}
+                }
+              };
               window.GM_deleteValue = function(k){ api.deleteValue(String(k)); };
               window.GM_listValues = function(){ return api.listValues().split(',').filter(function(x){return x;}); };
               window.GM_setClipboard = function(t){ api.setClipboard(String(t)); };
               window.GM_download = function(opt){ if(opt && opt.url) api.download(String(opt.url), opt.name ? String(opt.name) : null); };
               window.GM_addStyle = function(css){ var s = document.createElement('style'); s.textContent = css; (document.head || document.documentElement).appendChild(s); return s; };
+              window.GM_getResourceText = function(name){ try { var m = window.__siiGmResources || {}; return m[String(name)] || ''; } catch (e) { return ''; } };
+              window.GM_getResourceURL = function(name){ try { var m = window.__siiGmResourceUrls || {}; return m[String(name)] || ''; } catch (e) { return ''; } };
               window.GM_addElement = function(parent, el){ (typeof parent === 'string' ? document.querySelector(parent) : parent).appendChild(el); };
+              window.GM_notification = function(opt){
+                opt = opt || {};
+                api.notify(String(opt.title || ''), String(opt.text || ''));
+              };
+              window.GM_openInTab = function(url){ if (url) api.openTab(String(url)); return null; };
               window.GM_xmlhttpRequest = function(opt){
                 opt = opt || {};
                 var id = 'r' + (window.__sii_gm_seq__ = (window.__sii_gm_seq__ || 0) + 1);
