@@ -28,7 +28,7 @@ object UpdateChecker {
     )
 
     private const val GITHUB_LATEST =
-        "https://api.github.com/repos/wanwuwww/Sii/releases/latest"
+        "https://api.github.com/repos/wanwuwww/Sii-Browser/releases/latest"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)

@@ -1,155 +1,62 @@
 <h1 align="center">Sii Browser</h1>
 
-<p align="center">An Android browser written in Kotlin (personal project)<br/>Native XML + View UI · No user data collection</p>
+<p align="center"><a href="README.en.md">English</a> | <b>中文</b></p>
 
-<p align="center"><b>English</b> | <a href="README_zh.md">中文</a></p>
+<p align="center">用 Kotlin 写的 Android 浏览器</p>
 
 <p align="center">
-  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-NonCommercial-blue.svg" alt="License" /></a>
-  <a href="https://github.com/wanwuwww/Sii/releases"><img src="https://img.shields.io/github/v/release/wanwuwww/Sii?display_name=tag" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/platform-Android-3DDC84.svg" alt="Platform" />
+  <a href="https://github.com/wanwuwww/Sii-Browser/releases">
+    <img src="https://img.shields.io/github/v/release/wanwuwww/Sii-Browser?display_name=tag" alt="Release" />
+  </a>
+  <img src="https://img.shields.io/badge/platform-Android-3DDC84.svg" alt="Android" />
   <img src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg" alt="Kotlin" />
-  <img src="https://img.shields.io/badge/minSdk-26-orange.svg" alt="minSdk" />
+  <img src="https://img.shields.io/badge/license-NonCommercial-blue.svg" alt="License" />
 </p>
 
-## Overview
+<p align="center"><a href="https://wanwuwww.github.io/Sii-Browser/">官网与截图</a></p>
 
-Sii is an Android browser built from scratch with Kotlin and native XML layouts. It does not use Compose.
+## 功能
 
-The goal is to make browsing complete: multiple tabs and a tab panel, ad blocking and privacy protection, page translation, a download manager, plus a local MCP service and page capture that external tools can call. The app contains no analytics or crash-reporting SDKs and does not collect user data.
+- 多标签与标签面板，支持缩略图、恢复最近关闭
+- 广告拦截与隐私保护，规则订阅、自定义规则、按站开关
+- 网页翻译，支持在线、离线与双语对照
+- 下载管理：多连接、断点续传、HLS
+- 资源嗅探与内建播放器
+- 用户脚本，兼容常用 GM 接口
+- 本地 MCP 服务与页面抓包，可对接外部工具
+- 界面 DIY：工具栏、菜单、主题、玻璃强度
 
-## Features
-
-### Browsing & UI
-
-- Multiple tabs: new, switch, close, restore; tab panel with grid and thumbnails
-- Address bar for direct navigation and search, search suggestions, find in page, desktop mode
-- Home: glass / minimal / magazine styles; quick site shortcuts; logo as text, icon, or clock
-- UI presets and UI DIY: toolbar, tabs, menu, theme, glass intensity
-- Floating capsule toolbar, vertical / horizontal menu scrolling, fixed menu position
-- Custom new tab page, external link handling
-
-### Privacy & blocking
-
-- Ad blocking: built-in rules, custom rules, rule subscriptions, per-site toggle
-- Privacy protection: standard / strict / custom; tracking, social, mining, fingerprint, and content rule lists
-- GPC / DNT / Save-Data request headers, URL tracking parameter cleanup, HTTPS upgrade
-- Incognito mode: no history, restricted permissions, optional cleanup on exit
-- Per-site settings: scripts, images, storage, popups, permissions, request headers
-
-### Translation & reading
-
-- Page translation: online / offline / bilingual, per-site settings
-- Reader mode, read aloud, article extraction
-
-### Extensions & tools
-
-- User scripts: UserScript metadata parsing + a subset of GM_* APIs
-- Downloads: chunked parallel download, resume, pause/resume, HLS, system downloader
-- Bookmarks (folder tree), history, read later
-- QR code scanning and generation
-- Local MCP service: permission-scoped tools, token authentication, for external AI clients
-- Page capture: request metadata plus fetch/XHR status, timing, and response bodies
-- Update check: reads GitHub Releases, with an optional silent prompt
-
-## Screenshots
+## 截图
 
 <p align="center">
-  <img src="docs/screenshots/home-day.jpg" width="270" alt="Home" />
-  <img src="docs/screenshots/tabs.jpg" width="270" alt="Tab panel" />
+  <img src="docs/screenshots/home-day.jpg" width="270" alt="主页" />
+  <img src="docs/screenshots/tabs.jpg" width="270" alt="标签面板" />
 </p>
-<p align="center"><sub>Home · Tab panel</sub></p>
 
 <p align="center">
-  <img src="docs/screenshots/menu.jpg" width="270" alt="Menu" />
+  <img src="docs/screenshots/diy.jpg" width="270" alt="界面 DIY" />
+  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP 服务" />
 </p>
-<p align="center"><sub>Menu</sub></p>
 
-<p align="center">
-  <img src="docs/screenshots/diy.jpg" width="270" alt="UI DIY" />
-  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP service" />
-</p>
-<p align="center"><sub>UI DIY · MCP service</sub></p>
+## 下载
 
-<p align="center">
-  <img src="docs/screenshots/home-night.jpg" width="270" alt="Night mode" />
-</p>
-<p align="center"><sub>Night mode</sub></p>
+前往 [Releases](https://github.com/wanwuwww/Sii-Browser/releases) 下载 `Sii-x.y.z.apk`。
 
-## Quick start
+- 仅支持 arm64-v8a，Android 8.0（API 26）及以上
+- 正式签名，可直接覆盖升级
 
-### Install
+## 构建
 
-Download `Sii-x.y.z.apk` from [Releases](https://github.com/wanwuwww/Sii/releases).
-
-- arm64-v8a only, Android 8.0 (API 26) or newer
-- Release builds use the release signing key and can upgrade over earlier releases; test builds use a different signature and cannot be installed over them
-
-### Build locally
-
-Requires JDK 17, Android SDK 36, and optionally `local.properties` with `sdk.dir`.
-
-```bash
-./gradlew assembleDebug
-# output: app/build/outputs/apk/debug/app-debug.apk
-```
-
-Release build (R8 shrinking + resource shrinking, arm64-v8a only, signing configured in `local.properties`):
+需要 JDK 17 与 Android SDK 36：
 
 ```bash
 ./gradlew assembleRelease
-# output: app/build/outputs/apk/release/app-release.apk
 ```
 
-## Architecture
+## 许可
 
-- Kotlin 2.0, AndroidX (AppCompat / Room / DataStore / Lifecycle / Media3 / CameraX)
-- UI: native XML layouts + Views (no Compose)
-- Architecture: single Activity + Fragments, `AppServices` service locator
-- Annotation processing: KSP (Room)
+源码公开，采用非商业许可：允许个人学习、研究与修改，禁止商业使用和应用商店分发。详见 [LICENSE.md](LICENSE.md)。
 
-## Module layout
+## 反馈
 
-```
-com.sii.browser/
-├── ui/            Native UI (shell, browser, tabs, settings, bookmarks, history, downloads, rules, scripts)
-├── core/webview/  WebView container (client/chrome-client bridges, request interception chain, JS bridges, text extraction)
-├── core/adblock/  Ad blocking engine
-├── core/rules/    Built-in rules and subscriptions
-├── core/privacy/  Privacy management (data clearing / incognito)
-├── core/mcp/      Local MCP service (JSON-RPC, tool registry)
-├── script/        User scripts (parser + GM bridge)
-├── download/      Download engine/service/broadcast/JS bridge
-├── data/          DataStore settings + Room (bookmarks/history/downloads/favorites/rules/scripts)
-└── di/            AppServices facade
-```
-
-## Third-party components
-
-| Component | License |
-|---|---|
-| AndroidX (core/appcompat/fragment/lifecycle) | Apache License 2.0 |
-| Room / DataStore | Apache License 2.0 |
-| OkHttp | Apache License 2.0 |
-| Google ML Kit Translate / Language ID | Google ML Kit Terms of Service |
-| Kotlin standard library / coroutines | Apache License 2.0 |
-
-See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the full list and copyright notices.
-
-## Feedback
-
-If you run into a problem or have a suggestion, please open an [Issue](https://github.com/wanwuwww/Sii/issues) with reproduction steps and device information.
-
-## Disclaimer
-
-This project is independently developed and provided "as is", without any express or implied warranty. You are responsible for any risk arising from its use.
-
-## License
-
-The source code is public under a non-commercial license (not an OSI-approved open source license):
-
-- Personal learning, research, non-commercial use, and modification are permitted;
-- Commercial use, app store distribution, and impersonating the name or icon are not permitted;
-- Redistribution must retain this license and attribution, and be shared under the same license.
-
-See [LICENSE.md](LICENSE.md) for details.
+问题或建议请提交 [Issue](https://github.com/wanwuwww/Sii-Browser/issues)。

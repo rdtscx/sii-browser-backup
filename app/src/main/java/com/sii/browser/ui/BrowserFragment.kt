@@ -3732,7 +3732,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (AppServices.settings.isNightMode()) android.graphics.Color.WHITE
             else requireContext().getColor(R.color.text_primary)
         } else {
-            requireContext().getColor(R.color.icon_primary)
+            addressIconColor ?: requireContext().getColor(R.color.icon_primary)
         }
         when (translateFabState) {
             0 -> {
@@ -3777,7 +3777,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 )
                 tool.textScaleX = 1f
                 tool.letterSpacing = 0f
-                tool.setTextColor(ThemeAccent.color(requireContext()))
+                tool.setTextColor(
+                    if (AppServices.settings.uiStyle() == 1) ThemeAccent.color(requireContext())
+                    else normal
+                )
                 tool.contentDescription = getString(
                     if (translateShowOriginal) R.string.translate_show_translated
                     else R.string.translate_show_original
@@ -7426,6 +7429,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             android.content.res.ColorStateList.valueOf(iconColor)
         view?.findViewById<ImageView>(R.id.site_info_button)?.imageTintList =
             android.content.res.ColorStateList.valueOf(iconColor)
+        // 翻译按钮是 Text，单独上色；与刷新按钮共用同一前景色，避免识别色下看不清。
+        view?.findViewById<TextView>(R.id.translate_tool)?.setTextColor(iconColor)
         updateSiteInfoIcon()
     }
 
