@@ -26,6 +26,9 @@ class BookmarkRepository(private val dao: BookmarkDao) {
 
     suspend fun allFoldersOnce(): List<BookmarkFolder> = dao.allFoldersOnce()
 
+    /** 导入备份时按原 id 恢复文件夹。 */
+    suspend fun insertFolderRaw(folder: BookmarkFolder) = dao.insertFolder(folder)
+
     suspend fun childFoldersOnce(parentId: String?): List<BookmarkFolder> =
         dao.childFoldersOnce(parentId)
 

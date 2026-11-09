@@ -81,6 +81,9 @@
     <string name="settings_toolbar_autohide">捲動時自動隱藏工具列</string>
     <string name="tts_speaking">正在朗讀…</string>
     <string name="tts_rate">語速</string>
+    <string name="tts_rate_value">語速 %1$s</string>
+    <string name="tts_settings">設定</string>
+    <string name="tts_settings_unavailable">無法開啟系統語音設定</string>
     <string name="tts_stop">停止</string>
     <string name="settings_safe_browsing">安全瀏覽</string>
     <string name="settings_webrtc_protect">WebRTC 防洩露</string>
@@ -689,7 +692,7 @@
     <string name="settings_about_repo">專案倉庫</string>
     <string name="settings_about_repo_copied">倉庫地址已複製</string>
     <string name="about_repo_url" translatable="false">https://github.com/wanwuwww/Sii-Browser</string>
-    <string name="settings_license_text">Sii 使用的開源專案：\n\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\nAndroidX DataStore Preferences（Apache-2.0）\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\nAndroidX Browser（Apache-2.0）\nAndroidX DocumentFile（Apache-2.0）\nAndroidX Biometric（Apache-2.0）\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\nZXing Core（Apache-2.0）\nOkHttp、Okio（Apache-2.0）\n\n完整清單與版權宣告見倉庫 THIRD_PARTY_LICENSES.md。新增依賴時需同步更新該清單和此頁面。\n\n專案採用非商業許可：禁止商用，需署名，衍生作品需遵守相同約束，詳見 LICENSE。</string>
+    <string name="settings_license_text">Sii 使用的開源專案：\n\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\nAndroidX DataStore Preferences（Apache-2.0）\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\nAndroidX Browser（Apache-2.0）\nAndroidX DocumentFile（Apache-2.0）\nAndroidX Biometric（Apache-2.0）\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\nZXing Core（Apache-2.0）\nOkHttp、Okio（Apache-2.0）\nGoogle ML Kit Translate / Language ID / Text Recognition（Google ML Kit Terms of Service）\n\n完整清單與版權宣告見倉庫 THIRD_PARTY_LICENSES.md。新增依賴時需同步更新該清單和此頁面。\n\n專案採用非商業許可：禁止商用，需署名，衍生作品需遵守相同約束，詳見 LICENSE。</string>
     <string name="settings_site_rules">單個網站設定</string>
     <string name="site_rules_empty">還沒有網站規則，可新增網域單獨設定</string>
     <string name="site_rule_add">新增網站規則</string>
@@ -1351,4 +1354,71 @@
     <string name="menu_devtools">開發者工具</string>
     <string name="menu_user_scripts">使用者腳本</string>
     <string name="menu_edit_buttons">編輯按鈕</string>
+
+    <string name="shortcut_screen_translate">螢幕翻譯</string>
+    <string name="screen_translate_title">螢幕翻譯</string>
+    <string name="screen_translate_running">正在辨識目前螢幕</string>
+    <string name="screen_translate_speak">朗讀</string>
+    <string name="screen_translate_loop">循環</string>
+    <string name="screen_translate_close">關閉</string>
+    <string name="screen_translate_no_text">沒有辨識到文字</string>
+    <string name="screen_translate_failed">翻譯失敗，請重試</string>
+    <string name="screen_translate_permission_overlay">需要懸浮視窗權限才能顯示譯文</string>
+    <string name="settings_screen_translate">螢幕翻譯</string>
+    <string name="settings_screen_translate_desc">辨識螢幕文字並顯示譯文</string>
+    <string name="settings_screen_translate_speak">翻譯後朗讀</string>
+    <string name="settings_screen_translate_speak_desc">語速、語音引擎等朗讀設定請在「朗讀網頁」浮條中調整</string>
+    <string name="settings_mcp_floating">MCP 懸浮視窗</string>
+    <string name="settings_mcp_floating_desc">MCP 執行時顯示狀態浮窗</string>
+
+    <string name="screen_translate_intro">螢幕翻譯需要懸浮視窗權限來顯示譯文；截圖權限由系統在每次使用時詢問。開啟後回到桌面再長按圖示選擇「螢幕翻譯」即可。</string>
+    <string name="screen_translate_open_settings">去開啟</string>
+
+    <string name="screen_translate_retry">重譯</string>
+    <string name="screen_translate_clear">清除</string>
+    <string name="screen_translate_notify_pause">暫停循環</string>
+    <string name="screen_translate_notify_resume">繼續循環</string>
+    <string name="screen_translate_copy">複製</string>
+
+    <string name="settings_screen_translate_interval">循環間隔</string>
+    <string name="settings_screen_translate_exclude_bars">排除狀態列與導覽列</string>
+    <string name="settings_screen_translate_exclude_bars_desc">辨識與畫面偵測不包含系統列區域，減少時間、電量等干擾</string>
+    <string name="settings_screen_translate_font">浮窗字號</string>
+
+    <string name="settings_screen_translate_enabled">開啟螢幕翻譯</string>
+    <string name="settings_screen_translate_enabled_desc">開啟後在螢幕上顯示懸浮球，點擊即可翻譯；關閉會同時退出螢幕翻譯</string>
+    <string name="screen_translate_create_shortcut">建立桌面捷徑</string>
+
+    <string name="screen_translate_once">單頁翻譯</string>
+    <string name="screen_translate_loop_mode">自動循環翻譯</string>
+    <string name="screen_translate_region">視窗翻譯</string>
+    <string name="screen_translate_region_clear">取消選取範圍</string>
+    <string name="screen_translate_region_hint">拖曳框選要翻譯的區域，可拖動選取框調整</string>
+    <string name="screen_translate_region_tiny">選取範圍太小</string>
+    <string name="screen_translate_region_applied">已套用選取範圍</string>
+    <string name="screen_translate_region_cleared">已取消選取範圍</string>
+    <string name="screen_translate_pick">點選譯文</string>
+    <string name="screen_translate_pick_hint">點擊譯文塊複製，長按朗讀，點空白退出</string>
+    <string name="screen_translate_pick_empty">目前沒有可點選的譯文</string>
+    <string name="screen_translate_copied">已複製</string>
+    <string name="screen_translate_tts_unavailable">目前裝置沒有可用的語音引擎</string>
+    <string name="screen_translate_close_ball">關閉懸浮球</string>
+
+    <string name="screen_translate_loop_on">自動循環翻譯已開啟</string>
+    <string name="screen_translate_loop_off">自動循環翻譯已暫停</string>
+
+    <string name="settings_screen_translate_ball_size">懸浮球大小</string>
+    <string name="settings_screen_translate_ball_alpha">懸浮球透明度</string>
+    <string name="settings_screen_translate_snap_edge">吸附螢幕邊緣</string>
+
+    <string name="screen_translate_need_model">離線語言包未下載，請在翻譯設定中下載或切換線上翻譯</string>
+    <string name="screen_translate_network">網路連線失敗，請檢查網路或切換離線翻譯</string>
+
+    <string name="screen_translate_working">正在辨識…</string>
+
+    <string name="settings_screen_translate_display">顯示方式</string>
+    <string name="settings_screen_translate_display_overlay">覆蓋原文</string>
+    <string name="settings_screen_translate_display_card">結果卡片</string>
+
+    <string name="screen_translate_ready">截圖已就緒，點懸浮球開始翻譯</string>
 </resources>

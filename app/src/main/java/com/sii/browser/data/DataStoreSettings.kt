@@ -1759,6 +1759,80 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setMcpForeground(value: Boolean) = putBool(SettingsKeys.MCP_FOREGROUND, value)
 
+    override fun mcpFloating(): Boolean =
+        bool(SettingsKeys.MCP_FLOATING, SettingsDefaults.MCP_FLOATING)
+
+    override fun setMcpFloating(value: Boolean) = putBool(SettingsKeys.MCP_FLOATING, value)
+
+    override fun screenTranslateLoop(): Boolean =
+        bool(SettingsKeys.SCREEN_TRANSLATE_LOOP, SettingsDefaults.SCREEN_TRANSLATE_LOOP)
+
+    override fun setScreenTranslateLoop(value: Boolean) =
+        putBool(SettingsKeys.SCREEN_TRANSLATE_LOOP, value)
+
+    override fun screenTranslateSpeak(): Boolean =
+        bool(SettingsKeys.SCREEN_TRANSLATE_SPEAK, SettingsDefaults.SCREEN_TRANSLATE_SPEAK)
+
+    override fun setScreenTranslateSpeak(value: Boolean) =
+        putBool(SettingsKeys.SCREEN_TRANSLATE_SPEAK, value)
+
+    override fun screenTranslateInterval(): Int =
+        int(SettingsKeys.SCREEN_TRANSLATE_INTERVAL, SettingsDefaults.SCREEN_TRANSLATE_INTERVAL)
+
+    override fun setScreenTranslateInterval(value: Int) =
+        putInt(SettingsKeys.SCREEN_TRANSLATE_INTERVAL, value)
+
+    override fun screenTranslateExcludeBars(): Boolean =
+        bool(
+            SettingsKeys.SCREEN_TRANSLATE_EXCLUDE_BARS,
+            SettingsDefaults.SCREEN_TRANSLATE_EXCLUDE_BARS
+        )
+
+    override fun setScreenTranslateExcludeBars(value: Boolean) =
+        putBool(SettingsKeys.SCREEN_TRANSLATE_EXCLUDE_BARS, value)
+
+    override fun screenTranslateFont(): Int =
+        int(SettingsKeys.SCREEN_TRANSLATE_FONT, SettingsDefaults.SCREEN_TRANSLATE_FONT)
+
+    override fun setScreenTranslateFont(value: Int) =
+        putInt(SettingsKeys.SCREEN_TRANSLATE_FONT, value)
+
+    override fun readAloudRate(): Int =
+        int(SettingsKeys.READ_ALOUD_RATE, SettingsDefaults.READ_ALOUD_RATE)
+
+    override fun setReadAloudRate(value: Int) =
+        putInt(SettingsKeys.READ_ALOUD_RATE, value)
+
+    override fun screenTranslateBall(): Boolean =
+        bool(SettingsKeys.SCREEN_TRANSLATE_BALL, SettingsDefaults.SCREEN_TRANSLATE_BALL)
+
+    override fun setScreenTranslateBall(value: Boolean) =
+        putBool(SettingsKeys.SCREEN_TRANSLATE_BALL, value)
+
+    override fun screenTranslateBallSize(): Int =
+        int(SettingsKeys.SCREEN_TRANSLATE_BALL_SIZE, SettingsDefaults.SCREEN_TRANSLATE_BALL_SIZE)
+
+    override fun setScreenTranslateBallSize(value: Int) =
+        putInt(SettingsKeys.SCREEN_TRANSLATE_BALL_SIZE, value)
+
+    override fun screenTranslateBallAlpha(): Int =
+        int(SettingsKeys.SCREEN_TRANSLATE_BALL_ALPHA, SettingsDefaults.SCREEN_TRANSLATE_BALL_ALPHA)
+
+    override fun setScreenTranslateBallAlpha(value: Int) =
+        putInt(SettingsKeys.SCREEN_TRANSLATE_BALL_ALPHA, value)
+
+    override fun screenTranslateSnapEdge(): Boolean =
+        bool(SettingsKeys.SCREEN_TRANSLATE_SNAP_EDGE, SettingsDefaults.SCREEN_TRANSLATE_SNAP_EDGE)
+
+    override fun setScreenTranslateSnapEdge(value: Boolean) =
+        putBool(SettingsKeys.SCREEN_TRANSLATE_SNAP_EDGE, value)
+
+    override fun screenTranslateDisplay(): Int =
+        int(SettingsKeys.SCREEN_TRANSLATE_DISPLAY, SettingsDefaults.SCREEN_TRANSLATE_DISPLAY)
+
+    override fun setScreenTranslateDisplay(value: Int) =
+        putInt(SettingsKeys.SCREEN_TRANSLATE_DISPLAY, value)
+
     override fun mcpAllowPageRead(): Boolean =
         bool(SettingsKeys.MCP_ALLOW_PAGE_READ, SettingsDefaults.MCP_ALLOW_PAGE_READ)
 

@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import com.sii.browser.R
 import com.sii.browser.core.mcp.McpServer
 import com.sii.browser.di.AppServices
+import com.sii.browser.ui.overlay.OverlayManager
 import kotlin.random.Random
 
 /** MCP 服务启停与配置。 */
@@ -38,6 +39,7 @@ object McpRuntime {
         if (!AppServices.settings.mcpEnabled()) {
             context.stopService(Intent(context, McpService::class.java))
             AppServices.mcpServer.stop()
+            OverlayManager.dismissMcp()
             return
         }
         val config = config() ?: return
@@ -119,6 +121,7 @@ class McpService : Service() {
         if (intent?.action == ACTION_STOP) {
             AppServices.settings.setMcpEnabled(false)
             AppServices.mcpServer.stop()
+            OverlayManager.dismissMcp()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -134,6 +137,7 @@ class McpService : Service() {
         val alreadyRunning = AppServices.mcpServer.isRunning &&
             AppServices.mcpServer.currentConfig() == config
         val started = alreadyRunning || AppServices.mcpServer.start(config)
+        if (started) refreshFloating(this)
         if (!alreadyRunning) {
             val manager = getSystemService(NotificationManager::class.java)
             manager?.notify(NOTIFICATION_ID, notification(config, running = started))
@@ -143,6 +147,7 @@ class McpService : Service() {
 
     override fun onDestroy() {
         AppServices.mcpServer.stop()
+        OverlayManager.dismissMcp()
         super.onDestroy()
     }
 
@@ -196,5 +201,33 @@ class McpService : Service() {
         const val ACTION_STOP = "com.sii.browser.mcp.STOP"
         private const val CHANNEL_ID = "mcp"
         private const val NOTIFICATION_ID = 1002
+
+        /** MCP 开关或悬浮窗开关变化后刷新状态浮窗；无权或无开关时移除。 */
+        fun refreshFloating(context: Context) {
+            val settings = AppServices.settings
+            if (!settings.mcpEnabled() || !settings.mcpFloating() ||
+                !OverlayManager.canDraw(context)
+            ) {
+                OverlayManager.dismissMcp()
+                return
+            }
+            val port = settings.mcpPort()
+            OverlayManager.showMcpStatus(
+                context,
+                context.getString(R.string.mcp_notification_title) + " · " + port,
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(context, ShellActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                },
+                onClose = {
+                    AppServices.settings.setMcpFloating(false)
+                    OverlayManager.dismissMcp()
+                }
+            )
+        }
     }
 }

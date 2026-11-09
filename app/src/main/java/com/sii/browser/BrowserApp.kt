@@ -8,11 +8,19 @@ import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
 import com.sii.browser.di.AppServices
+import com.sii.browser.ui.Shortcuts
 
 class BrowserApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppServices.init(this)
+        Shortcuts.register(this)
+        // 悬浮球设置仍开启时，进程重启后恢复球（之前只在点开关那一刻启动）。
+        if (AppServices.settings.screenTranslateBall() &&
+            com.sii.browser.ui.overlay.OverlayManager.canDraw(this)
+        ) {
+            com.sii.browser.ui.translate.ScreenTranslateBallService.start(this)
+        }
         com.sii.browser.core.privacy.CrashLog.init(this)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->

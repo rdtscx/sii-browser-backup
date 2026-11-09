@@ -107,6 +107,20 @@ class ShellActivity : AppCompatActivity() {
         settings = AppServices.settings
         applyTheme()
         super.onCreate(savedInstanceState)
+        // 快捷方式被系统路由到主页时，直接转交授权页并关掉自己，不展示浏览器。
+        if (savedInstanceState == null && intent?.getStringExtra("sii_action") == "screen_translate") {
+            val mode = intent.getStringExtra("screen_translate_mode")
+            intent.removeExtra("sii_action")
+            intent.removeExtra("screen_translate_mode")
+            startActivity(
+                Intent(this, com.sii.browser.ui.translate.ScreenTranslateLauncherActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .apply { if (mode != null) putExtra("screen_translate_mode", mode) }
+            )
+            finishAndRemoveTask()
+            overridePendingTransition(0, 0)
+            return
+        }
         com.sii.browser.data.StartupExit.readAndMarkRunning(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode =

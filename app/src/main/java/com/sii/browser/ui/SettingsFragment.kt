@@ -101,7 +101,9 @@ class SettingsFragment : Fragment() {
         SearchEntry("夜间", "外观与主页", "night 夜间模式 暗色 夜间 CSS", diyTab = 8),
         SearchEntry("网页主题色识别", "外观与主页", "识别 网站 theme-color", diyTab = 8),
         SearchEntry("网页应用主题色", "外观与主页", "主题色 网页 scope", diyTab = 8),
-        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8)
+        SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8),
+        SearchEntry("屏幕翻译", "通用", "screen translate 悬浮窗 悬浮球 开启 屏幕 翻译 朗读 循环 系统栏"),
+        SearchEntry("MCP 悬浮窗", "高级", "mcp 浮窗 悬浮窗")
     )
 
     /** 诊断接口只在测试包出现，正式包的搜索索引里也不留。 */

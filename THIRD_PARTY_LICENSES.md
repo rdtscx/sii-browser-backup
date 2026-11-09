@@ -19,6 +19,8 @@ Sii 以 [LICENSE.md](LICENSE.md) 中的非商业公共许可发布。下列第�
 | Okio (`com.squareup.okio:okio`) | OkHttp 的 I/O 依赖 | Apache-2.0 |
 | Google ML Kit Translate (`com.google.mlkit:translate`) | 设备端离线翻译 | Google ML Kit Terms of Service |
 | Google ML Kit Language ID (`com.google.mlkit:language-id`) | 设备端语言识别 | Google ML Kit Terms of Service |
+| Google ML Kit Text Recognition (`com.google.mlkit:text-recognition`) | 设备端文字识别 OCR | Google ML Kit Terms of Service |
+| Google ML Kit Text Recognition Chinese (`com.google.mlkit:text-recognition-chinese`) | 中文 OCR 模型 | Google ML Kit Terms of Service |
 
 ## 维护规则
 

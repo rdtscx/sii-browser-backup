@@ -40,6 +40,7 @@ object DownloadDispatcher {
         if (!useSystem) {
             DownloadService.startDownload(
                 context, url, name, mime,
+                referer = referer,
                 incognito = AppServices.privacyManager.isIncognito
             )
             return true

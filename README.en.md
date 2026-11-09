@@ -29,13 +29,24 @@
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/home-day.jpg" width="270" alt="Home" />
-  <img src="docs/screenshots/tabs.jpg" width="270" alt="Tab panel" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/diy.jpg" width="270" alt="UI DIY" />
-  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP service" />
+  <table>
+    <tr>
+      <td align="center"><img src="docs/screenshots/home-day.jpg" width="270" alt="Home" /></td>
+      <td align="center"><img src="docs/screenshots/tabs.jpg" width="270" alt="Tab panel" /></td>
+    </tr>
+    <tr>
+      <td align="center">Home</td>
+      <td align="center">Tab panel</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="docs/screenshots/diy.jpg" width="270" alt="UI DIY" /></td>
+      <td align="center"><img src="docs/screenshots/mcp.jpg" width="270" alt="MCP service" /></td>
+    </tr>
+    <tr>
+      <td align="center">UI DIY</td>
+      <td align="center">MCP service</td>
+    </tr>
+  </table>
 </p>
 
 ## Download

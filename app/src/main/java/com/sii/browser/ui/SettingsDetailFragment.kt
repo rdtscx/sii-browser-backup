@@ -174,6 +174,7 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_IMPORT -> getString(R.string.settings_import_export)
         VIEW_V2_LAB -> getString(R.string.settings_lab)
         VIEW_V2_MCP -> getString(R.string.settings_mcp)
+        VIEW_V2_SCREEN_TRANSLATE -> getString(R.string.settings_screen_translate)
         VIEW_ABOUT -> getString(R.string.settings_about)
         VIEW_CRASH_LOG -> getString(R.string.settings_crash_log)
         else -> getString(R.string.settings)
@@ -236,6 +237,7 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_IMPORT -> buildV2Import()
             VIEW_V2_LAB -> buildV2Lab()
             VIEW_V2_MCP -> buildV2Mcp()
+            VIEW_V2_SCREEN_TRANSLATE -> buildV2ScreenTranslate()
             VIEW_ABOUT -> buildAbout()
             VIEW_CRASH_LOG -> buildCrashLog()
         }
@@ -357,6 +359,7 @@ class SettingsDetailFragment : Fragment() {
         card(
             navRow(getString(R.string.settings_translate)) { open(VIEW_V2_TRANSLATE) },
             navRow(getString(R.string.settings_reading)) { open(VIEW_V2_READING) },
+            navRow(getString(R.string.settings_screen_translate)) { open(VIEW_V2_SCREEN_TRANSLATE) },
             switchRow(
                 getString(R.string.settings_clipboard_guard),
                 settings.clipboardGuard(),
@@ -2440,8 +2443,114 @@ class SettingsDetailFragment : Fragment() {
         )
     }
 
-    private fun buildV2Mcp() {
-        val server = AppServices.mcpServer
+    /** 吸附方式变化后重新下发设置；服务已运行时靠 onStartCommand 重建球，不再 stop/start 竞争。 */
+    private fun restartScreenTranslateBall() {
+        if (!settings.screenTranslateBall()) return
+        com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
+    }
+
+    private fun buildV2ScreenTranslate() {
+        var pendingBallSize = settings.screenTranslateBallSize()
+        var pendingBallAlpha = settings.screenTranslateBallAlpha()
+        sectionTitle(R.string.settings_screen_translate)
+        card(
+            choiceRow(
+                getString(R.string.settings_screen_translate_display),
+                arrayOf(
+                    getString(R.string.settings_screen_translate_display_overlay),
+                    getString(R.string.settings_screen_translate_display_card)
+                ),
+                settings.screenTranslateDisplay().coerceIn(0, 1)
+            ) { index ->
+                settings.setScreenTranslateDisplay(index)
+                build()
+            },
+            switchRow(
+                getString(R.string.settings_screen_translate_speak),
+                settings.screenTranslateSpeak(),
+                getString(R.string.settings_screen_translate_speak_desc)
+            ) { value ->
+                settings.setScreenTranslateSpeak(value)
+                build()
+            },
+            switchRow(
+                getString(R.string.settings_screen_translate_enabled),
+                settings.screenTranslateBall(),
+                getString(R.string.settings_screen_translate_enabled_desc)
+            ) { value ->
+                settings.setScreenTranslateBall(value)
+                if (value) {
+                    com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
+                } else {
+                    com.sii.browser.ui.translate.ScreenTranslateBallService.stop(requireContext())
+                    com.sii.browser.ui.translate.ScreenTranslateService.stop(requireContext())
+                }
+                build()
+            },
+            sliderRow(
+                getString(R.string.settings_screen_translate_ball_size),
+                pendingBallSize,
+                40,
+                72,
+                2,
+                onFinished = { settings.setScreenTranslateBallSize(pendingBallSize) }
+            ) { value ->
+                pendingBallSize = value
+                com.sii.browser.ui.overlay.OverlayManager.updateBallStyle(
+                    requireContext(), value, pendingBallAlpha
+                )
+            },
+            sliderRow(
+                getString(R.string.settings_screen_translate_ball_alpha),
+                pendingBallAlpha,
+                30,
+                100,
+                5,
+                onFinished = { settings.setScreenTranslateBallAlpha(pendingBallAlpha) }
+            ) { value ->
+                pendingBallAlpha = value
+                com.sii.browser.ui.overlay.OverlayManager.updateBallStyle(
+                    requireContext(), pendingBallSize, value
+                )
+            },
+            switchRow(
+                getString(R.string.settings_screen_translate_snap_edge),
+                settings.screenTranslateSnapEdge()
+            ) { value ->
+                settings.setScreenTranslateSnapEdge(value)
+                restartScreenTranslateBall()
+            },
+            choiceRow(
+                getString(R.string.settings_screen_translate_interval),
+                arrayOf("1 秒", "2 秒", "3 秒"),
+                settings.screenTranslateInterval().coerceIn(1, 3) - 1
+            ) { index ->
+                settings.setScreenTranslateInterval(index + 1)
+                build()
+            },
+            switchRow(
+                getString(R.string.settings_screen_translate_exclude_bars),
+                settings.screenTranslateExcludeBars(),
+                getString(R.string.settings_screen_translate_exclude_bars_desc)
+            ) { value ->
+                settings.setScreenTranslateExcludeBars(value)
+                build()
+            },
+            sliderRow(
+                getString(R.string.settings_screen_translate_font),
+                settings.screenTranslateFont(),
+                14,
+                22,
+                1
+            ) { value -> settings.setScreenTranslateFont(value) },
+            navRow(getString(R.string.screen_translate_create_shortcut)) {
+                Shortcuts.pinScreenTranslate(requireContext())
+            }
+        )
+        aboutText(R.string.settings_screen_translate_desc)
+    }
+
+    private fun buildV2Mcp() {        val server = AppServices.mcpServer
         val enabled = settings.mcpEnabled()
         val running = server.isRunning
         val status = when {
@@ -2488,6 +2597,15 @@ class SettingsDetailFragment : Fragment() {
                 settings.setMcpEnabled(value)
                 if (value) McpRuntime.ensureToken()
                 McpRuntime.sync(requireContext())
+                build()
+            },
+            switchRow(
+                getString(R.string.settings_mcp_floating),
+                settings.mcpFloating(),
+                getString(R.string.settings_mcp_floating_desc)
+            ) { value ->
+                settings.setMcpFloating(value)
+                McpService.refreshFloating(requireContext())
                 build()
             },
             switchRow(
@@ -3258,6 +3376,7 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_IMPORT = "v2Import"
         const val VIEW_V2_LAB = "v2Lab"
         const val VIEW_V2_MCP = "v2Mcp"
+        const val VIEW_V2_SCREEN_TRANSLATE = "v2ScreenTranslate"
         const val VIEW_ABOUT = "about"
         const val VIEW_CRASH_LOG = "crashLog"
 
@@ -3544,13 +3663,87 @@ class SettingsDetailFragment : Fragment() {
                     if ("siteConfigs" in selected) AppServices.siteConfigRepository.clearAll()
                     if ("adblock" in selected) AppServices.adBlock.clearCustomRules()
                 }
-                if ("bookmarks" in selected) root.optJSONArray("bookmarks")?.let { arr ->
-                    for (i in 0 until arr.length()) {
-                        val item = arr.optJSONObject(i) ?: continue
-                        val url = item.optString("url")
-                        if (url.isBlank()) continue
-                        if (AppServices.bookmarkRepository.findItemByUrl(url) == null) {
-                            AppServices.bookmarkRepository.addItem(url, item.optString("title"), null)
+                if ("bookmarks" in selected) {
+                    val folderIds = AppServices.bookmarkRepository.allFoldersOnce()
+                        .map { it.id }.toMutableSet()
+                    val pendingFolders = mutableListOf<Triple<String, String, String?>>()
+                    root.optJSONArray("folders")?.let { arr ->
+                        for (i in 0 until arr.length()) {
+                            val f = arr.optJSONObject(i) ?: continue
+                            val id = f.optString("id")
+                            val title = f.optString("title")
+                            if (id.isBlank() || title.isBlank() || folderIds.contains(id)) continue
+                            pendingFolders.add(
+                                Triple(
+                                    id,
+                                    title,
+                                    f.optString("parentId").takeIf { it.isNotBlank() }
+                                )
+                            )
+                        }
+                    }
+                    var remaining = pendingFolders
+                    while (remaining.isNotEmpty()) {
+                        val next = mutableListOf<Triple<String, String, String?>>()
+                        var progressed = false
+                        remaining.forEach { (id, title, parent) ->
+                            if (folderIds.contains(id)) return@forEach
+                            if (parent == null || folderIds.contains(parent)) {
+                                val now = System.currentTimeMillis()
+                                runCatching {
+                                    AppServices.bookmarkRepository.insertFolderRaw(
+                                        com.sii.browser.data.db.BookmarkFolder(
+                                            id = id,
+                                            title = title,
+                                            parentFolderId = parent,
+                                            ordering = 0,
+                                            createdAt = now,
+                                            updatedAt = now
+                                        )
+                                    )
+                                }
+                                folderIds.add(id)
+                                progressed = true
+                            } else {
+                                next.add(Triple(id, title, parent))
+                            }
+                        }
+                        if (!progressed) {
+                            // 父文件夹不在备份里，直接当根目录建
+                            next.forEach { (id, title, _) ->
+                                val now = System.currentTimeMillis()
+                                runCatching {
+                                    AppServices.bookmarkRepository.insertFolderRaw(
+                                        com.sii.browser.data.db.BookmarkFolder(
+                                            id = id,
+                                            title = title,
+                                            parentFolderId = null,
+                                            ordering = 0,
+                                            createdAt = now,
+                                            updatedAt = now
+                                        )
+                                    )
+                                }
+                                folderIds.add(id)
+                            }
+                            next.clear()
+                        }
+                        remaining = next
+                    }
+                    root.optJSONArray("bookmarks")?.let { arr ->
+                        for (i in 0 until arr.length()) {
+                            val item = arr.optJSONObject(i) ?: continue
+                            val url = item.optString("url")
+                            if (url.isBlank()) continue
+                            val folderId = item.optString("folderId")
+                                .takeIf { it.isNotBlank() && folderIds.contains(it) }
+                            if (AppServices.bookmarkRepository.findItemByUrl(url) == null) {
+                                AppServices.bookmarkRepository.addItem(
+                                    url,
+                                    item.optString("title"),
+                                    folderId
+                                )
+                            }
                         }
                     }
                 }
@@ -3854,10 +4047,25 @@ class SettingsDetailFragment : Fragment() {
                 put("exportedAt", System.currentTimeMillis())
             }
             if ("bookmarks" in selected) {
+                val folders = AppServices.bookmarkRepository.allFoldersOnce()
+                root.put("folders", org.json.JSONArray().apply {
+                    folders.forEach { f ->
+                        put(org.json.JSONObject().apply {
+                            put("id", f.id)
+                            put("title", f.title)
+                            put("parentId", f.parentFolderId ?: "")
+                            put("ordering", f.ordering)
+                        })
+                    }
+                })
                 val bookmarks = AppServices.bookmarkRepository.allItemsOnce()
                 root.put("bookmarks", org.json.JSONArray().apply {
                     bookmarks.forEach { b ->
-                        put(org.json.JSONObject().apply { put("url", b.url); put("title", b.title) })
+                        put(org.json.JSONObject().apply {
+                            put("url", b.url)
+                            put("title", b.title)
+                            put("folderId", b.folderId ?: "")
+                        })
                     }
                 })
             }

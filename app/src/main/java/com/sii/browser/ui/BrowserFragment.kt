@@ -153,6 +153,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var tts: android.speech.tts.TextToSpeech? = null
     private var speaking = false
     private var ttsRate = 1.0f
+    private var readChunks: List<String> = emptyList()
+    private var readIndex = 0
 
     private data class PendingRender(
         val format: String,
@@ -181,6 +183,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private val themeColors = java.util.WeakHashMap<SiiWebView, Int?>()
     private var menuThemeColor: Int? = null
     private var longPressThemeColor: Int? = null
+
+    /** 屏幕翻译：系统截屏授权结果交给前台服务。 */
+    private val screenCaptureLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val ctx = context ?: return@registerForActivityResult
+        val data = result.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && data != null) {
+            com.sii.browser.ui.translate.ScreenTranslateService.start(
+                ctx, result.resultCode, data, pendingScreenTranslateLoop
+            )
+            pendingScreenTranslateLoop = null
+        }
+    }
+    private var pendingScreenTranslate = false
+    private var pendingScreenTranslateLoop: Boolean? = null
 
     /** 相机扫码结果。 */
     private val scanLauncher = registerForActivityResult(
@@ -893,7 +911,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
 
-    private fun showDownloadConfirmDialog(url: String, suggestedName: String) {
+    private fun showDownloadConfirmDialog(url: String, suggestedName: String, referer: String?) {
         val context = requireContext()
         val input = android.widget.EditText(context).apply {
             setText(suggestedName)
@@ -947,7 +965,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .setNegativeButton(android.R.string.cancel, null)
             .show()
         viewLifecycleOwner.lifecycleScope.launch {
-            val size = runCatching { AppServices.downloadEngine.probeSize(url) }
+            val size = runCatching { AppServices.downloadEngine.probeSize(url, referer) }
                 .getOrDefault(0L)
             sizeText.text = if (size > 0) {
                 getString(R.string.download_size_only, formatSize(size))
@@ -1478,10 +1496,75 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 return@extractPageText
             }
             ensureTts { engine ->
+                // 按句子分段播，改语速后下一段（或松手重播当前段）就生效。
+                readChunks = splitForReadAloud(content)
+                readIndex = 0
                 speaking = true
                 showTtsBar(true)
-                engine.speak(content, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "sii_read_aloud")
+                attachUtteranceListener(engine)
+                speakChunk(engine)
             }
+        }
+    }
+
+    /** 按句号/问号/换行切成短段，每段一次 speak，便于中途变速与停止。 */
+    private fun splitForReadAloud(text: String): List<String> {
+        val chunks = mutableListOf<String>()
+        val buffer = StringBuilder()
+        fun flush() {
+            if (buffer.isNotEmpty()) {
+                chunks.add(buffer.toString())
+                buffer.setLength(0)
+            }
+        }
+        for (line in text.split('\n')) {
+            for (piece in line.split(Regex("(?<=[。！？!?；;.])"))) {
+                val part = piece.trim()
+                if (part.isEmpty()) continue
+                if (buffer.length + part.length > 120) flush()
+                buffer.append(part)
+            }
+            flush()
+        }
+        flush()
+        return chunks.ifEmpty { listOf(text.take(120)) }
+    }
+
+    private fun attachUtteranceListener(engine: android.speech.tts.TextToSpeech) {
+        engine.setOnUtteranceProgressListener(
+            object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) = Unit
+
+                override fun onDone(utteranceId: String?) {
+                    view?.post {
+                        if (!speaking) return@post
+                        readIndex++
+                        speakChunk(engine)
+                    }
+                }
+
+                override fun onError(utteranceId: String?) {
+                    view?.post { if (speaking) stopReadAloud() }
+                }
+            }
+        )
+    }
+
+    private fun speakChunk(engine: android.speech.tts.TextToSpeech) {
+        val chunk = readChunks.getOrNull(readIndex)
+        if (chunk == null) {
+            speaking = false
+            showTtsBar(false)
+            return
+        }
+        engine.setSpeechRate(ttsRate)
+        val result = runCatching {
+            engine.speak(chunk, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "sii_read_aloud_$readIndex")
+        }.getOrDefault(android.speech.tts.TextToSpeech.ERROR)
+        if (result == android.speech.tts.TextToSpeech.ERROR) {
+            speaking = false
+            showTtsBar(false)
+            Toast.makeText(requireContext(), R.string.read_aloud_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1555,17 +1638,88 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
-    /** 朗读浮条：语速循环 + 停止。 */
+    /** 朗读浮条：语速调节、系统朗读设置、停止。 */
     private fun setupTtsBar(view: View) {
         ttsBar = view.findViewById(R.id.tts_bar)
-        view.findViewById<View>(R.id.tts_rate).setOnClickListener {
-            val rates = floatArrayOf(1.0f, 1.25f, 1.5f, 0.75f)
-            val index = (rates.indexOfFirst { it == ttsRate }.takeIf { it >= 0 } ?: 0)
-            ttsRate = rates[(index + 1) % rates.size]
-            tts?.setSpeechRate(ttsRate)
-            Toast.makeText(requireContext(), "${ttsRate}x", Toast.LENGTH_SHORT).show()
-        }
+        ttsRate = (AppServices.settings.readAloudRate().coerceIn(50, 300)) / 100f
+        updateTtsRateLabel()
+        view.findViewById<View>(R.id.tts_rate).setOnClickListener { showTtsRateDialog() }
+        view.findViewById<View>(R.id.tts_settings).setOnClickListener { openTtsSettings() }
         view.findViewById<View>(R.id.tts_stop).setOnClickListener { stopReadAloud() }
+    }
+
+    private fun updateTtsRateLabel() {
+        view?.findViewById<TextView>(R.id.tts_rate)?.text =
+            getString(R.string.tts_rate_value, String.format(java.util.Locale.US, "%.1fx", ttsRate))
+    }
+
+    /** 语速面板：0.5x–3.0x，拖动立即生效，松手写入设置并重读当前段。 */
+    private fun showTtsRateDialog() {
+        val ctx = context ?: return
+        val density = resources.displayMetrics.density
+        val dp = { value: Int -> (value * density).toInt() }
+        val label = TextView(ctx).apply {
+            text = String.format(java.util.Locale.US, "%.1fx", ttsRate)
+            textSize = 14f
+            setPadding(dp(20), dp(4), dp(20), 0)
+        }
+        val seek = android.widget.SeekBar(ctx).apply {
+            max = 25
+            progress = ((ttsRate * 10).toInt() - 5).coerceIn(0, 25)
+            setPadding(dp(20), dp(4), dp(20), dp(4))
+        }
+        val box = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(label)
+            addView(seek)
+        }
+        android.app.AlertDialog.Builder(ctx)
+            .setTitle(R.string.tts_rate)
+            .setView(box)
+            .setPositiveButton(android.R.string.ok) { _, _ -> persistTtsRate() }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> persistTtsRate() }
+            .show()
+        seek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(
+                sb: android.widget.SeekBar?,
+                progress: Int,
+                fromUser: Boolean
+            ) {
+                if (!fromUser) return
+                ttsRate = (5 + progress) / 10f
+                label.text = String.format(java.util.Locale.US, "%.1fx", ttsRate)
+                tts?.setSpeechRate(ttsRate)
+                updateTtsRateLabel()
+            }
+
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {
+                persistTtsRate()
+                // 正在朗读时用新语速重读当前段，不用手动停止再开。
+                if (speaking) tts?.let { speakChunk(it) }
+            }
+        })
+    }
+
+    private fun persistTtsRate() {
+        AppServices.settings.setReadAloudRate((ttsRate * 100).toInt().coerceIn(50, 300))
+        updateTtsRateLabel()
+    }
+
+    /** 跳系统文字转语音设置：不同 ROM 提供的入口不同，逐个尝试。 */
+    private fun openTtsSettings() {
+        val ctx = context ?: return
+        val candidates = listOf(
+            Intent("com.android.settings.TTS_SETTINGS"),
+            Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            Intent(android.provider.Settings.ACTION_SETTINGS)
+        )
+        for (intent in candidates) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { ctx.startActivity(intent) }.isSuccess) return
+        }
+        Toast.makeText(ctx, R.string.tts_settings_unavailable, Toast.LENGTH_SHORT).show()
     }
 
     private fun showTtsBar(show: Boolean) {
@@ -1573,8 +1727,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun stopReadAloud() {
-        tts?.stop()
         speaking = false
+        tts?.stop()
+        readChunks = emptyList()
+        readIndex = 0
         showTtsBar(false)
         Toast.makeText(requireContext(), R.string.read_aloud_stopped, Toast.LENGTH_SHORT).show()
     }
@@ -2111,6 +2267,53 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val error = runCatching { manager.print(title, adapter, attrs) }.exceptionOrNull()
         if (error == null) return
         Toast.makeText(requireContext(), R.string.page_save_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    /** 屏幕翻译：等页面恢复后再请求授权，避免冷启动时 ActivityResult 尚未就绪。 */
+    private fun startScreenTranslate() {
+        if (!isResumed) {
+            pendingScreenTranslate = true
+            return
+        }
+        requestScreenTranslate()
+    }
+
+    private fun requestScreenTranslate() {
+        val ctx = context ?: return
+        if (!com.sii.browser.ui.overlay.OverlayManager.canDraw(ctx)) {
+            android.app.AlertDialog.Builder(ctx)
+                .setTitle(R.string.settings_screen_translate)
+                .setMessage(R.string.screen_translate_intro)
+                .setPositiveButton(R.string.screen_translate_open_settings) { _, _ ->
+                    runCatching {
+                        startActivity(
+                            Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:${ctx.packageName}")
+                            )
+                        )
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        val manager = ctx.getSystemService(
+            android.media.projection.MediaProjectionManager::class.java
+        ) ?: return
+        runCatching {
+            // Android 14+ 固定为整个屏幕，避免系统弹「单个应用/整个屏幕」导致尺寸变化与兼容问题。
+            val intent = if (android.os.Build.VERSION.SDK_INT >= 34) {
+                manager.createScreenCaptureIntent(
+                    android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay()
+                )
+            } else {
+                manager.createScreenCaptureIntent()
+            }
+            screenCaptureLauncher.launch(intent)
+        }.onFailure {
+            Toast.makeText(ctx, R.string.screen_translate_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     /** 进入「标记广告」选取模式：点击页面元素即生成隐藏规则。 */
@@ -7790,7 +7993,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
                 // 先向服务器要一次真实头信息（Content-Disposition / 大小），拿到再弹框，避免哈希名。
                 viewLifecycleOwner.lifecycleScope.launch {
-                    val probe = runCatching { AppServices.downloadEngine.probe(url) }.getOrNull()
+                    val probe = runCatching {
+                        AppServices.downloadEngine.probe(url, tabManager.current?.url)
+                    }.getOrNull()
                     if (!isAdded || view == null) return@launch
                     val name = com.sii.browser.download.DownloadNaming.resolve(
                         url,
@@ -7798,7 +8003,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                         probe?.mime ?: mimeType
                     )
                     if (appSettings.downloadConfirm()) {
-                        showDownloadConfirmDialog(url, name)
+                        showDownloadConfirmDialog(url, name, tabManager.current?.url)
                     } else {
                         startDownload(url, name)
                         notifyDownloadBarReset()
@@ -9761,6 +9966,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onResume() {
         super.onResume()
+        if (pendingScreenTranslate) {
+            pendingScreenTranslate = false
+            view?.post { requestScreenTranslate() }
+        }
         // 回到浏览器即结束密码库本次解锁，下次打开重新验证。
         AppServices.passwordUnlockedAt = 0L
         (activity as? ShellActivity)?.refreshDialogTheme()
@@ -11662,6 +11871,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "text_translate" -> {
                 intent.removeExtra("sii_action")
                 openTextTranslate()
+                return true
+            }
+            "screen_translate" -> {
+                intent.removeExtra("sii_action")
+                pendingScreenTranslateLoop = when (intent.getStringExtra("screen_translate_mode")) {
+                    "loop" -> true
+                    "once" -> false
+                    else -> null
+                }
+                intent.removeExtra("screen_translate_mode")
+                startScreenTranslate()
                 return true
             }
         }

@@ -81,6 +81,9 @@
     <string name="settings_toolbar_autohide">スクロール時にツールバーを自動で隠す</string>
     <string name="tts_speaking">読み上げ中…</string>
     <string name="tts_rate">読み上げ速度</string>
+    <string name="tts_rate_value">速度 %1$s</string>
+    <string name="tts_settings">設定</string>
+    <string name="tts_settings_unavailable">システムの音声設定を開けません</string>
     <string name="tts_stop">停止</string>
     <string name="settings_safe_browsing">セーフブラウジング</string>
     <string name="settings_webrtc_protect">WebRTC の漏えい防止</string>
@@ -689,7 +692,7 @@
     <string name="settings_about_repo">プロジェクトリポジトリ</string>
     <string name="settings_about_repo_copied">リポジトリの URL をコピーしました</string>
     <string name="about_repo_url" translatable="false">https://github.com/wanwuwww/Sii-Browser</string>
-    <string name="settings_license_text">Sii が使用しているオープンソースプロジェクト：\\n\\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\\nAndroidX DataStore Preferences（Apache-2.0）\\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\\nAndroidX Browser（Apache-2.0）\\nAndroidX DocumentFile（Apache-2.0）\\nAndroidX Biometric（Apache-2.0）\\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\\nZXing Core（Apache-2.0）\\nOkHttp、Okio（Apache-2.0）\\n\\n完全な一覧と著作権表示はリポジトリの THIRD_PARTY_LICENSES.md を参照してください。依存関係を追加したら、この一覧とこのページも更新してください。\\n\\n本プロジェクトは非商用ライセンスです：商用利用禁止、表示義務あり、派生作品も同じ条件に従う必要があります。詳細は LICENSE を参照してください。</string>
+    <string name="settings_license_text">Sii が使用しているオープンソースプロジェクト：\\n\\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\\nAndroidX DataStore Preferences（Apache-2.0）\\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\\nAndroidX Browser（Apache-2.0）\\nAndroidX DocumentFile（Apache-2.0）\\nAndroidX Biometric（Apache-2.0）\\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\\nZXing Core（Apache-2.0）\\nOkHttp、Okio（Apache-2.0）\nGoogle ML Kit Translate / Language ID / Text Recognition（Google ML Kit Terms of Service）\\n\\n完全な一覧と著作権表示はリポジトリの THIRD_PARTY_LICENSES.md を参照してください。依存関係を追加したら、この一覧とこのページも更新してください。\\n\\n本プロジェクトは非商用ライセンスです：商用利用禁止、表示義務あり、派生作品も同じ条件に従う必要があります。詳細は LICENSE を参照してください。</string>
     <string name="settings_site_rules">サイトごとの設定</string>
     <string name="site_rules_empty">サイトルールはまだありません。ドメインを追加して個別に設定できます</string>
     <string name="site_rule_add">サイトルールを追加</string>
@@ -1349,4 +1352,71 @@
     <string name="menu_devtools">開発者ツール</string>
     <string name="menu_user_scripts">ユーザースクリプト</string>
     <string name="menu_edit_buttons">ボタンを編集</string>
+
+    <string name="shortcut_screen_translate">画面翻訳</string>
+    <string name="screen_translate_title">画面翻訳</string>
+    <string name="screen_translate_running">画面を認識しています</string>
+    <string name="screen_translate_speak">読み上げ</string>
+    <string name="screen_translate_loop">ループ</string>
+    <string name="screen_translate_close">閉じる</string>
+    <string name="screen_translate_no_text">文字が見つかりません</string>
+    <string name="screen_translate_failed">翻訳に失敗しました。再試行してください</string>
+    <string name="screen_translate_permission_overlay">翻訳を表示するにはオーバーレイ権限が必要です</string>
+    <string name="settings_screen_translate">画面翻訳</string>
+    <string name="settings_screen_translate_desc">画面の文字を認識して翻訳を表示します</string>
+    <string name="settings_screen_translate_speak">翻訳後に読み上げ</string>
+    <string name="settings_screen_translate_speak_desc">速度や音声エンジンは「ページを読み上げ」のバーで調整します</string>
+    <string name="settings_mcp_floating">MCP オーバーレイ</string>
+    <string name="settings_mcp_floating_desc">MCP 実行中に状態を浮かべて表示します</string>
+
+    <string name="screen_translate_intro">画面翻訳には翻訳を表示するためのオーバーレイ権限が必要です。画面キャプチャの権限は使用のたびにシステムが確認します。許可後、ホーム画面でアイコンを長押しして「画面翻訳」を選んでください。</string>
+    <string name="screen_translate_open_settings">設定を開く</string>
+
+    <string name="screen_translate_retry">再翻訳</string>
+    <string name="screen_translate_clear">クリア</string>
+    <string name="screen_translate_notify_pause">ループを一時停止</string>
+    <string name="screen_translate_notify_resume">ループを再開</string>
+    <string name="screen_translate_copy">コピー</string>
+
+    <string name="settings_screen_translate_interval">ループ間隔</string>
+    <string name="settings_screen_translate_exclude_bars">ステータスバーとナビゲーションバーを除外</string>
+    <string name="settings_screen_translate_exclude_bars_desc">認識と画面検出からシステムバーを除外し、時刻や電池表示の誤反応を減らします</string>
+    <string name="settings_screen_translate_font">オーバーレイ文字サイズ</string>
+
+    <string name="settings_screen_translate_enabled">画面翻訳を有効にする</string>
+    <string name="settings_screen_translate_enabled_desc">有効にすると画面上にボールを表示し、タップで翻訳します。オフにすると画面翻訳も終了します</string>
+    <string name="screen_translate_create_shortcut">ホーム画面のショートカットを作成</string>
+
+    <string name="screen_translate_once">1回だけ翻訳</string>
+    <string name="screen_translate_loop_mode">自動ループ翻訳</string>
+    <string name="screen_translate_region">範囲翻訳</string>
+    <string name="screen_translate_region_clear">範囲を解除</string>
+    <string name="screen_translate_region_hint">翻訳する範囲をドラッグで選択、枠はドラッグで調整</string>
+    <string name="screen_translate_region_tiny">範囲が小さすぎます</string>
+    <string name="screen_translate_region_applied">範囲を適用しました</string>
+    <string name="screen_translate_region_cleared">範囲を解除しました</string>
+    <string name="screen_translate_pick">翻訳を選択</string>
+    <string name="screen_translate_pick_hint">タップでコピー、長押しで読み上げ、空白をタップで終了</string>
+    <string name="screen_translate_pick_empty">選択できる翻訳がありません</string>
+    <string name="screen_translate_copied">コピーしました</string>
+    <string name="screen_translate_tts_unavailable">利用可能な音声エンジンがありません</string>
+    <string name="screen_translate_close_ball">フローティングボールを閉じる</string>
+
+    <string name="screen_translate_loop_on">自動ループ翻訳を開始しました</string>
+    <string name="screen_translate_loop_off">自動ループ翻訳を一時停止しました</string>
+
+    <string name="settings_screen_translate_ball_size">ボールのサイズ</string>
+    <string name="settings_screen_translate_ball_alpha">ボールの透明度</string>
+    <string name="settings_screen_translate_snap_edge">画面端に吸着</string>
+
+    <string name="screen_translate_need_model">オフライン言語パックが未ダウンロードです。翻訳設定でダウンロードするかオンライン翻訳に切り替えてください</string>
+    <string name="screen_translate_network">ネットワーク接続に失敗しました。接続を確認するかオフライン翻訳に切り替えてください</string>
+
+    <string name="screen_translate_working">認識中…</string>
+
+    <string name="settings_screen_translate_display">表示方法</string>
+    <string name="settings_screen_translate_display_overlay">原文に重ねて表示</string>
+    <string name="settings_screen_translate_display_card">結果カード</string>
+
+    <string name="screen_translate_ready">画面キャプチャの準備ができました。ボールをタップして翻訳してください</string>
 </resources>

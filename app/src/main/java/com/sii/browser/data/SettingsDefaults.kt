@@ -270,9 +270,21 @@ object SettingsDefaults {
 
     /** MCP 服务默认关闭；只监听本机回环。 */
     const val MCP_ENABLED = false
+    const val MCP_FLOATING = false
     const val MCP_PORT = 8765
     const val MCP_ALLOW_LAN = false
     const val MCP_FOREGROUND = true
+    const val SCREEN_TRANSLATE_LOOP = false
+    const val SCREEN_TRANSLATE_SPEAK = false
+    const val SCREEN_TRANSLATE_INTERVAL = 2
+    const val SCREEN_TRANSLATE_FONT = 16
+    const val READ_ALOUD_RATE = 100
+    const val SCREEN_TRANSLATE_BALL = false
+    const val SCREEN_TRANSLATE_BALL_SIZE = 52
+    const val SCREEN_TRANSLATE_BALL_ALPHA = 100
+    const val SCREEN_TRANSLATE_SNAP_EDGE = true
+    const val SCREEN_TRANSLATE_DISPLAY = 0
+    const val SCREEN_TRANSLATE_EXCLUDE_BARS = false
 
     /** 读取类默认可用；写操作与脚本默认关闭。 */
     const val MCP_ALLOW_PAGE_READ = true

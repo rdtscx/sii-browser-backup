@@ -39,11 +39,16 @@ object Translator {
     ): Result =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val mode = modeOverride ?: AppServices.settings.translateMode()
-            val result = when (mode) {
-                0 -> Result(null, "translation_disabled")
-                2 -> OfflineTranslator.translate(context, text, to, from)
-                else -> runCatching {
-                    val provider = providerOverride ?: AppServices.settings.translateProvider()
+            if (mode == 0) return@withContext Result(null, "translation_disabled")
+            val provider = providerOverride ?: AppServices.settings.translateProvider()
+            val cacheKey = "$mode|$provider|" +
+                "${AppServices.settings.translateEndpoint()}|" +
+                "${from ?: "auto"}|$to|$text"
+            cacheGet(cacheKey)?.let { return@withContext it }
+            val result = if (mode == 2) {
+                OfflineTranslator.translate(context, text, to, from)
+            } else {
+                runCatching {
                     when (provider) {
                         1 -> libreTranslate(text, to)
                         2 -> google(text, to)
@@ -53,8 +58,22 @@ object Translator {
                     }
                 }.getOrElse { Result(null, it.message ?: "error") }
             }
+            if (result.text != null) cachePut(cacheKey, result)
             result
         }
+
+    /** 同文本同引擎的结果缓存（内存 LRU，不落盘）。 */
+    private val cache = object : java.util.LinkedHashMap<String, Result>(64, 0.75f, true) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<String, Result>?
+        ): Boolean = size > 300
+    }
+
+    private fun cacheGet(key: String): Result? = synchronized(cache) { cache[key] }
+
+    private fun cachePut(key: String, result: Result) {
+        synchronized(cache) { cache[key] = result }
+    }
 
     private fun myMemory(text: String, to: String, from: String?): Result {
         val source = from?.takeIf { it.isNotBlank() && it != "auto" }

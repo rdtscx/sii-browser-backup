@@ -29,13 +29,24 @@
 ## 截图
 
 <p align="center">
-  <img src="docs/screenshots/home-day.jpg" width="270" alt="主页" />
-  <img src="docs/screenshots/tabs.jpg" width="270" alt="标签面板" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/diy.jpg" width="270" alt="界面 DIY" />
-  <img src="docs/screenshots/mcp.jpg" width="270" alt="MCP 服务" />
+  <table>
+    <tr>
+      <td align="center"><img src="docs/screenshots/home-day.jpg" width="270" alt="主页" /></td>
+      <td align="center"><img src="docs/screenshots/tabs.jpg" width="270" alt="标签面板" /></td>
+    </tr>
+    <tr>
+      <td align="center">主页</td>
+      <td align="center">标签面板</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="docs/screenshots/diy.jpg" width="270" alt="界面 DIY" /></td>
+      <td align="center"><img src="docs/screenshots/mcp.jpg" width="270" alt="MCP 服务" /></td>
+    </tr>
+    <tr>
+      <td align="center">界面 DIY</td>
+      <td align="center">MCP 服务</td>
+    </tr>
+  </table>
 </p>
 
 ## 下载

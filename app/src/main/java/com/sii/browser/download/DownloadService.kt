@@ -147,6 +147,7 @@ class DownloadService : Service() {
     private fun handleDownload(intent: Intent) {
         val url = intent.getStringExtra(EXTRA_URL) ?: return
         if (blockedByNetwork()) return
+        val referer = intent.getStringExtra(EXTRA_REFERER)
         val name = intent.getStringExtra(EXTRA_NAME) ?: DownloadNaming.resolve(url, null, null)
         scope.launch {
             try {
@@ -164,7 +165,7 @@ class DownloadService : Service() {
             }
             if (existing != null) AppServices.downloadRepository.deleteTask(existing.id)
             val probe = runCatching {
-                AppServices.downloadEngine.probe(url)
+                AppServices.downloadEngine.probe(url, referer)
             }.getOrDefault(DownloadEngine.Probe(0L, false))
             // 总大小照实记录（即使服务器不支持 Range），进度才能按百分比画。
             val total = probe.total.coerceAtLeast(0L)
@@ -185,6 +186,7 @@ class DownloadService : Service() {
             activeTaskId = task.id
             activeChunks = task.chunks
             progressByTask[task.id] = longArrayOf(0L, total)
+            AppServices.downloadEngine.putReferer(task.id, referer)
             updateNotification(task.id, 0L, total)
             AppServices.downloadEngine.start(task.id)
             } catch (e: Exception) {
@@ -576,6 +578,7 @@ class DownloadService : Service() {
             url: String,
             name: String?,
             mime: String?,
+            referer: String? = null,
             incognito: Boolean = false
         ) {
             val intent = Intent(context, DownloadService::class.java).apply {
@@ -583,6 +586,7 @@ class DownloadService : Service() {
                 putExtra(EXTRA_URL, url)
                 putExtra(EXTRA_NAME, name)
                 putExtra(EXTRA_MIME, mime)
+                putExtra(EXTRA_REFERER, referer)
                 putExtra(EXTRA_INCOGNITO, incognito)
             }
             runCatching { context.startForegroundService(intent) }

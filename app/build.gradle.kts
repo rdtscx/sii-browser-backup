@@ -22,8 +22,8 @@ android {
         applicationId = "com.sii.browser"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.5.4"
+        versionCode = 16
+        versionName = "1.5.5"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -101,4 +101,6 @@ dependencies {
     implementation("androidx.webkit:webkit:1.11.0")
     implementation("com.google.mlkit:translate:17.0.3")
     implementation("com.google.mlkit:language-id:17.0.6")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 }

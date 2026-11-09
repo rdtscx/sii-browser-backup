@@ -60,6 +60,14 @@ class DownloadEngine(
     /** 正在占用下载额度的任务。 */
     private val activeTasks = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
 
+    /** 任务的来源页（仅内存）：分片/单流请求用它作 Referer，进程重启后丢失则不发。 */
+    private val taskReferers = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    fun putReferer(taskId: Long, referer: String?) {
+        if (referer.isNullOrBlank() || !referer.startsWith("http")) taskReferers.remove(taskId)
+        else taskReferers[taskId] = referer
+    }
+
     private val http2Client: OkHttpClient by lazy {
         client.newBuilder()
             .protocols(listOf(okhttp3.Protocol.HTTP_2, okhttp3.Protocol.HTTP_1_1))
@@ -168,31 +176,34 @@ class DownloadEngine(
      * 一次 `Range: bytes=0-0` 同时拿到「是否支持 Range」与总大小，
      * 不再先 HEAD 再探测，少 1–2 个往返。
      */
-    suspend fun probe(url: String): Probe = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = requestBuilder(url).header("Range", "bytes=0-0").build()
-            clientFor(url).newCall(request).execute().use { resp ->
-                resp.header("ETag")?.takeIf { it.isNotBlank() }?.let { etags[url] = it }
-                val disposition = resp.header("Content-Disposition")
-                val mime = resp.header("Content-Type")?.substringBefore(';')?.trim()
-                if (resp.code == 206) {
-                    val total = resp.header("Content-Range")
-                        ?.let { it.substringAfter('/', "").toLongOrNull() } ?: 0L
-                    Probe(total, true, disposition, mime)
-                } else {
-                    Probe(
-                        resp.header("Content-Length")?.toLongOrNull() ?: 0L,
-                        false,
-                        disposition,
-                        mime
-                    )
-                }
-            }
-        }.getOrDefault(Probe(0L, false))
+    suspend fun probe(url: String, referer: String? = null): Probe = withContext(Dispatchers.IO) {
+        // 先带来源页 Referer；防盗链/CDN 可能仍拒绝，失败后回退到不带 Referer。
+        probeOnce(url, referer) ?: probeOnce(url, null) ?: Probe(0L, false)
     }
 
+    /** 单次探测：只把 200/206 且非 HTML 的响应当作可用文件，避免把 403 错误页当大小。 */
+    private fun probeOnce(url: String, referer: String?): Probe? = runCatching {
+        val request = requestBuilder(url, referer).header("Range", "bytes=0-0").build()
+        clientFor(url).newCall(request).execute().use { resp ->
+            resp.header("ETag")?.takeIf { it.isNotBlank() }?.let { etags[url] = it }
+            val disposition = resp.header("Content-Disposition")
+            val mime = resp.header("Content-Type")?.substringBefore(';')?.trim()
+            if (resp.code == 206) {
+                val total = resp.header("Content-Range")
+                    ?.substringAfter('/', "")?.trim()?.toLongOrNull() ?: 0L
+                if (total > 0) Probe(total, true, disposition, mime) else null
+            } else if (resp.code == 200) {
+                val isHtml = mime?.contains("text/html", true) == true
+                val length = resp.header("Content-Length")?.toLongOrNull() ?: 0L
+                if (!isHtml && length > 0) Probe(length, false, disposition, mime) else null
+            } else {
+                null
+            }
+        }
+    }.getOrNull()
+
     /** 仅取总大小（下载前的确认弹窗用）。 */
-    suspend fun probeSize(url: String): Long = probe(url).total
+    suspend fun probeSize(url: String, referer: String? = null): Long = probe(url, referer).total
 
     fun start(taskId: Long) {
         desiredRunning[taskId] = true
@@ -430,13 +441,15 @@ class DownloadEngine(
         return File(dir, task.name).absolutePath
     }
 
-    private fun requestBuilder(url: String): Request.Builder {
+    private fun requestBuilder(url: String, referer: String? = null): Request.Builder {
         val builder = Request.Builder()
             .url(url)
             .header("User-Agent", BROWSER_UA)
-            .header("Referer", url)
             // 服务器若对 Range 响应做内容压缩，OkHttp 会透明解压导致字节数与 Content-Range 对不上。
             .header("Accept-Encoding", "identity")
+        // Referer 只表示来源页；不能设成目标自身，部分 CDN 会直接返回 403 错误页。
+        referer?.takeIf { it.startsWith("http") && it != url }
+            ?.let { builder.header("Referer", it) }
         runCatching {
             android.webkit.CookieManager.getInstance().getCookie(url)
                 ?.takeIf { it.isNotBlank() }
@@ -466,7 +479,7 @@ class DownloadEngine(
 
     /** 服务器不支持大小探测/Range 时，用单流下载到 EOF；完成后补总大小。 */
     private suspend fun downloadStream(taskId: Long, task: DownloadTask, sink: Sink) {
-        val call = clientFor(task.url).newCall(requestBuilder(task.url).build())
+        val call = clientFor(task.url).newCall(requestBuilder(task.url, taskReferers[taskId]).build())
         val resp = awaitResponse(call)
         resp.use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
@@ -636,7 +649,7 @@ class DownloadEngine(
         try {
             val start = chunk.start + downloaded
             val end = chunk.start + chunk.length - 1
-            val request = requestBuilder(task.url)
+            val request = requestBuilder(task.url, taskReferers[task.id])
                 .header("Range", "bytes=$start-$end")
                 .build()
             val call = clientFor(task.url).newCall(request)

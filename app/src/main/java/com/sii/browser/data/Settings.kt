@@ -1416,6 +1416,62 @@ interface McpSettings {
 
     fun setMcpForeground(value: Boolean)
 
+    /** MCP 运行时显示状态浮窗。 */
+    fun mcpFloating(): Boolean
+    fun setMcpFloating(value: Boolean)
+
+    /** 屏幕翻译常驻悬浮球。 */
+    fun screenTranslateBall(): Boolean
+
+    fun setScreenTranslateBall(value: Boolean)
+
+    fun screenTranslateBallSize(): Int
+
+    fun setScreenTranslateBallSize(value: Int)
+
+    fun screenTranslateBallAlpha(): Int
+
+    fun setScreenTranslateBallAlpha(value: Int)
+
+    fun screenTranslateSnapEdge(): Boolean
+
+    fun setScreenTranslateSnapEdge(value: Boolean)
+
+    /** 屏幕翻译显示方式：0 覆盖原文 / 1 结果卡片。 */
+    fun screenTranslateDisplay(): Int
+
+    fun setScreenTranslateDisplay(value: Int)
+
+    /** 屏幕翻译：识别后自动循环。 */
+    fun screenTranslateLoop(): Boolean
+
+    fun setScreenTranslateLoop(value: Boolean)
+
+    /** 屏幕翻译：结果自动朗读。 */
+    fun screenTranslateSpeak(): Boolean
+
+    fun setScreenTranslateSpeak(value: Boolean)
+
+    /** 屏幕翻译：循环检测间隔（秒）。 */
+    fun screenTranslateInterval(): Int
+
+    fun setScreenTranslateInterval(value: Int)
+
+    /** 屏幕翻译：识别与画面检测排除状态栏/导航栏。 */
+    fun screenTranslateExcludeBars(): Boolean
+
+    fun setScreenTranslateExcludeBars(value: Boolean)
+
+    /** 屏幕翻译：译文浮窗字号。 */
+    fun screenTranslateFont(): Int
+
+    fun setScreenTranslateFont(value: Int)
+
+    /** 朗读语速（百分比），网页朗读与屏幕翻译共用。 */
+    fun readAloudRate(): Int
+
+    fun setReadAloudRate(value: Int)
+
     /** 读取页面文本、链接、选区、书签与历史搜索。 */
     fun mcpAllowPageRead(): Boolean
 

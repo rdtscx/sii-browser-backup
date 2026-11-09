@@ -81,6 +81,9 @@
     <string name="settings_toolbar_autohide">Hide toolbar while scrolling</string>
     <string name="tts_speaking">Reading aloud…</string>
     <string name="tts_rate">Speed</string>
+    <string name="tts_rate_value">Speed %1$s</string>
+    <string name="tts_settings">Settings</string>
+    <string name="tts_settings_unavailable">Cannot open system speech settings</string>
     <string name="tts_stop">Stop</string>
     <string name="settings_safe_browsing">Safe browsing</string>
     <string name="settings_webrtc_protect">WebRTC leak protection</string>
@@ -1350,4 +1353,71 @@
     <string name="menu_devtools">Developer tools</string>
     <string name="menu_user_scripts">User scripts</string>
     <string name="menu_edit_buttons">Edit buttons</string>
+
+    <string name="shortcut_screen_translate">Screen translation</string>
+    <string name="screen_translate_title">Screen translation</string>
+    <string name="screen_translate_running">Reading the screen</string>
+    <string name="screen_translate_speak">Speak</string>
+    <string name="screen_translate_loop">Loop</string>
+    <string name="screen_translate_close">Close</string>
+    <string name="screen_translate_no_text">No text detected</string>
+    <string name="screen_translate_failed">Translation failed, try again</string>
+    <string name="screen_translate_permission_overlay">Overlay permission is required to show the translation</string>
+    <string name="settings_screen_translate">Screen translation</string>
+    <string name="settings_screen_translate_desc">Recognize screen text and show the translation</string>
+    <string name="settings_screen_translate_speak">Speak the result</string>
+    <string name="settings_screen_translate_speak_desc">Adjust speed and voice engine in the Read aloud bar</string>
+    <string name="settings_mcp_floating">MCP overlay</string>
+    <string name="settings_mcp_floating_desc">Show a status overlay while MCP is running</string>
+
+    <string name="screen_translate_intro">Screen translation needs overlay permission to show the result; the system asks for screen capture permission each time. After granting it, long-press the app icon and choose Screen translation.</string>
+    <string name="screen_translate_open_settings">Open settings</string>
+
+    <string name="screen_translate_retry">Retry</string>
+    <string name="screen_translate_clear">Clear</string>
+    <string name="screen_translate_notify_pause">Pause loop</string>
+    <string name="screen_translate_notify_resume">Resume loop</string>
+    <string name="screen_translate_copy">Copy</string>
+
+    <string name="settings_screen_translate_interval">Loop interval</string>
+    <string name="settings_screen_translate_exclude_bars">Exclude status and navigation bars</string>
+    <string name="settings_screen_translate_exclude_bars_desc">Keep system bars out of recognition and change detection to avoid clock and battery noise</string>
+    <string name="settings_screen_translate_font">Overlay text size</string>
+
+    <string name="settings_screen_translate_enabled">Enable screen translation</string>
+    <string name="settings_screen_translate_enabled_desc">Shows the floating ball; tap it to translate. Turning this off also exits screen translation</string>
+    <string name="screen_translate_create_shortcut">Create home screen shortcut</string>
+
+    <string name="screen_translate_once">Translate once</string>
+    <string name="screen_translate_loop_mode">Auto loop translation</string>
+    <string name="screen_translate_region">Translate area</string>
+    <string name="screen_translate_region_clear">Clear selection</string>
+    <string name="screen_translate_region_hint">Drag to select the area; drag the box to adjust</string>
+    <string name="screen_translate_region_tiny">Selection is too small</string>
+    <string name="screen_translate_region_applied">Selection applied</string>
+    <string name="screen_translate_region_cleared">Selection cleared</string>
+    <string name="screen_translate_pick">Pick translation</string>
+    <string name="screen_translate_pick_hint">Tap a block to copy, long-press to speak, tap blank to exit</string>
+    <string name="screen_translate_pick_empty">No translation blocks to pick</string>
+    <string name="screen_translate_copied">Copied</string>
+    <string name="screen_translate_tts_unavailable">No speech engine is available on this device</string>
+    <string name="screen_translate_close_ball">Close floating ball</string>
+
+    <string name="screen_translate_loop_on">Auto loop translation on</string>
+    <string name="screen_translate_loop_off">Auto loop translation paused</string>
+
+    <string name="settings_screen_translate_ball_size">Ball size</string>
+    <string name="settings_screen_translate_ball_alpha">Ball opacity</string>
+    <string name="settings_screen_translate_snap_edge">Snap to screen edge</string>
+
+    <string name="screen_translate_need_model">Offline language pack is missing; download it in translation settings or switch to online</string>
+    <string name="screen_translate_network">Network error; check your connection or switch to offline translation</string>
+
+    <string name="screen_translate_working">Recognizing…</string>
+
+    <string name="settings_screen_translate_display">Display mode</string>
+    <string name="settings_screen_translate_display_overlay">Overlay on source</string>
+    <string name="settings_screen_translate_display_card">Result card</string>
+
+    <string name="screen_translate_ready">Screen capture ready; tap the floating ball to translate</string>
 </resources>
