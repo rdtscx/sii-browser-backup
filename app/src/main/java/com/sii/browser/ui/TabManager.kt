@@ -11,7 +11,9 @@ class Tab(
     val id: Long,
     var url: String,
     var title: String,
-    val webView: SiiWebView
+    val webView: SiiWebView,
+    /** 从哪个标签打开；返回键在标签历史耗尽后据此关标签回到来源。 */
+    val openerId: Long? = null
 ) {
     /** 地址栏安全状态：普通、HTTP 明文、证书错误、安全浏览威胁。 */
     var security: SiteSecurity = SiteSecurity.SAFE
@@ -58,15 +60,17 @@ class TabManager(private val webViewFactory: () -> SiiWebView) {
 
     val currentWebView: SiiWebView? get() = current?.webView
 
+    fun indexOfId(id: Long): Int = _tabs.indexOfFirst { it.id == id }
+
     var currentIndex: Int = -1
         private set
 
-    fun newTab(url: String): Tab {
+    fun newTab(url: String, openerId: Long? = null): Tab {
         if (_tabs.size >= maxTabs) {
             val victim = _tabs.indexOfFirst { it !== current }
             if (victim >= 0) closeTab(victim)
         }
-        val tab = Tab(nextId++, url, "", webViewFactory())
+        val tab = Tab(nextId++, url, "", webViewFactory(), openerId)
         _tabs.add(tab)
         currentIndex = _tabs.lastIndex
         notifyChanged()

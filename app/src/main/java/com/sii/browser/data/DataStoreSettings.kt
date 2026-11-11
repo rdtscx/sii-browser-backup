@@ -1502,7 +1502,7 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setPrivacyCleanUrls(value: Boolean) = putBool(SettingsKeys.PRIVACY_CLEAN_URLS, value)
 
-    override fun privacyGpc(): Boolean = bool(SettingsKeys.PRIVACY_GPC, true)
+    override fun privacyGpc(): Boolean = bool(SettingsKeys.PRIVACY_GPC, false)
 
     override fun setPrivacyGpc(value: Boolean) = putBool(SettingsKeys.PRIVACY_GPC, value)
 
@@ -1595,7 +1595,7 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setUiScale(value: Int) = putInt(SettingsKeys.UI_SCALE, value)
 
-    override fun safeBrowsing(): Boolean = bool(SettingsKeys.SAFE_BROWSING, true)
+    override fun safeBrowsing(): Boolean = bool(SettingsKeys.SAFE_BROWSING, false)
 
     override fun setSafeBrowsing(value: Boolean) = putBool(SettingsKeys.SAFE_BROWSING, value)
 

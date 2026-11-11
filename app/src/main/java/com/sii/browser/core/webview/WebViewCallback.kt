@@ -141,6 +141,7 @@ open class WebViewCallback {
         url: String,
         isLinkHit: Boolean,
         isNewWindow: Boolean,
-        isForMainFrame: Boolean
+        isForMainFrame: Boolean,
+        request: android.webkit.WebResourceRequest? = null
     ): Int = 0
 }

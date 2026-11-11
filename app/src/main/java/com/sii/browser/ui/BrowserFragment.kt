@@ -115,6 +115,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     }
     private var permissionDialogShowing = false
+    /** 页面内“返回”点击进行中：防止连按返回键重复注入。 */
+    private var pageBackPending = false
+    /** 打开 App 悬浮条：待跳转 intent 与回退地址。 */
+    private var openAppPrompt: View? = null
+    private var openAppPending: Pair<android.content.Intent, String?>? = null
     private var homeContainer: FrameLayout? = null
     private var tabsOverlay: View? = null
     private var tabsList: LinearLayout? = null
@@ -289,6 +294,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_download)?.setOnClickListener { downloadSniffResource() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_close)?.setOnClickListener { dismissSniffPrompt() }
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_ignore)?.setOnClickListener { ignoreSiteSniff() }
+        openAppPrompt = view.findViewById(R.id.open_app_prompt)
+        openAppPrompt?.findViewById<View>(R.id.open_app_prompt_allow)?.setOnClickListener {
+            val pending = openAppPending ?: return@setOnClickListener
+            hideOpenAppPrompt()
+            startExternal(pending.first, pending.second)
+        }
         com.sii.browser.core.webview.SniffStore.onResource = { key, res ->
             view?.post { maybeShowSniffPrompt(key, res) }
         }
@@ -339,30 +350,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         refreshButton.setOnClickListener { toggleRefresh() }
         backButton?.setOnClickListener {
             blurAddressInput()
-            if (homeContainer?.visibility == View.VISIBLE) {
-                if (homeOverlayActive) {
-                    homeOverlayActive = false
-                    homeForwardAvailable = true
-                    showWeb()
-                    return@setOnClickListener
-                }
-                val webView = tabManager.currentWebView
-                if (webView != null && webView.canGoBack()) {
-                    revealToolbarOnNavigate()
-                    webView.goBack()
-                    showWeb()
-                }
-                return@setOnClickListener
-            }
-            tabManager.currentWebView?.let { webView ->
-                if (webView.canGoBack()) {
-                    revealToolbarOnNavigate()
-                    webView.goBack()
-                    updateNavigationState()
-                } else {
-                    backToHomeWithoutHistory()
-                }
-            }
+            navigateBackOneStep()
         }
         forwardButton?.setOnClickListener {
             blurAddressInput()
@@ -371,9 +359,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     homeOverlayActive = false
                     homeForwardAvailable = false
                     showWeb()
-                } else if (tabManager.currentWebView?.canGoForward() == true) {
+                } else if (canWebGoForward(tabManager.currentWebView)) {
                     // 返回键从网页回到主页后，前进回到刚才那一页。
-                    tabManager.currentWebView?.goForward()
+                    webGoForward(tabManager.currentWebView)
                     showWeb()
                 } else {
                     Toast.makeText(
@@ -391,8 +379,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 return@setOnClickListener
             }
             val webView = tabManager.currentWebView
-            if (webView?.canGoForward() == true) {
-                webView.goForward()
+            if (canWebGoForward(webView)) {
+                webGoForward(webView)
                 updateNavigationState()
             } else {
                 Toast.makeText(
@@ -565,6 +553,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 showWeb()
                 return true
             }
+            if (closeCurrentTabToOpener()) return true
             // 主页是导航栈的根：不再跟 WebView 历史互相顶，没有覆盖页就直接最小化/退出。
             return confirmExit()
         }
@@ -580,13 +569,134 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return true
         }
         val webView = tabManager.currentWebView
-        if (webView?.canGoBack() == true) {
+        if (canWebGoBack(webView)) {
             revealToolbarOnNavigate()
-            webView.goBack()
+            webGoBack(webView)
             return true
         }
+        if (webView != null) {
+            if (clickInPageBack { if (!closeCurrentTabToOpener()) backToHomeWithoutHistory() }) return true
+        }
+        if (closeCurrentTabToOpener()) return true
         // 网页没有历史（从主页直达）：先回主页，主页再按返回才退出/最小化。
         backToHomeWithoutHistory()
+        return true
+    }
+
+    /** 工具栏返回：只做历史 → 关闭派生标签 → 主页，不触发退出确认。 */
+    private fun navigateBackOneStep(): Boolean {
+        if (homeContainer?.visibility == View.VISIBLE) {
+            if (homeOverlayActive) {
+                homeOverlayActive = false
+                homeForwardAvailable = true
+                showWeb()
+                return true
+            }
+            val webView = tabManager.currentWebView
+            if (canWebGoBack(webView)) {
+                revealToolbarOnNavigate()
+                webGoBack(webView)
+                showWeb()
+                return true
+            }
+            return closeCurrentTabToOpener()
+        }
+        val webView = tabManager.currentWebView
+        if (canWebGoBack(webView)) {
+            revealToolbarOnNavigate()
+            webGoBack(webView)
+            updateNavigationState()
+            return true
+        }
+        if (webView != null) {
+            if (clickInPageBack { if (!closeCurrentTabToOpener()) backToHomeWithoutHistory() }) return true
+        }
+        if (closeCurrentTabToOpener()) return true
+        if (webView != null) {
+            backToHomeWithoutHistory()
+            return true
+        }
+        return false
+    }
+
+    /** canGoBack() 会跳过 Chromium 标记为“前进/后退 UI 跳过”的条目，这里以原生历史列表为准。 */
+    private fun canWebGoBack(webView: SiiWebView?): Boolean {
+        val wv = webView ?: return false
+        val list = runCatching { wv.copyBackForwardList() }.getOrNull() ?: return wv.canGoBack()
+        return list.currentIndex > 0
+    }
+
+    private fun canWebGoForward(webView: SiiWebView?): Boolean {
+        val wv = webView ?: return false
+        val list = runCatching { wv.copyBackForwardList() }.getOrNull() ?: return wv.canGoForward()
+        return list.currentIndex < list.size - 1
+    }
+
+    /** 优先原生后退；canGoBack() 误报时用页面 history.go 兜底（goBackOrForward 会静默失效）。 */
+    private fun webGoBack(webView: SiiWebView?): Boolean {
+        val wv = webView ?: return false
+        if (wv.canGoBack()) {
+            wv.goBack()
+            return true
+        }
+        if (!canWebGoBack(wv)) return false
+        wv.evaluateJavascript("history.go(-1)", null)
+        return true
+    }
+
+    private fun webGoForward(webView: SiiWebView?): Boolean {
+        val wv = webView ?: return false
+        if (wv.canGoForward()) {
+            wv.goForward()
+            return true
+        }
+        if (!canWebGoForward(wv)) return false
+        wv.evaluateJavascript("history.go(1)", null)
+        return true
+    }
+
+    /** 页面内“返回”控件：夸克等 H5 分享页把层级存在页面状态里，不进 WebView 历史。 */
+    private fun clickInPageBack(onNone: () -> Unit): Boolean {
+        val wv = tabManager.currentWebView ?: return false
+        if (pageBackPending) return true
+        pageBackPending = true
+        wv.evaluateJavascript(PAGE_BACK_JS) { value ->
+            pageBackPending = false
+            if (!isAdded || view == null || tabManager.currentWebView !== wv) {
+                return@evaluateJavascript
+            }
+            if (value.orEmpty().contains("CLICKED")) {
+                updateNavigationState()
+            } else {
+                onNone()
+            }
+        }
+        return true
+    }
+
+    /** 关闭当前派生标签并回到它的来源标签；来源不存在或只剩一个标签时不做处理。 */
+    private fun closeCurrentTabToOpener(): Boolean {
+        if (!::tabManager.isInitialized) return false
+        val tab = tabManager.current ?: return false
+        val openerId = tab.openerId ?: return false
+        if (tabManager.size <= 1) return false
+        if (tabManager.indexOfId(openerId) < 0) return false
+        exitArmed = false
+        closeTabAndHint(tabManager.currentIndex)
+        if (tabManager.size == 0) {
+            showHome(createTab = false)
+            return true
+        }
+        val openerIndex = tabManager.indexOfId(openerId)
+        if (openerIndex >= 0 && openerIndex != tabManager.currentIndex) {
+            switchToTab(openerIndex)
+        } else {
+            if (tabManager.current?.url == ABOUT_HOME) showHome(createTab = false)
+            else showWeb()
+            tabManager.currentWebView?.onResume()
+        }
+        renderTabs()
+        updateNavigationState()
         return true
     }
 
@@ -643,13 +753,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 val webView = tabManager.currentWebView
                 when {
                     webView == null -> false
-                    action == "back" && webView.canGoBack() -> {
-                        webView.goBack()
+                    action == "back" && canWebGoBack(webView) -> {
+                        webGoBack(webView)
                         updateNavigationState()
                         true
                     }
-                    action == "forward" && webView.canGoForward() -> {
-                        webView.goForward()
+                    action == "forward" && canWebGoForward(webView) -> {
+                        webGoForward(webView)
                         updateNavigationState()
                         true
                     }
@@ -760,11 +870,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(10), dp(6), dp(10))
-            background = GlassStyle.surface(
-                context, dark, dp(22).toFloat(),
-                AppServices.settings.glassStrength(), minAlpha = 92,
-                highlight = 0f
-            )
+            setBackgroundResource(R.drawable.bg_hint_bar)
             elevation = dp(8).toFloat()
             alpha = 0f
             translationY = dp(14).toFloat()
@@ -1275,15 +1381,74 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
+    /**
+     * 底部提示浮条堆叠栈：同屏多条时从下往上错开，避免叠在一起。
+     * 顺序即优先级（状态类在下，询问类在上），显示/隐藏后 relayoutHintBars() 统一重排。
+     */
+    private val hintBarIds = intArrayOf(
+        R.id.download_bar,
+        R.id.tts_bar,
+        R.id.find_bar,
+        R.id.sniff_prompt,
+        R.id.open_app_prompt
+    )
+
+    /** 出现动效：淡入 + 12dp 上滑。restore/fill 动态条自己带动画，不重复调用。 */
+    private fun showHintBarEnter(bar: View) {
+        bar.alpha = 0f
+        bar.translationY = dp(12).toFloat()
+        bar.animate().alpha(1f).translationY(0f).setDuration(180).start()
+    }
+
+    /** 重排所有可见浮条的 bottomMargin：基准位置 + 前序可见条高度 + 8dp 间距。 */
+    private fun relayoutHintBars() {
+        val root = view ?: return
+        val modern = AppServices.settings.uiStyle() == 1
+        val lift = if (modern) {
+            val dockHeight = root.findViewById<View>(R.id.modern_chrome)?.height
+                ?.takeIf { it > 0 } ?: dp(56)
+            dockHeight + dp(14)
+        } else 0
+        // 各条经典模式的基准底距，与 applyFloatingBarLift 的 classic 值一致。
+        val baseOf = mapOf(
+            R.id.download_bar to dp(20),
+            R.id.tts_bar to dp(8),
+            R.id.find_bar to dp(8),
+            R.id.sniff_prompt to dp(10),
+            R.id.open_app_prompt to dp(10)
+        )
+        var stackTop = 0
+        for (id in hintBarIds) {
+            val bar = root.findViewById<View>(id) ?: continue
+            if (bar.visibility != View.VISIBLE) continue
+            val lp = bar.layoutParams as? FrameLayout.LayoutParams ?: continue
+            val base = if (modern) lift else baseOf[id] ?: dp(8)
+            val target = base + stackTop
+            if (lp.bottomMargin != target) {
+                lp.bottomMargin = target
+                bar.layoutParams = lp
+            }
+            stackTop += bar.height + dp(8)
+        }
+    }
+
+    /** 显示/隐藏后延迟重排：等 measure 拿到真实高度。 */
+    private fun scheduleHintRelayout() {
+        view?.post { relayoutHintBars() }
+    }
+
     /** 底部下载提示条：显示文案，确认按钮跳下载页并消失。 */
     private fun showDownloadBar(text: String) {
         val bar = view?.findViewById<View>(R.id.download_bar) ?: return
         view?.findViewById<TextView>(R.id.download_bar_text)?.text = text
         bar.visibility = View.VISIBLE
+        showHintBarEnter(bar)
+        scheduleHintRelayout()
     }
 
     private fun hideDownloadBar() {
         view?.findViewById<View>(R.id.download_bar)?.visibility = View.GONE
+        scheduleHintRelayout()
     }
 
     /** 用户点击“查看”后不再因 Flow 刷新重新弹出；新下载任务发起时重置。 */
@@ -1723,7 +1888,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun showTtsBar(show: Boolean) {
-        ttsBar?.visibility = if (show) View.VISIBLE else View.GONE
+        val bar = view?.findViewById<View>(R.id.tts_bar) ?: return
+        if (bar.visibility == (if (show) View.VISIBLE else View.GONE)) return
+        bar.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) showHintBarEnter(bar)
+        scheduleHintRelayout()
     }
 
     private fun stopReadAloud() {
@@ -2476,7 +2645,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun openInBackground(url: String) {
         val target = if (httpsOnlyEnabled()) upgradeToHttps(cleanUrl(url)) else cleanUrl(url)
         val previous = tabManager.currentIndex
-        val tab = tabManager.newTab(target)
+        val tab = tabManager.newTab(target, tabManager.current?.id)
         val headers = privacyRequestHeaders(target)
         if (headers.isEmpty()) tab.webView.loadUrl(target)
         else {
@@ -2609,6 +2778,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun showFindBar() {
         val bar = findBar ?: return
         bar.visibility = View.VISIBLE
+        showHintBarEnter(bar)
+        scheduleHintRelayout()
         findInput?.requestFocus()
         findInput?.post {
             val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -2620,6 +2791,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun hideFindBar() {
         if (findBar?.visibility != View.VISIBLE) return
         findBar?.visibility = View.GONE
+        scheduleHintRelayout()
         findInput?.setText("")
         findCount?.text = ""
         tabManager.currentWebView?.clearFind()
@@ -4047,8 +4219,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         setBottom(R.id.tts_bar, 8)
         setBottom(R.id.download_bar, 20)
         setBottom(R.id.sniff_prompt, 10)
+        setBottom(R.id.open_app_prompt, 10)
         setBottom(R.id.translate_status, 72)
         applyFloatingBarStyle(modern)
+        relayoutHintBars()
     }
 
     /** 新版浮动条跟随日夜：白天浅色药丸，夜间深色药丸。 */
@@ -4056,7 +4230,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val root = view ?: return
         val context = requireContext()
         val dark = modern && AppServices.settings.isNightMode()
-        val barBg = if (dark) R.drawable.bg_float_dark else R.drawable.bg_find_bar
+        val barBg = if (dark) R.drawable.bg_float_dark else R.drawable.bg_hint_bar
         val textColor = if (dark) android.graphics.Color.WHITE
         else context.getColor(R.color.text_primary)
         val secondary = if (dark) 0x99FFFFFF.toInt()
@@ -4065,6 +4239,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         root.findViewById<View>(R.id.tts_bar)?.setBackgroundResource(barBg)
         root.findViewById<View>(R.id.download_bar)?.setBackgroundResource(barBg)
         root.findViewById<View>(R.id.sniff_prompt)?.setBackgroundResource(barBg)
+        root.findViewById<View>(R.id.open_app_prompt)?.setBackgroundResource(barBg)
         root.findViewById<View>(R.id.translate_status)?.setBackgroundResource(barBg)
         root.findViewById<android.widget.EditText>(R.id.find_input)?.apply {
             setTextColor(textColor)
@@ -4199,8 +4374,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             2 -> loadUrlFor(AppServices.settings.homeUrl())
             3 -> openNewTab()
             4 -> showMenuSheet()
-            5 -> tabManager.currentWebView?.goBack()
-            6 -> tabManager.currentWebView?.goForward()
+            5 -> navigateBackOneStep()
+            6 -> webGoForward(tabManager.currentWebView)
         }
     }
 
@@ -4274,7 +4449,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun openNewTab(url: String? = null) {
         val target = url ?: restoredUrl(null)
-        tabManager.newTab(target)
+        tabManager.newTab(target, tabManager.current?.id)
         applySiteThemeColor(currentThemeColor())
         if (target == ABOUT_HOME) {
             tabManager.currentWebView?.loadUrl("about:blank")
@@ -4723,6 +4898,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         resetDockVisibility()
         hidePageLoadingCover()
         hideSniffPrompt()
+        hideOpenAppPrompt()
         val wasWebVisible = homeContainer?.visibility != View.VISIBLE
         if (tabManager.current == null && createTab) {
             tabManager.newTab(ABOUT_HOME)
@@ -4972,17 +5148,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .getOrNull().orEmpty().ifEmpty { res.url }
         prompt.findViewById<TextView>(R.id.sniff_prompt_title)?.text =
             getString(R.string.sniff_prompt_found) + " · " + label + " · " + name
-        prompt.bringToFront()
         prompt.visibility = View.VISIBLE
+        showHintBarEnter(prompt)
+        scheduleHintRelayout()
         view?.removeCallbacks(autoHideSniffPrompt)
         view?.postDelayed(autoHideSniffPrompt, 5000L)
     }
 
     private fun hideSniffPrompt() {
         view?.removeCallbacks(autoHideSniffPrompt)
+        if (sniffPrompt?.visibility == View.VISIBLE) scheduleHintRelayout()
         sniffPrompt?.visibility = View.GONE
         sniffPromptKey = null
         sniffPromptResource = null
+        hideOpenAppPrompt()
     }
 
     private fun dismissSniffPrompt() {
@@ -5092,6 +5271,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         homeForwardAvailable = false
         navFromHome = false
         hideSniffPrompt()
+        hideOpenAppPrompt()
         previous?.onPause()
         if (tabManager.current?.url == ABOUT_HOME) {
             showHome(createTab = false)
@@ -7754,6 +7934,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (wv === tabManager.currentWebView) {
             setRefreshLoading(false)
             restorePendingScroll(wv)
+            scheduleHintRelayout()
         }
     }
 
@@ -7963,8 +8144,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                             val view = this@BrowserFragment.tabManager.currentWebView
                             if (dx > 0) {
                                 revealToolbarOnNavigate()
-                                view?.goBack()
-                            } else view?.goForward()
+                                webGoBack(view)
+                            } else webGoForward(view)
                         }
                     }
                 }
@@ -8105,6 +8286,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 this@BrowserFragment.scrollDir = 0
                 this@BrowserFragment.pendingScrollDir = 0
                 this@BrowserFragment.view?.removeCallbacks(this@BrowserFragment.applyScrollDirection)
+                this@BrowserFragment.hideOpenAppPrompt()
             }
             onTouchUp = { this@BrowserFragment.settleRevealOnTouchUp() }
             onDoubleTap = {
@@ -8349,21 +8531,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             url: String,
             isLinkHit: Boolean,
             isNewWindow: Boolean,
-            isForMainFrame: Boolean
+            isForMainFrame: Boolean,
+            request: android.webkit.WebResourceRequest?
         ): Int {
-            // 主框架在页内主动跳到别的站点，主页就不再是「上一页」。服务端重定向
-            // （如 bing 的 www→cn 同站跳转）与 iframe 跳转不算，否则从主页搜索后
-            // 按返回会退到被覆盖的旧网页。
+            // 主框架用户导航（点击链接等，非重定向/iframe/新窗口）发生后，主页就不再是
+            // 「上一页」：返回键应逐层退页内历史，退完再回主页。服务端重定向
+            // （如 bing 的 www→cn 同站跳转）不算，否则从主页搜索后按返回会退到被覆盖的旧网页。
             if (navFromHome && isForMainFrame && !isNewWindow &&
-                webView === tabManager.currentWebView
+                webView === tabManager.currentWebView &&
+                request?.isRedirect != true
             ) {
-                val from = runCatching { android.net.Uri.parse(webView?.url.orEmpty()).host }
-                    .getOrNull()?.lowercase()
-                val to = runCatching { android.net.Uri.parse(url).host }
-                    .getOrNull()?.lowercase()
-                if (from != null && to != null && siteKeyOf(from) != siteKeyOf(to)) {
-                    navFromHome = false
-                }
+                navFromHome = false
             }
             return 0
         }
@@ -8418,6 +8596,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 sniffPromptDismissedUrls.clear()
                 if (sniffPromptKey === it) hideSniffPrompt()
             }
+            hideOpenAppPrompt()
             markPageLoading(webView)
             // 尽早 hook fetch/XHR，否则页面初始化阶段的媒体请求会错过。
             val sniffHost = runCatching { android.net.Uri.parse(url).host }.getOrNull()
@@ -8588,7 +8767,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             ) {
                 val tab = tabManager.tabs.firstOrNull { it.webView === webView }
                 if (tab != null &&
-                    (tab.url == ABOUT_HOME || tab.url == "about:blank" || webView.canGoBack())
+                    (tab.url == ABOUT_HOME || tab.url == "about:blank" || canWebGoBack(webView))
                 ) {
                     tab.url = ABOUT_HOME
                     showHome()
@@ -8688,7 +8867,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             val inheritDesktop = webView?.settings?.userAgentString == desktopUserAgent()
             // target=_blank / window.open：新建标签承载，下载类 URL 会继续走该 WebView 的下载监听。
             // 占位用空 url：真实地址由首次 onPageStarted 写入，避免地址栏闪现 about:home 与联想。
-            val tab = tabManager.newTab("")
+            val openerId = tabManager.tabs.firstOrNull { it.webView === webView }?.id
+            val tab = tabManager.newTab("", openerId)
+            // 新标签是独立导航，来源标签的主页覆盖态与“来自主页”标记不能带过来。
+            navFromHome = false
+            homeOverlayActive = false
+            homeForwardAvailable = false
             if (inheritDesktop) tab.webView.settings.userAgentString = desktopUserAgent()
             transport.webView = tab.webView
             resultMsg.sendToTarget()
@@ -9501,7 +9685,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             applySiteSettings(webView, url)
             val recentlyProgrammatic =
                 android.os.SystemClock.elapsedRealtime() - programmaticPrivacyLoadAt < 1200L
-            if (recentlyProgrammatic) return false
+            // 只吞掉程序加载后网页自身的重复回调；深链等非 http(s) 导航必须继续判定，
+            // 否则页面刚打开时触发的 App 跳转会落到 WebView 报 ERR_UNKNOWN_URL_SCHEME。
+            val isWebUrl = url.startsWith("http://") || url.startsWith("https://")
+            if (recentlyProgrammatic && isWebUrl) return false
             val mainFrame = request == null || request.isForMainFrame
             // 选取广告元素期间不允许页面跳走（广告常靠触摸/链接直接导航）。
             if (mainFrame && webView != null && adPickBridges[webView]?.active == true) {
@@ -9576,21 +9763,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     return true
                 }
             }
-            // 电脑模式站（全局/默认列表）：首个导航前 UA 未落定时拦截一次，
-            // 待 UA 设置后重新加载，避免用手机 UA 请求导致手机版或打不开。
+            // 电脑模式站（全局/默认列表）：首个导航前 UA 未落定时，同步落 UA 后放行本次导航，
+            // 不再拦下重发——loadUrl 重发会截断 WebView 的前进历史（丢前进记录）。
             if ((request == null || request.isForMainFrame) && webView != null &&
                 (url.startsWith("http://") || url.startsWith("https://"))
             ) {
                 val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()
                 val target = targetUserAgent(host)
                 if (webView.settings.userAgentString != target) {
-                    webView.post {
-                        if (webView.settings.userAgentString != target) {
-                            webView.settings.userAgentString = target
-                        }
-                        webView.loadUrl(url)
-                    }
-                    return true
+                    webView.settings.userAgentString = target
                 }
             }
             if (request?.isRedirect == true) {
@@ -9758,31 +9939,58 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         onDeny: () -> Unit
     ) {
         if (!isAdded) return
-        val actions = arrayOf<() -> Unit>(
-            { startExternal(intent, fallback) },
-            {
-                if (!host.isNullOrBlank()) persistSitePermission(host, listOf("openapp"))
-                startExternal(intent, fallback)
-            },
-            onDeny,
-            {
-                if (!host.isNullOrBlank()) persistSitePermission(host, listOf("openapp"), 2)
-                onDeny()
-            }
-        )
-        dialogWithOptions(
-            R.string.open_app_title,
+        // 站点规则“每次询问”保留四选项对话框；全局默认询问走底部悬浮条（点其他地方即忽略）。
+        if (sitePermissionDecision(host, "openapp") == 4) {
+            val actions = arrayOf<() -> Unit>(
+                { startExternal(intent, fallback) },
+                {
+                    if (!host.isNullOrBlank()) persistSitePermission(host, listOf("openapp"))
+                    startExternal(intent, fallback)
+                },
+                onDeny,
+                {
+                    if (!host.isNullOrBlank()) persistSitePermission(host, listOf("openapp"), 2)
+                    onDeny()
+                }
+            )
+            dialogWithOptions(
+                R.string.open_app_title,
+                getString(
+                    R.string.open_app_message,
+                    host ?: intent.data?.scheme ?: ""
+                ),
+                arrayOf(
+                    getString(R.string.open_app_allow),
+                    getString(R.string.open_app_always),
+                    getString(R.string.open_app_deny),
+                    getString(R.string.site_always_deny)
+                )
+            ) { which -> actions[which]() }.show()
+            return
+        }
+        openAppPending = intent to fallback
+        openAppPrompt?.findViewById<TextView>(R.id.open_app_prompt_title)?.text =
             getString(
                 R.string.open_app_message,
                 host ?: intent.data?.scheme ?: ""
-            ),
-            arrayOf(
-                getString(R.string.open_app_allow),
-                getString(R.string.open_app_always),
-                getString(R.string.open_app_deny),
-                getString(R.string.site_always_deny)
             )
-        ) { which -> actions[which]() }.show()
+        val bar = openAppPrompt ?: return
+        bar.visibility = View.VISIBLE
+        showHintBarEnter(bar)
+        scheduleHintRelayout()
+        // 不自动消失会一直占着栈顶；8 秒无操作自动收，触摸页面的立即收保留。
+        view?.removeCallbacks(autoHideOpenAppPrompt)
+        view?.postDelayed(autoHideOpenAppPrompt, 8000L)
+    }
+
+    private val autoHideOpenAppPrompt = Runnable { hideOpenAppPrompt() }
+
+    /** 点页面任意位置即忽略本次跳转请求；允许按钮单独处理。 */
+    private fun hideOpenAppPrompt() {
+        view?.removeCallbacks(autoHideOpenAppPrompt)
+        if (openAppPrompt?.visibility == View.VISIBLE) scheduleHintRelayout()
+        openAppPrompt?.visibility = View.GONE
+        openAppPending = null
     }
 
     /** 是否为 UserScript 安装地址（.user.js）。 */
@@ -10098,10 +10306,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun stripHostPrefix(host: String): String =
         host.removePrefix("www.").removePrefix("m.").removePrefix("mobile.")
 
-    /** 站点归属：取最后两段域名，www./m./cn. 之类的子域差异视为同站。 */
-    private fun siteKeyOf(host: String): String =
-        host.split('.').takeLast(2).joinToString(".")
-
     /** 当前是否为计费网络（移动网络）——「仅 Wi-Fi 加载图片」用。 */
     private fun isMeteredNetwork(): Boolean {
         val cm = requireContext().getSystemService(Context.CONNECTIVITY_SERVICE)
@@ -10358,6 +10562,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 AppServices.passwordRepository.byHost(host.lowercase())
             }
             if (items.isEmpty() || !isAdded || view == null) return@launch
+            if (restorePromptBar?.parent != null) {
+                // 恢复提示在屏：本次不标记已询问，下次加载同页再问。
+                fillPromptedUrl.remove(webView)
+                return@launch
+            }
             showFillBar(webView, host, items)
         }
     }
@@ -10369,17 +10578,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     ) {
         val root = view as? FrameLayout ?: return
         if (fillBar != null) return
+        // restore 与 fill 互斥：恢复提示在屏时本次不弹，避免两条挤在同一高度。
+        if (restorePromptBar?.parent != null) return
         val context = requireContext()
         val dark = AppServices.settings.isNightMode()
         val bar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(10), dp(6), dp(10))
-            background = GlassStyle.surface(
-                context, dark, dp(22).toFloat(),
-                AppServices.settings.glassStrength(), minAlpha = 92,
-                highlight = 0f
-            )
+            setBackgroundResource(R.drawable.bg_hint_bar)
             elevation = dp(8).toFloat()
             alpha = 0f
             translationY = dp(14).toFloat()
@@ -11088,7 +11295,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val hidden = AppServices.settings.toolbarHidden().orEmpty()
             .split(",").filter { it.isNotEmpty() }.toSet()
         val canForward = if (::tabManager.isInitialized) {
-            tabManager.currentWebView?.canGoForward() == true || homeForwardAvailable ||
+            tabManager.currentWebView?.let { canWebGoForward(it) } == true || homeForwardAvailable ||
                 (homeContainer?.visibility == View.VISIBLE && homeOverlayActive)
         } else false
         fun apply(id: Int, key: String, on: Boolean) {
@@ -11967,6 +12174,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         /** 退出二次确认的有效窗口。 */
         const val EXIT_CONFIRM_MS = 2_000L
         const val THUMB_MAX_WIDTH = 360
+
+        /** 页面内“返回”控件：找到可见、位于页面上部的「返回/上一级」就点它，否则报告 NONE。 */
+        val PAGE_BACK_JS = "(function(){try{var els=[].slice.call(document.querySelectorAll('div,span,a,button'));" +
+            "for(var i=0;i<els.length;i++){var e=els[i];var t=(e.textContent||'').trim();" +
+            "if(t!=='返回'&&t!=='返回上级'&&t!=='上一级'&&t!=='Back')continue;" +
+            "var r=e.getBoundingClientRect();if(r.width<=0||r.height<=0)continue;" +
+            "if(r.top<0||r.top>window.innerHeight*0.3)continue;" +
+            "if(r.width>160||r.height>60)continue;" +
+            "if(e.tagName==='A'&&e.getAttribute('href'))continue;" +
+            "e.click();return 'CLICKED:'+e.tagName+'.'+String(e.className);}return 'NONE';}catch(ex){return 'ERR';}})()"
         const val ABOUT_RES = "about:res"
         const val ABOUT_IMAGES = "about:images"
 
@@ -12399,8 +12616,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        const val DEFAULT_MOBILE_UA =
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+        /**
+         * 默认移动 UA：括号段必须带设备型号。部分站点按 ";" 切开括号段后直接取
+         * 下一段做设备名（如中国移动云盘分享页），缺段会抛异常并让整页挂掉。
+         */
+        val DEFAULT_MOBILE_UA: String
+            get() = "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; " +
+                "${Build.MODEL} Build/${Build.ID}) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
         /**

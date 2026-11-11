@@ -132,7 +132,7 @@ class WebViewClientBridge(
         val url = request.url.toString()
         val isLinkHit = view.hitTestResult?.type ?: 0
         val action = callback.evaluateUrlAction(
-            view as? SiiWebView, url, isLinkHit == 0, false, request.isForMainFrame
+            view as? SiiWebView, url, isLinkHit == 0, false, request.isForMainFrame, request
         )
         return urlDecision?.shouldLoad(view as? SiiWebView, request, url, action) ?: false
     }
