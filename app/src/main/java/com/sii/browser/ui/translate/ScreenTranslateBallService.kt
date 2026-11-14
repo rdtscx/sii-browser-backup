@@ -72,11 +72,14 @@ class ScreenTranslateBallService : Service() {
         return START_NOT_STICKY
     }
 
-    /** 单击：循环会话暂停/恢复循环（暂停时清译文），单页会话重译。 */
+    /** 单击：循环会话暂停/恢复循环（暂停时清译文）；单页会话有译文先清除，再次点击才翻译。 */
     private fun onBallTap() {
         if (ScreenTranslateService.isRunning) {
             if (ScreenTranslateService.isLoopMode) {
                 ScreenTranslateService.toggleLoop(this)
+            } else if (ScreenTranslateService.hasOverlay) {
+                // 已有译文：先只清除，回到原文；再次点击才重新翻译。
+                ScreenTranslateService.clearOverlay(this)
             } else {
                 ScreenTranslateService.retry(this)
             }

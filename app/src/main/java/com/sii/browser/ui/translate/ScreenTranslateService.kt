@@ -65,6 +65,10 @@ class ScreenTranslateService : Service() {
         const val ACTION_SET_MODE = "com.sii.browser.screen.SET_MODE"
         const val ACTION_SELECT_REGION = "com.sii.browser.screen.SELECT_REGION"
         const val ACTION_CLEAR_REGION = "com.sii.browser.screen.CLEAR_REGION"
+        /** 帧差异占比低于该值视为小变化（滚动词条/进度条/光标），不收起译文。 */
+        private const val MINOR_CHANGE_RATIO = 0.15f
+        /** 小变化连续超过该时长仍按页面切换处理（ms）。 */
+        private const val MINOR_CHANGE_MAX_MS = 8_000L
         const val ACTION_PICK_BLOCK = "com.sii.browser.screen.PICK_BLOCK"
 
         /** 分区翻译的选区（屏幕像素）；null 表示整屏。跟随服务会话，停止即清空。 */
@@ -220,6 +224,10 @@ class ScreenTranslateService : Service() {
     private var lastProcessedHash = 0
     private var stableSince = 0L
     private var lastAutoTranslateAt = 0L
+    /** 上一帧采样点阵（与 captureSampled 同规格），用于计算差异比例而非整帧哈希。 */
+    private var lastFramePixels: IntArray? = null
+    /** 小变化连续超过该时长仍视为页面切换（避免滚动列表让译文永远盖住已滚走的原文）。 */
+    private var minorChangeSince = 0L
 
     /** 自绘浮层（译文层/提示卡）显示时的画面 hash，用来把自己画的层和真实画面变化区分开。 */
     private var overlayHash = 0
@@ -823,6 +831,8 @@ class ScreenTranslateService : Service() {
         overlayHash = 0
         overlayHashPending = false
         lastProcessedHash = 0
+        lastFramePixels = null
+        minorChangeSince = 0L
     }
 
     /** 译文层收起时同步停掉朗读，避免屏幕上没字还在念。 */
@@ -985,6 +995,7 @@ class ScreenTranslateService : Service() {
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (overlayHashPending) {
                     overlayHash = hash
+                    lastFramePixels = pixels.copyOf()
                     overlayHashPending = false
                     lastFrameHash = hash
                     stableSince = now
@@ -992,6 +1003,16 @@ class ScreenTranslateService : Service() {
                 }
                 // 与浮层基准一致：只有自己画的译文层，屏幕内容没变。
                 if (overlayHash != 0 && hash == overlayHash) continue
+                // 小面积变化（滚动词条/进度条/光标）不触发重译，译文保持。
+                val ratio = frameChangeRatio(lastFramePixels, pixels)
+                lastFramePixels = pixels.copyOf()
+                if (ratio <= MINOR_CHANGE_RATIO) {
+                    if (minorChangeSince == 0L) minorChangeSince = now
+                    if (now - minorChangeSince < MINOR_CHANGE_MAX_MS) continue
+                    // 持续小变化超时：按页面切换处理。
+                } else {
+                    minorChangeSince = 0L
+                }
                 if (hash != lastFrameHash) {
                     // 画面在变：降频采样，并隐藏旧译文（不拦截触摸），等稳定后再翻译。
                     delayMs = (delayMs * 2).coerceAtMost(maxDelayMs)
@@ -1026,13 +1047,25 @@ class ScreenTranslateService : Service() {
                 if (consumeRebase()) continue
                 if (translating) continue
                 val pixels = withContext(Dispatchers.Default) { captureSampled() } ?: continue
-                val hash = pixels.contentHashCode()
                 if (overlayHashPending) {
-                    overlayHash = hash
+                    overlayHash = pixels.contentHashCode()
+                    lastFramePixels = pixels.copyOf()
                     overlayHashPending = false
                     continue
                 }
-                if (overlayHash != 0 && hash == overlayHash) continue
+                if (overlayHash != 0 && pixels.contentHashCode() == overlayHash) continue
+                // 小面积变化（滚动词条/进度条/光标）不算页面切换，译文保持。
+                val ratio = frameChangeRatio(lastFramePixels, pixels)
+                lastFramePixels = pixels.copyOf()
+                if (ratio <= MINOR_CHANGE_RATIO) {
+                    if (minorChangeSince == 0L) minorChangeSince = android.os.SystemClock.elapsedRealtime()
+                    // 持续小变化超时也收起：原文可能已滚走，译文留在旧坐标没有意义。
+                    if (android.os.SystemClock.elapsedRealtime() - minorChangeSince < MINOR_CHANGE_MAX_MS) {
+                        continue
+                    }
+                } else {
+                    minorChangeSince = 0L
+                }
                 hideOverlay()
                 return@launch
             }
@@ -1149,6 +1182,25 @@ class ScreenTranslateService : Service() {
         } finally {
             runCatching { image.close() }
         }
+    }
+
+    /**
+     * 帧差异判定：逐点比较与上一帧的采样，返回差异占比（0f~1f）。
+     * 视频进度条、滚动词条等小面积变化只影响少数采样点，占比远低于页面切换。
+     */
+    private fun frameChangeRatio(previous: IntArray?, current: IntArray): Float {
+        if (previous == null || previous.size != current.size) return 1f
+        var diff = 0
+        for (i in current.indices) {
+            val a = previous[i]
+            val b = current[i]
+            // 每通道差值超过阈值才算变化，滤掉压缩/渲染噪声。
+            if (kotlin.math.abs((a shr 16) and 0xFF - (b shr 16) and 0xFF) > 24 ||
+                kotlin.math.abs((a shr 8) and 0xFF - (b shr 8) and 0xFF) > 24 ||
+                kotlin.math.abs(a and 0xFF - b and 0xFF) > 24
+            ) diff++
+        }
+        return diff.toFloat() / current.size
     }
 
     private fun capture(): Bitmap? {

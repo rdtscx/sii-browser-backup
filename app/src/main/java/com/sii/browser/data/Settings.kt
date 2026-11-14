@@ -232,6 +232,9 @@ interface AppearanceSettings {
     fun setFixedMenuTextSize(value: Int)
     fun menuShowLabels(): Boolean
     fun setMenuShowLabels(value: Boolean)
+    /** 菜单标题行「长按图标可进入设置」提示是否显示。 */
+    fun menuLongPressHint(): Boolean
+    fun setMenuLongPressHint(value: Boolean)
     fun fixedMenuShowLabels(): Boolean
     fun setFixedMenuShowLabels(value: Boolean)
 

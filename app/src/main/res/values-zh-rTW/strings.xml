@@ -257,6 +257,13 @@
     <string name="text_translate_download_progress">下載語言包 %1$d%%</string>
     <string name="text_translate_pack_failed">語言包下載失敗，請檢查網路與 Google Play 服務</string>
     <string name="text_translate_need_pack">本地語言包未下載</string>
+    <string name="offline_pack_message">首次使用離線翻譯需要下載中文與英文語言包（共約 60MB，依賴 Google Play 服務）。現在下載嗎？</string>
+    <string name="offline_pack_message_dynamic">首次使用離線翻譯需要下載 %1$s 語言包（每個約 30MB，依賴 Google Play 服務，建議 Wi-Fi 下載）。現在下載嗎？</string>
+    <string name="offline_pack_download">下載</string>
+    <string name="offline_pack_switch_online">改用線上翻譯</string>
+    <string name="offline_pack_progress">正在下載語言包 %1$d%%（%2$d/%3$d）</string>
+    <string name="offline_pack_ready">語言包已就緒</string>
+    <string name="settings_offline_pack">離線語言包</string>
     <string name="text_translate_go_download">去下載</string>
     <string name="text_translate_cloud_notice_title">使用雲端翻譯？</string>
     <string name="text_translate_cloud_notice">文字會傳送到所選翻譯服務商，可在設定 → 翻譯中更換服務商。</string>
@@ -352,6 +359,7 @@
     <string name="scan_result_copied">識別結果已複製</string>
     <string name="scan_permission_denied">需要相機許可權才能掃碼</string>
     <string name="shortcut_unsupported">當前桌面不支持固定捷徑</string>
+    <string name="shortcut_exists">捷徑已存在，無需重複建立</string>
     <string name="script_menu_empty">當前頁面沒有註冊指令碼選單</string>
     <string name="ad_pick_hint">點選要隱藏的廣告元素</string>
     <string name="ad_pick_blocked">選取模式下已阻止頁面跳轉</string>
@@ -468,6 +476,11 @@
     <string name="bookmark_desc">長按書籤可置頂、編輯或刪除；按住右側橫槓拖曳排序。</string>
     <string name="bookmark_export_html">匯出書籤 HTML</string>
     <string name="bookmark_import_html">匯入書籤 HTML</string>
+    <string name="bookmark_import">匯入書籤</string>
+    <string name="bookmark_export">匯出書籤</string>
+    <string name="bookmark_format_html">HTML（瀏覽器通用）</string>
+    <string name="bookmark_format_json">JSON（Sii 備份）</string>
+    <string name="bookmark_import_done">已匯入 %1$d 個書籤、%2$d 個資料夾</string>
     <string name="folder_name">資料夾名稱</string>
     <string name="up_folder">上級</string>
     <string name="bookmarks_empty">沒有書籤</string>
@@ -1364,6 +1377,7 @@
     <string name="screen_translate_no_text">沒有辨識到文字</string>
     <string name="screen_translate_failed">翻譯失敗，請重試</string>
     <string name="screen_translate_permission_overlay">需要懸浮視窗權限才能顯示譯文</string>
+    <string name="screen_translate_overlay_required">螢幕翻譯需要「懸浮視窗」權限才能顯示譯文。請在接著的系統設定中允許 Sii 顯示在其他應用程式上層。</string>
     <string name="settings_screen_translate">螢幕翻譯</string>
     <string name="settings_screen_translate_desc">辨識螢幕文字並顯示譯文</string>
     <string name="settings_screen_translate_speak">翻譯後朗讀</string>

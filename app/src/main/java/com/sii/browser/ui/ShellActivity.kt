@@ -126,6 +126,12 @@ class ShellActivity : AppCompatActivity() {
             window.attributes.layoutInDisplayCutoutMode =
                 android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
+        // 统一走 edge-to-edge：窗口不再因为键盘改变自身高度，状态栏/导航栏/键盘一律由
+        // applySystemBarInsets 自己算 padding 让位。
+        // 不改这里的话，清单里的 adjustResize 在 API 34 上仍会把整个窗口顶起，
+        // 悬浮底栏（贴在窗口底部）就跟着被抬到输入法上方——也就是「工具栏飘在键盘上面」。
+        // 注意：edge-to-edge 下 adjustResize 本来就失效，键盘高度只能从 insets 取。
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_shell)
         applySystemBarInsets()
         applyStatusBarColor()
@@ -370,13 +376,15 @@ class ShellActivity : AppCompatActivity() {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             // 经典工具栏不随键盘上移；悬浮胶囊只在地址栏编辑等场景让出键盘高度。
-            val suspend = com.sii.browser.di.AppServices.homeSearchImeSuspend ||
-                com.sii.browser.di.AppServices.addressEditImeSuspend
-            val bottom = if (settings.uiStyle() == 1 && !suspend) {
-                maxOf(bars.bottom, ime.bottom)
-            } else {
-                bars.bottom
-            }
+            // 主页搜索聚焦时同样不让——键盘应当直接盖住底栏，不把它顶到键盘上方。
+            val homeSearch = com.sii.browser.di.AppServices.homeSearchImeSuspend
+            val suspend = homeSearch || com.sii.browser.di.AppServices.addressEditImeSuspend
+            // 窗口已改为 edge-to-edge（见 onCreate），系统不再替我们缩小窗口，
+            // 键盘让位全部落到这里：
+            // · 经典样式保持原来的 adjustResize 观感，内容整体缩到键盘上方；
+            // · 悬浮样式仅在「不让」时（主页搜索/地址栏编辑）保留键盘高度给键盘自己盖。
+            val allowIme = if (settings.uiStyle() == 1) !suspend else true
+            val bottom = if (allowIme) maxOf(bars.bottom, ime.bottom) else bars.bottom
             view.setPadding(
                 bars.left,
                 bars.top,

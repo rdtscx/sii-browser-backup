@@ -257,6 +257,13 @@
     <string name="text_translate_download_progress">下载语言包 %1$d%%</string>
     <string name="text_translate_pack_failed">语言包下载失败，请检查网络与 Google Play 服务</string>
     <string name="text_translate_need_pack">本地语言包未下载</string>
+    <string name="offline_pack_message">首次使用离线翻译需要下载中文与英文语言包（共约 60MB，依赖 Google Play 服务）。现在下载吗？</string>
+    <string name="offline_pack_message_dynamic">首次使用离线翻译需要下载 %1$s 语言包（每个约 30MB，依赖 Google Play 服务，建议 Wi-Fi 下下载）。现在下载吗？</string>
+    <string name="offline_pack_download">下载</string>
+    <string name="offline_pack_switch_online">改用在线翻译</string>
+    <string name="offline_pack_progress">正在下载语言包 %1$d%%（%2$d/%3$d）</string>
+    <string name="offline_pack_ready">语言包已就绪</string>
+    <string name="settings_offline_pack">离线语言包</string>
     <string name="text_translate_go_download">去下载</string>
     <string name="text_translate_cloud_notice_title">使用云端翻译？</string>
     <string name="text_translate_cloud_notice">文本会发送到所选翻译服务商，可在设置 → 翻译中更换服务商。</string>
@@ -352,6 +359,7 @@
     <string name="scan_result_copied">识别结果已复制</string>
     <string name="scan_permission_denied">需要相机权限才能扫码</string>
     <string name="shortcut_unsupported">当前桌面不支持固定快捷方式</string>
+    <string name="shortcut_exists">快捷方式已存在，无需重复创建</string>
     <string name="script_menu_empty">当前页面没有注册脚本菜单</string>
     <string name="ad_pick_hint">点击要隐藏的广告元素</string>
     <string name="ad_pick_blocked">选取模式下已阻止页面跳转</string>
@@ -468,6 +476,11 @@
     <string name="bookmark_desc">长按书签可置顶、编辑或删除；按住右侧横杠拖动排序。</string>
     <string name="bookmark_export_html">导出书签 HTML</string>
     <string name="bookmark_import_html">导入书签 HTML</string>
+    <string name="bookmark_import">导入书签</string>
+    <string name="bookmark_export">导出书签</string>
+    <string name="bookmark_format_html">HTML（浏览器通用）</string>
+    <string name="bookmark_format_json">JSON（Sii 备份）</string>
+    <string name="bookmark_import_done">已导入 %1$d 个书签、%2$d 个文件夹</string>
     <string name="folder_name">文件夹名称</string>
     <string name="up_folder">上级</string>
     <string name="bookmarks_empty">没有书签</string>
@@ -1236,7 +1249,7 @@
     <string name="settings_translate_offline_status">已下载 %1$d / %2$d 种语言</string>
     <string name="settings_translate_offline_delete_all">删除全部语言包</string>
     <string name="settings_translate_offline_delete_all_confirm">将删除所有已下载的本地语言包，此操作无法撤销。</string>
-    <string name="settings_translate_offline_delete_one">删除 %1$s 语言包？</string>
+    <string name="settings_translate_offline_delete_one">删除 %1$s 语言包？（中文模型同时含简体与繁体）</string>
     <string name="translate_disabled">翻译已关闭</string>
     <string name="settings_translate_offline_not_downloaded">未下载</string>
     <string name="settings_translate_offline_progress">下载中 %1$d%%（%2$d/%3$d）</string>
@@ -1354,6 +1367,10 @@
     <string name="menu_devtools">开发者工具</string>
     <string name="menu_user_scripts">用户脚本</string>
     <string name="menu_edit_buttons">编辑按钮</string>
+    <!-- 菜单底部提示：长按图标进入该项对应的设置页 -->
+    <string name="menu_long_press_hint">长按图标可进入对应设置</string>
+    <string name="menu_long_press_hint_close_confirm">关闭这条提醒？之后不再显示。长按图标的操作不受影响。</string>
+    <string name="menu_long_press_hint_hide">关闭提醒</string>
 
     <string name="shortcut_screen_translate">屏幕翻译</string>
     <string name="screen_translate_title">屏幕翻译</string>
@@ -1364,6 +1381,7 @@
     <string name="screen_translate_no_text">没有识别到文字</string>
     <string name="screen_translate_failed">翻译失败，请重试</string>
     <string name="screen_translate_permission_overlay">需要悬浮窗权限才能显示译文</string>
+    <string name="screen_translate_overlay_required">屏幕翻译需要「悬浮窗」权限才能显示译文。请在接下来的系统设置中允许 Sii 显示在其他应用上层。</string>
     <string name="settings_screen_translate">屏幕翻译</string>
     <string name="settings_screen_translate_desc">识别屏幕文字并显示译文</string>
     <string name="settings_screen_translate_speak">翻译后朗读</string>

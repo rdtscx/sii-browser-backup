@@ -427,6 +427,10 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setFixedMenuTextSize(value: Int) = putInt(SettingsKeys.FIXED_MENU_TEXT_SIZE, value.coerceIn(8, 18))
     override fun menuShowLabels(): Boolean = bool(SettingsKeys.MENU_SHOW_LABELS, true)
     override fun setMenuShowLabels(value: Boolean) = putBool(SettingsKeys.MENU_SHOW_LABELS, value)
+    override fun menuLongPressHint(): Boolean =
+        bool(SettingsKeys.MENU_LONG_PRESS_HINT, SettingsDefaults.MENU_LONG_PRESS_HINT)
+    override fun setMenuLongPressHint(value: Boolean) =
+        putBool(SettingsKeys.MENU_LONG_PRESS_HINT, value)
     override fun fixedMenuShowLabels(): Boolean = bool(SettingsKeys.FIXED_MENU_SHOW_LABELS, true)
     override fun setFixedMenuShowLabels(value: Boolean) = putBool(SettingsKeys.FIXED_MENU_SHOW_LABELS, value)
 

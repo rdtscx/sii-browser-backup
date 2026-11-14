@@ -257,6 +257,13 @@
     <string name="text_translate_download_progress">言語パックをダウンロード中 %1$d%%</string>
     <string name="text_translate_pack_failed">言語パックのダウンロードに失敗しました。通信と Google Play サービスを確認してください</string>
     <string name="text_translate_need_pack">オフライン言語パックが未ダウンロードです</string>
+    <string name="offline_pack_message">初回のオフライン翻訳には中国語と英語の言語パック（合計約 60MB、Google Play 開発者サービスが必要）が必要です。今すぐダウンロードしますか？</string>
+    <string name="offline_pack_message_dynamic">初回のオフライン翻訳には %1$s 言語パック（各約 30MB、Google Play 開発者サービスが必要、Wi-Fi 推奨）が必要です。今すぐダウンロードしますか？</string>
+    <string name="offline_pack_download">ダウンロード</string>
+    <string name="offline_pack_switch_online">オンライン翻訳に切り替え</string>
+    <string name="offline_pack_progress">言語パックをダウンロード中 %1$d%%（%2$d/%3$d）</string>
+    <string name="offline_pack_ready">言語パックの準備ができました</string>
+    <string name="settings_offline_pack">オフライン言語パック</string>
     <string name="text_translate_go_download">ダウンロードへ</string>
     <string name="text_translate_cloud_notice_title">クラウド翻訳を使いますか？</string>
     <string name="text_translate_cloud_notice">テキストは選択した翻訳プロバイダーに送信されます。設定 → 翻訳 で変更できます。</string>
@@ -352,6 +359,7 @@
     <string name="scan_result_copied">読み取り結果をコピーしました</string>
     <string name="scan_permission_denied">スキャンにはカメラの権限が必要です</string>
     <string name="shortcut_unsupported">このホーム画面は固定ショートカットに対応していません</string>
+    <string name="shortcut_exists">ショートカットは既にあります</string>
     <string name="script_menu_empty">このページにはスクリプトメニューがありません</string>
     <string name="ad_pick_hint">隠す広告要素をタップしてください</string>
     <string name="ad_pick_blocked">要素選択中はページ遷移をブロックしました</string>
@@ -468,6 +476,11 @@
     <string name="bookmark_desc">ブックマークを長押しするとピン留め・編集・削除ができます。右側のバーを押したままドラッグすると並べ替えできます。</string>
     <string name="bookmark_export_html">ブックマーク HTML を書き出す</string>
     <string name="bookmark_import_html">ブックマーク HTML を読み込む</string>
+    <string name="bookmark_import">ブックマークを読み込む</string>
+    <string name="bookmark_export">ブックマークを書き出す</string>
+    <string name="bookmark_format_html">HTML（ブラウザ共通）</string>
+    <string name="bookmark_format_json">JSON（Sii バックアップ）</string>
+    <string name="bookmark_import_done">%1$d 件のブックマーク、%2$d 件のフォルダーを読み込みました</string>
     <string name="folder_name">フォルダ名</string>
     <string name="up_folder">上へ</string>
     <string name="bookmarks_empty">ブックマークはありません</string>
@@ -1362,6 +1375,7 @@
     <string name="screen_translate_no_text">文字が見つかりません</string>
     <string name="screen_translate_failed">翻訳に失敗しました。再試行してください</string>
     <string name="screen_translate_permission_overlay">翻訳を表示するにはオーバーレイ権限が必要です</string>
+    <string name="screen_translate_overlay_required">画面翻訳で訳文を表示するには「他のアプリの上に重ねて表示」権限が必要です。次のシステム画面で Sii に許可してください。</string>
     <string name="settings_screen_translate">画面翻訳</string>
     <string name="settings_screen_translate_desc">画面の文字を認識して翻訳を表示します</string>
     <string name="settings_screen_translate_speak">翻訳後に読み上げ</string>

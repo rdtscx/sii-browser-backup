@@ -8,12 +8,12 @@ import com.sii.browser.data.db.BookmarkItem
 /**
  * 书签的 Netscape Bookmark HTML 导入/导出（浏览器通用格式）。
  *
- * 导出保留文件夹层级；导入为简化解析：按文件顺序记住最近的 `<H3>` 文件夹名，
- * 同名文件夹复用，层级会被拉平到根下（普通书签文件无此问题）。
+ * 导出保留文件夹层级；导入按 `<DL>` 嵌套恢复层级（Chrome/Edge/Firefox 导出的多层目录不拉平），
+ * 同一路径下同名文件夹由调用方复用。
  */
 object BookmarkHtml {
 
-    data class ImportedEntry(val folder: String?, val title: String, val url: String)
+    data class ImportedEntry(val folderPath: List<String>, val title: String, val url: String)
 
     fun export(items: List<BookmarkItem>, folders: List<BookmarkFolder>): String {
         val sb = StringBuilder()
@@ -53,24 +53,42 @@ object BookmarkHtml {
 
     fun parse(html: String): List<ImportedEntry> {
         val pattern = Regex(
-            "<H3[^>]*>(.*?)</H3>|<A\\s[^>]*?HREF=\"([^\"]+)\"[^>]*>(.*?)</A>",
+            "(?<dlopen><DL[^>]*>)|(?<dlclose></DL\\s*>)" +
+                "|(?<h3><H3[^>]*>(?<h3t>.*?)</H3>)" +
+                "|(?<a><A\\s[^>]*?HREF\\s*=\\s*[\"'](?<href>[^\"']+)[\"'][^>]*>(?<at>.*?)</A>)",
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
         )
         val entries = mutableListOf<ImportedEntry>()
-        var currentFolder: String? = null
+        val stack = ArrayDeque<List<String>>()
+        var currentPath: List<String> = emptyList()
+        var pendingFolder: String? = null
         pattern.findAll(html).forEach { match ->
-            val folderName = match.groupValues[1]
-            val href = match.groupValues[2]
-            val title = match.groupValues[3]
+            val groups = match.groups
             when {
-                folderName.isNotBlank() -> currentFolder = unescape(folderName).trim()
-                href.isNotBlank() -> entries.add(
-                    ImportedEntry(
-                        folder = currentFolder,
-                        title = unescape(title).ifBlank { href },
-                        url = href.trim()
-                    )
-                )
+                groups["dlopen"] != null -> {
+                    // 进入子目录：前面的 <H3> 就是这一层的名字。
+                    stack.addLast(currentPath)
+                    pendingFolder?.let { currentPath = currentPath + it }
+                    pendingFolder = null
+                }
+                groups["dlclose"] != null -> {
+                    currentPath = stack.removeLastOrNull() ?: emptyList()
+                }
+                groups["h3"] != null -> {
+                    pendingFolder = unescape(groups["h3t"]?.value.orEmpty()).trim().ifBlank { null }
+                }
+                groups["href"] != null -> {
+                    val href = groups["href"]?.value.orEmpty().trim()
+                    if (href.isNotBlank()) {
+                        entries.add(
+                            ImportedEntry(
+                                folderPath = currentPath,
+                                title = unescape(groups["at"]?.value.orEmpty()).ifBlank { href },
+                                url = href
+                            )
+                        )
+                    }
+                }
             }
         }
         return entries

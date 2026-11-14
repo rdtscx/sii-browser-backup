@@ -45,7 +45,7 @@ class BookmarkFragment : Fragment() {
 
     private val importLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri -> if (uri != null) applyHtmlImport(uri) }
+    ) { uri -> if (uri != null) applyImport(uri) }
 
     private var currentItems: List<BookmarkItem> = emptyList()
     private var currentFolders: List<BookmarkFolder> = emptyList()
@@ -498,10 +498,12 @@ class BookmarkFragment : Fragment() {
                     )
                 ),
                 MenuPopup.Item(getString(R.string.new_folder)) { showNewFolderDialog() },
-                MenuPopup.Item(getString(R.string.bookmark_import_html)) {
-                    importLauncher.launch(arrayOf("text/html", "text/plain", "*/*"))
+                MenuPopup.Item(getString(R.string.bookmark_import)) {
+                    importLauncher.launch(
+                        arrayOf("text/html", "application/json", "text/plain", "*/*")
+                    )
                 },
-                MenuPopup.Item(getString(R.string.bookmark_export_html)) { exportHtml() }
+                MenuPopup.Item(getString(R.string.bookmark_export)) { showExportChooser() }
             )
         )
     }
@@ -871,48 +873,151 @@ class BookmarkFragment : Fragment() {
 
     // ---- 导入导出 ----
 
+    private fun showExportChooser() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.bookmark_export)
+            .setItems(
+                arrayOf(
+                    getString(R.string.bookmark_format_html),
+                    getString(R.string.bookmark_format_json)
+                )
+            ) { _, which ->
+                if (which == 0) exportHtml() else exportJson()
+            }
+            .show()
+    }
+
     private fun exportHtml() {
         viewLifecycleOwner.lifecycleScope.launch {
             val items = repository.allItemsOnce()
             val folders = repository.allFoldersOnce()
             val html = com.sii.browser.data.BookmarkHtml.export(items, folders)
             val name = "sii-bookmarks-${System.currentTimeMillis()}.html"
-            val path = FileExchange.writeToDownloads(requireContext(), name, html)
-            Toast.makeText(
-                requireContext(),
-                if (path != null) getString(R.string.data_exported_path, path)
-                else getString(R.string.rules_import_failed),
-                Toast.LENGTH_SHORT
-            ).show()
+            val path = FileExchange.writeBytesToDownloads(
+                requireContext(), name, "text/html", html.toByteArray(Charsets.UTF_8)
+            )
+            toastExportResult(path)
         }
     }
 
-    private fun applyHtmlImport(uri: android.net.Uri) {
+    private fun exportJson() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val items = repository.allItemsOnce()
+            val folders = repository.allFoldersOnce()
+            val json = com.sii.browser.data.BookmarkJson.export(items, folders)
+            val name = "sii-bookmarks-${System.currentTimeMillis()}.json"
+            val path = FileExchange.writeBytesToDownloads(
+                requireContext(), name, "application/json", json.toByteArray(Charsets.UTF_8)
+            )
+            toastExportResult(path)
+        }
+    }
+
+    private fun toastExportResult(path: String?) {
+        Toast.makeText(
+            requireContext(),
+            if (path != null) getString(R.string.data_exported_path, path)
+            else getString(R.string.rules_import_failed),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /** 导入：按内容自动区分 JSON 备份与 Netscape HTML，两种都支持。 */
+    private fun applyImport(uri: android.net.Uri) {
         val text = FileExchange.readText(requireContext(), uri)
         if (text.isNullOrBlank()) {
             Toast.makeText(requireContext(), R.string.rules_import_empty, Toast.LENGTH_SHORT).show()
             return
         }
         viewLifecycleOwner.lifecycleScope.launch {
+            if (com.sii.browser.data.BookmarkJson.looksLikeJson(text)) {
+                val document = com.sii.browser.data.BookmarkJson.parse(text)
+                if (document == null) {
+                    Toast.makeText(requireContext(), R.string.rules_import_failed, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val result = importJsonDocument(document)
+                toastImportResult(result.first, result.second)
+                return@launch
+            }
             val entries = runCatching { com.sii.browser.data.BookmarkHtml.parse(text) }
                 .getOrDefault(emptyList())
             if (entries.isEmpty()) {
                 Toast.makeText(requireContext(), R.string.rules_import_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            val folderIds = mutableMapOf<String, String>()
-            entries.forEach { entry ->
-                val targetFolder = entry.folder?.let { name ->
-                    folderIds.getOrPut(name) {
-                        repository.childFoldersOnce(null)
-                            .firstOrNull { it.title == name }?.id
-                            ?: repository.addFolder(name, null).id
-                    }
-                }
-                repository.addItem(entry.url, entry.title, targetFolder)
-            }
-            Toast.makeText(requireContext(), R.string.rules_imported, Toast.LENGTH_SHORT).show()
+            val result = importHtmlEntries(entries)
+            toastImportResult(result.first, result.second)
         }
+    }
+
+    private fun toastImportResult(items: Int, folders: Int) {
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.bookmark_import_done, items, folders),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /** HTML 导入：按路径逐层建目录，同父同名复用；同目录同 URL 去重。 */
+    private suspend fun importHtmlEntries(
+        entries: List<com.sii.browser.data.BookmarkHtml.ImportedEntry>
+    ): Pair<Int, Int> {
+        var folderCount = 0
+        var itemCount = 0
+        val existing = repository.allItemsOnce().map { it.folderId to it.url }.toHashSet()
+        entries.forEach { entry ->
+            val folderId = ensureFolderPath(entry.folderPath) { folderCount++ }
+            val url = entry.url.trim()
+            if (url.isBlank()) return@forEach
+            if (!existing.add(folderId to url)) return@forEach
+            repository.addItem(url, entry.title.ifBlank { url }, folderId)
+            itemCount++
+        }
+        return itemCount to folderCount
+    }
+
+    /** JSON 导入：按 id 映射重建层级，同父同名复用，已存在的同目录 URL 跳过。 */
+    private suspend fun importJsonDocument(
+        document: com.sii.browser.data.BookmarkJson.Document
+    ): Pair<Int, Int> {
+        var folderCount = 0
+        val idMap = mutableMapOf<String, String>()
+        val remaining = document.folders.toMutableList()
+        while (remaining.isNotEmpty()) {
+            val ready = remaining
+                .filter { it.parent == null || idMap.containsKey(it.parent) }
+                .sortedBy { it.order }
+            if (ready.isEmpty()) break
+            ready.forEach { folder ->
+                val parent = folder.parent?.let { idMap[it] }
+                val reuse = repository.childFoldersOnce(parent).firstOrNull { it.title == folder.title }
+                val id = reuse?.id ?: repository.addFolder(folder.title, parent).also { folderCount++ }.id
+                idMap[folder.id] = id
+                remaining.remove(folder)
+            }
+        }
+        var itemCount = 0
+        val existing = repository.allItemsOnce().map { it.folderId to it.url }.toHashSet()
+        document.items.sortedBy { it.order }.forEach { item ->
+            val folderId = item.folder?.let { idMap[it] }
+            val url = item.url.trim()
+            if (url.isBlank()) return@forEach
+            if (!existing.add(folderId to url)) return@forEach
+            repository.addItem(url, item.title.ifBlank { url }, folderId)
+            itemCount++
+        }
+        return itemCount to folderCount
+    }
+
+    /** 沿路径确保文件夹存在，返回最深一层的 id；新建时回调计数。 */
+    private suspend fun ensureFolderPath(path: List<String>, onCreated: () -> Unit): String? {
+        var parent: String? = null
+        path.forEach { name ->
+            val existing = repository.childFoldersOnce(parent).firstOrNull { it.title == name }
+            parent = existing?.id ?: repository.addFolder(name, parent).also { onCreated() }.id
+        }
+        return parent
     }
 
     private fun confirmDelete(message: String, onConfirm: () -> Unit) {

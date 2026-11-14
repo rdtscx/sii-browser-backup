@@ -86,14 +86,28 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var toolbarIconColor: Int? = null
     private var addressIconColor: Int? = null
     private var progressBar: ProgressBar? = null
-    /** 悬浮模式的进度填充层：胶囊背景里的主色 ClipDrawable，level = 进度×100。 */
-    private var dockProgressClip: android.graphics.drawable.ClipDrawable? = null
+    /** 悬浮模式的进度填充层：胶囊背景里的主色渐变 + 停滞流光，level 由 syncDockProgress 驱动。 */
+    private var dockProgressClip: com.sii.browser.ui.DockProgressDrawable? = null
     /** 胶囊背景层与其中的进度层下标：快捷引擎行在顶部时靠它把进度层下移。 */
     private var dockGlassLayer: android.graphics.drawable.LayerDrawable? = null
     private var dockProgressLayerIndex = -1
+    /** 进度层上次生效的顶部内缩值与所属 Layer，用来跳过重复的 setLayerInset。 */
+    private var dockProgressInsetTop = -1
+    private var dockInsetLayer: android.graphics.drawable.LayerDrawable? = null
     /** 进度条平滑动画：新进度到来时取消旧动画、从当前值继续追，避免瞬跳。 */
     private var progressAnimator: ValueAnimator? = null
     private var progressFinishPending: Runnable? = null
+    /** 经典样式的进度条绘制层：与悬浮胶囊共用同一套实现，只是参数不同。 */
+    private var classicProgress: DockProgressDrawable? = null
+    /** 慢站长时间不回进度时，让胶囊进度层播放扫光，避免用户误以为卡死。 */
+    private val dockStallRunnable = Runnable {
+        dockStallPending = false
+        if (isCurrentPageLoading()) {
+            dockProgressClip?.setRunning(true)
+            classicProgress?.setRunning(true)
+        }
+    }
+    private var dockStallPending = false
     /** 防止带隐私头的 loadUrl 触发重复 shouldOverride。 */
     private var privacyHeaderLoadUrl: String? = null
     /** 程序主动加载后短暂抑制主框架回调，避免必应等站点加载两次。 */
@@ -115,6 +129,19 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         OkHttpClient.Builder().dns(com.sii.browser.core.dns.DohDns).build()
     }
     private var permissionDialogShowing = false
+    /** 加载覆盖层淡入淡出的令牌：新动画开始后，旧的 withEndAction 不得再改可见性。 */
+    private var coverFadeToken = 0
+    /** 延迟显示覆盖层：秒开的页面不闪白。 */
+    private val showLoadingCoverRunnable = Runnable {
+        val cover = pageLoadingCover ?: return@Runnable
+        if (cover.visibility == View.VISIBLE) return@Runnable
+        coverFadeToken++
+        cover.animate().cancel()
+        cover.alpha = 0f
+        cover.bringToFront()
+        cover.visibility = View.VISIBLE
+        cover.animate().alpha(1f).setDuration(COVER_FADE_IN_MS).start()
+    }
     /** 页面内“返回”点击进行中：防止连按返回键重复注入。 */
     private var pageBackPending = false
     /** 打开 App 悬浮条：待跳转 intent 与回退地址。 */
@@ -204,6 +231,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
     private var pendingScreenTranslate = false
     private var pendingScreenTranslateLoop: Boolean? = null
+    /** 刚从系统设置返回：若已授予悬浮窗权限，自动继续屏幕翻译。 */
+    private var overlaySettingsPending = false
 
     /** 相机扫码结果。 */
     private val scanLauncher = registerForActivityResult(
@@ -560,6 +589,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (AppServices.settings.keyAction("back") == 1) {
             return confirmExit()
         }
+        // 链接还没提交：后退先取消这次跳转，留在点击链接时的页面。
+        if (hasPendingNavigation()) return cancelPendingNavigation()
         if (navFromHome) {
             // 从主页发起的搜索：返回直接回主页，主页再按返回就退出。
             navFromHome = false
@@ -601,6 +632,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             return closeCurrentTabToOpener()
         }
+        if (hasPendingNavigation()) return cancelPendingNavigation()
         val webView = tabManager.currentWebView
         if (canWebGoBack(webView)) {
             revealToolbarOnNavigate()
@@ -632,9 +664,44 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         return list.currentIndex < list.size - 1
     }
 
+    /** 目标地址已写入但还没提交：此时后退应取消跳转，而不是在已提交历史上再退一页。 */
+    private fun hasPendingNavigation(): Boolean {
+        if (!isCurrentPageLoading()) return false
+        val webView = tabManager.currentWebView ?: return false
+        val target = tabManager.current?.url.orEmpty()
+        if (target.isBlank()) return false
+        return target != webView.url.orEmpty()
+    }
+
+    /** 取消尚未提交的跳转，回到发起导航时的页面（不移动历史）。 */
+    private fun cancelPendingNavigation(): Boolean {
+        val webView = tabManager.currentWebView ?: return false
+        webView.stopLoading()
+        pageLoadFinished[webView] = true
+        finishProgressBar()
+        setRefreshLoading(false)
+        hidePageLoadingCover(fade = false)
+        val committed = runCatching {
+            val list = webView.copyBackForwardList()
+            list.getItemAtIndex(list.currentIndex)?.url
+        }.getOrNull().orEmpty()
+        if (committed.isBlank() || committed == "about:blank") {
+            // 新标签的首个页面尚未提交：没有可停留的内容，按返回语义关标签回来源。
+            if (closeCurrentTabToOpener()) return true
+        } else {
+            tabManager.current?.url = committed
+            tabManager.current?.title = webView.title.orEmpty()
+        }
+        updateAddressBarForCurrent()
+        updateNavigationState()
+        return true
+    }
+
     /** 优先原生后退；canGoBack() 误报时用页面 history.go 兜底（goBackOrForward 会静默失效）。 */
     private fun webGoBack(webView: SiiWebView?): Boolean {
         val wv = webView ?: return false
+        // 历史导航直接恢复页面，不走空白覆盖。
+        hidePageLoadingCover(fade = false)
         if (wv.canGoBack()) {
             wv.goBack()
             return true
@@ -646,6 +713,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun webGoForward(webView: SiiWebView?): Boolean {
         val wv = webView ?: return false
+        hidePageLoadingCover(fade = false)
         if (wv.canGoForward()) {
             wv.goForward()
             return true
@@ -2452,8 +2520,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!com.sii.browser.ui.overlay.OverlayManager.canDraw(ctx)) {
             android.app.AlertDialog.Builder(ctx)
                 .setTitle(R.string.settings_screen_translate)
-                .setMessage(R.string.screen_translate_intro)
+                .setMessage(R.string.screen_translate_overlay_required)
                 .setPositiveButton(R.string.screen_translate_open_settings) { _, _ ->
+                    overlaySettingsPending = true
                     runCatching {
                         startActivity(
                             Intent(
@@ -2467,6 +2536,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 .show()
             return
         }
+        // 离线模式首次使用需要语言包，下载完再请求截屏授权。
+        com.sii.browser.ui.translate.OfflinePackGate.ensure(
+            requireActivity(),
+            onReady = { launchScreenCapture(ctx) }
+        )
+    }
+
+    private fun launchScreenCapture(ctx: android.content.Context) {
         val manager = ctx.getSystemService(
             android.media.projection.MediaProjectionManager::class.java
         ) ?: return
@@ -4402,6 +4479,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             translateJob = null
             translatePolling?.cancel()
             translatePolling = null
+            hidePageLoadingCover(fade = false)
         }
         tabManager.closeTab(index)
         deleteThumbnail(closingUrl)
@@ -4466,7 +4544,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
     private fun loadUrlFor(rawUrl: String) {
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
-        revealToolbarOnNavigate()
+        keepToolbarVisibleWhileLoading()
         homePanel?.dismissSuggestions()
         blurAddressInput()
         // 任何主动导航都收起搜索建议，防止结果页上残留。
@@ -4594,14 +4672,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 主动导航立即回显目标地址；重定向后由 doUpdateVisitedHistory 替换。
         setAddressText(addressDisplayUrl(tabManager.current?.url ?: url))
         // DNS/连接阶段的慢站没有 onPageStarted 回调，主动导航时就立即显示 0% 进度条。
-        if (homeContainer?.visibility != View.VISIBLE) {
+        // 注意：这里不能要求「主页已不可见」才显示。从主页点搜索/书签发起导航时，
+        // 此刻主页还是可见的，跳过这段就会导致「进站后进度条一直不出现，切后台再回来才显示」。
+        if (!isHomeLikeUrl(url)) {
             progressBar?.let { bar ->
                 bar.animate().cancel()
                 progressAnimator?.cancel()
                 bar.alpha = 1f
                 bar.progress = 0
-                bar.visibility = View.VISIBLE
+                // 悬浮样式的横条本身是隐藏的（进度由胶囊背景表达），这里只需刷新胶囊。
+                if (AppServices.settings.uiStyle() == 1) {
+                    bar.visibility = View.GONE
+                } else {
+                    bar.visibility = View.VISIBLE
+                }
             }
+            syncDockProgress()
             setRefreshLoading(true)
         }
         tabManager.currentWebView?.let { pageLoadFinished[it] = false }
@@ -4960,9 +5046,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabManager.currentWebView?.visibility = View.VISIBLE
         // 从主页发起导航时进度条被“主页不显示”挡住，切到网页后补上当前进度。
         if (tabManager.currentWebView?.let { pageLoadFinished[it] } == false) {
-            progressBar?.let {
-                it.alpha = 1f
-                it.visibility = View.VISIBLE
+            // 悬浮样式的进度画在胶囊背景里，横条本身始终 GONE，不能靠它来「补显示」。
+            if (AppServices.settings.uiStyle() == 1) {
+                syncDockProgress()
+            } else {
+                progressBar?.let {
+                    it.alpha = 1f
+                    it.visibility = View.VISIBLE
+                }
             }
         }
         updateQuickEngineVisibility()
@@ -5079,15 +5170,36 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
-    /** 切换标签并按目标页类型显示主页/网页（修复主页时切标签看不到变化）。 */
-    private fun showPageLoadingCover() {
+    /** 延迟显示加载覆盖层（默认 90ms，避免秒开页面闪白）；显示时淡入。 */
+    private fun showPageLoadingCover(delayMs: Long = COVER_SHOW_DELAY_MS) {
         val cover = pageLoadingCover ?: return
-        cover.bringToFront()
-        cover.visibility = View.VISIBLE
+        cover.removeCallbacks(showLoadingCoverRunnable)
+        if (cover.visibility == View.VISIBLE) {
+            coverFadeToken++
+            cover.animate().cancel()
+            cover.alpha = 1f
+            return
+        }
+        if (delayMs <= 0L) showLoadingCoverRunnable.run()
+        else cover.postDelayed(showLoadingCoverRunnable, delayMs)
     }
 
-    private fun hidePageLoadingCover() {
-        pageLoadingCover?.visibility = View.GONE
+    /** 首帧提交即可淡出；淡出不阻塞内容显示，覆盖层自下而上消失。 */
+    private fun hidePageLoadingCover(fade: Boolean = true) {
+        val cover = pageLoadingCover ?: return
+        cover.removeCallbacks(showLoadingCoverRunnable)
+        cover.animate().cancel()
+        val token = ++coverFadeToken
+        if (!fade || cover.visibility != View.VISIBLE) {
+            cover.alpha = 1f
+            cover.visibility = View.GONE
+            return
+        }
+        cover.animate().alpha(0f).setDuration(COVER_FADE_OUT_MS).withEndAction {
+            if (token != coverFadeToken) return@withEndAction
+            cover.visibility = View.GONE
+            cover.alpha = 1f
+        }.start()
     }
 
     /** 新嗅探到 HLS/非分片视频时，延迟弹一次“发现视频”浮条。 */
@@ -5251,6 +5363,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
+    /** 切换标签并按目标页类型显示主页/网页。 */
     private fun switchToTab(index: Int) {
         val previous = tabManager.currentWebView
         cancelProgressFinish()
@@ -5270,6 +5383,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         homeOverlayActive = false
         homeForwardAvailable = false
         navFromHome = false
+        hidePageLoadingCover(fade = false)
         hideSniffPrompt()
         hideOpenAppPrompt()
         previous?.onPause()
@@ -5993,6 +6107,20 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
         val menuForeground = if (dark) android.graphics.Color.WHITE
         else (menuBg ?: menuFill)?.let { contrastOn(it) }
+        // 标题行「长按图标可进入设置」提示：跟随菜单前景色，深色玻璃面板上也要看得清。
+        // 用 60% 不透明度压成次要信息，不和上面一排排图标抢注意力。
+        // 用户点过后（menuLongPressHint 置 false）整行隐藏，标题恢复占满剩余宽度。
+        view?.findViewById<TextView>(R.id.menu_hint)?.apply {
+            val show = AppServices.settings.menuLongPressHint()
+            visibility = if (show) View.VISIBLE else View.GONE
+            if (show) {
+                val base = menuForeground ?: requireContext().getColor(R.color.text_secondary)
+                setTextColor(androidx.core.graphics.ColorUtils.setAlphaComponent(base, 0xB3))
+                setOnClickListener { confirmHideLongPressHint() }
+            } else {
+                setOnClickListener(null)
+            }
+        }
 
         val toggles = menuToggles ?: return
         toggles.removeAllViews()
@@ -6470,6 +6598,18 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (on) R.string.menu_privacy_off else R.string.menu_privacy_on,
             Toast.LENGTH_SHORT
         ).show()
+    }
+
+    /** 用户点击菜单标题行的长按提示：确认后永久关闭该提示。 */
+    private fun confirmHideLongPressHint() {
+        android.app.AlertDialog.Builder(requireContext())
+            .setMessage(R.string.menu_long_press_hint_close_confirm)
+            .setPositiveButton(R.string.menu_long_press_hint_hide) { _, _ ->
+                AppServices.settings.setMenuLongPressHint(false)
+                renderMenuSheet()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun openMenuSettings(viewId: String) {
@@ -7892,7 +8032,43 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun isCurrentPageLoading(): Boolean {
         val webView = tabManager.currentWebView ?: return false
-        return pageLoadFinished[webView] == false || progressBar?.visibility == View.VISIBLE
+        // 悬浮样式下 progressBar 永远 GONE（进度画在胶囊背景里），不能靠可见性判断；
+        // 否则停滞流光在悬浮模式下永远不触发。
+        if (pageLoadFinished[webView] == false) return true
+        return AppServices.settings.uiStyle() != 1 && progressBar?.visibility == View.VISIBLE
+    }
+
+    /**
+     * 主页类地址：这些加载不驱动进度条，避免冷启动/回主页进度条空跑一趟。
+     *
+     * 只认确定的主页标记。空字符串**不算**：真实导航刚发起时 webView.url 可能还是空，
+     * 若把它当主页就会漏掉整次加载的进度（表现为「进站后进度条不出现」）。
+     */
+    private fun isHomeLikeUrl(url: String?): Boolean {
+        val target = url?.trim().orEmpty()
+        if (target.isEmpty()) return false
+        return target == "about:blank" || target == ABOUT_HOME || target.startsWith("about:")
+    }
+
+    /**
+     * 这次加载是否属于主页自身（冷启动 about:blank、回主页、主页面板）。
+     *
+     * 只看 webView.url 不够：冷启动/first load 阶段 WebView 还没提交地址，url 是空串，
+     * 而 isHomeLikeUrl("") 明确返回 false，于是 about:blank 被当成真实加载——进度条
+     * 从 0 补满到 100 再淡出，表现为「冷启动快速走一遍」。
+     * 这里补上「地址未提交但标签自己还停在主页」这一种情况；从主页发起真实导航时
+     * 标签地址在 loadUrl 前就已写成 http 目标，因此优先看标签地址就不会误判。
+     */
+    private fun isHomeLikeLoad(webView: SiiWebView?): Boolean {
+        val wv = webView ?: return false
+        val tabUrl = tabManager.tabs.firstOrNull { it.webView === wv }?.url
+        // 标签已经指向真实网页：即使 WebView 还停在 about:blank（导航刚发起、尚未提交），
+        // 也必须算真实加载——否则会漏掉整次进度，表现为「进站后进度条不出现」。
+        if (!tabUrl.isNullOrBlank() && !isHomeLikeUrl(tabUrl)) return false
+        if (isHomeLikeUrl(wv.url)) return true
+        if (!wv.url.isNullOrBlank()) return false
+        // 地址未提交且标签自身也还停在主页：冷启动 about:blank，不算真实加载。
+        return true
     }
 
     private fun setRefreshLoading(loading: Boolean) {
@@ -7908,6 +8084,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 页面开始加载：显示 0 进度，等待 WebView 后续回调。 */
     private fun markPageLoading(webView: SiiWebView?) {
         val wv = webView ?: return
+        // 主页（about:home / about:blank / 空地址）不是真实页面加载，不能驱动进度条：
+        // 冷启动时 WebView 先载 about:blank，旧逻辑会把它当成一次加载，进度条从 0 冲到 80
+        // 再结束，表现为「启动瞬间进度条飞快走一遍」。
+        // 注意：不能依赖 homeContainer 的可见性——冷启动时它可能还没完成布局，
+        // 只要地址本身是主页类就一律不驱动进度条。
+        if (isHomeLikeLoad(wv)) {
+            pageLoadFinished[wv] = true
+            return
+        }
         // 同一轮加载中的重定向/跳转：保留当前进度，不清零。
         val continuing = progressFinishPending != null || pageLoadFinished[wv] == false
         cancelProgressFinish()
@@ -7924,6 +8109,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     if (AppServices.settings.uiStyle() != 1) bar.visibility = View.VISIBLE
                 }
                 syncDockProgress()
+                // 加载一开始就排上停滞计时：DNS/连接阶段可能长时间没有任何进度回调，
+                // 光等 onProgressChanged 会一直等不到，用户就只能盯着不动的色块。
+                view?.postDelayed(dockStallRunnable, DOCK_STALL_DELAY_MS)
             }
         }
     }
@@ -7951,7 +8139,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 进度平滑追到目标值；WebView 只报少量进度时也会缓慢向 80% 靠近。 */
     private fun animateProgressTo(target: Int) {
         val bar = progressBar ?: return
-        if (homeContainer?.visibility == View.VISIBLE) {
+        // 主页可见不代表「不该有进度」：从主页点击链接时，主页还没切走，
+        // 旧逻辑在这里直接 return 并隐藏进度，于是进度条要等切后台再回来才出现。
+        // 真正该排除的是主页自身的 about: 加载，那由 isHomeLikeUrl 判断。
+        val onHome = homeContainer?.visibility == View.VISIBLE
+        if (onHome && isHomeLikeLoad(tabManager.currentWebView)) {
             bar.visibility = View.GONE
             syncDockProgress()
             return
@@ -7970,6 +8162,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             else -> maxOf(target, 80)
         }
         if (desired <= current) return
+        // 进度要动了：先停扫光，动画结束后由 updateDockStall 重新计时。
+        cancelDockStall()
         progressAnimator?.cancel()
         val duration = ((desired - current) * 60L).coerceIn(600L, 5000L)
         val animator = ValueAnimator.ofInt(current, desired).apply {
@@ -7979,31 +8173,96 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bar.progress = it.animatedValue as Int
                 syncDockProgress()
             }
+            // 动画跑完不会再有帧回调，必须主动重排一次停滞计时，否则停在 80% 时永远不扫光。
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 指向当前动画自己的实例：动画期间被取消时不能误清掉新动画的引用。
+                    if (progressAnimator === animation) progressAnimator = null
+                    updateDockStall()
+                }
+            })
         }
         progressAnimator = animator
         animator.start()
     }
 
-    /** 页面加载完成：先补齐到 100%，再淡出后隐藏（避免进度条硬消失）。主页不显示进度条。 */
+    /** 页面加载完成：补满到 100%，停留一下再淡出，避免进度层「啪」地消失。 */
     private fun finishProgressBar() {
         cancelProgressFinish()
         val bar = progressBar
-        if (bar != null) {
-            progressAnimator?.cancel()
-            progressAnimator = null
-            bar.animate().cancel()
-            bar.progress = 100
-            bar.visibility = View.GONE
-            bar.progress = 0
-            bar.alpha = 1f
+        cancelDockStall()
+        if (bar == null) {
+            setRefreshLoading(false)
+            return
         }
-        syncDockProgress()
-        setRefreshLoading(false)
+        progressAnimator?.cancel()
+        progressAnimator = null
+        bar.animate().cancel()
+
+        // 1. 补满：从当前值追到 100，快收尾。
+        dockProgressClip?.setRunning(false)
+        classicProgress?.setRunning(false)
+        val from = bar.progress
+        if (from < 100) {
+            val fill = ValueAnimator.ofInt(from, 100).apply {
+                duration = PROGRESS_FILL_DURATION_MS
+                interpolator = DecelerateInterpolator()
+                addUpdateListener {
+                    val v = it.animatedValue as Int
+                    bar.progress = v
+                    dockProgressClip?.setProgress(v)
+                    classicProgress?.setProgress(v)
+                }
+            }
+            progressAnimator = fill
+            fill.start()
+        } else {
+            dockProgressClip?.setProgress(100)
+            classicProgress?.setProgress(100)
+        }
+
+        // 2. 停留 → 3. 淡出 → 4. 收起并归零，为下一次加载准备干净状态。
+        view?.postDelayed({
+            val clip = dockProgressClip
+            val classic = classicProgress
+            if (AppServices.settings.uiStyle() == 1) {
+                // 悬浮：进度层是胶囊背景的一部分，用 alpha 淡出需要 Drawable 自己支持。
+                val fade = ValueAnimator.ofInt(255, 0).apply {
+                    duration = PROGRESS_FADE_DURATION_MS
+                    addUpdateListener {
+                        val a = it.animatedValue as Int
+                        clip?.setAlpha(a)
+                        classic?.setAlpha(a)
+                    }
+                }
+                fade.start()
+            } else {
+                bar.animate().alpha(0f).setDuration(PROGRESS_FADE_DURATION_MS).start()
+            }
+            view?.postDelayed({
+                bar.progress = 0
+                bar.alpha = 1f
+                bar.visibility = View.GONE
+                clip?.setAlpha(255)
+                clip?.setProgress(0)
+                classic?.setAlpha(255)
+                classic?.setProgress(0)
+                setRefreshLoading(false)
+            }, PROGRESS_FADE_DURATION_MS)
+        }, PROGRESS_HOLD_DURATION_MS)
     }
 
     /** 延迟隐藏，给重定向的下一轮 onPageStarted 留出接续时间。 */
     private fun scheduleProgressFinish() {
         cancelProgressFinish()
+        // 主页类加载不走进度：markPageLoading 已经跳过，但 onPageFinished 仍会调到这里，
+        // 收尾动画会把胶囊从 0 补满到 100 再淡出，用户看到的就是「冷启动飞快走一遍」。
+        val wv = tabManager.currentWebView
+        if (wv != null && isHomeLikeLoad(wv)) {
+            progressBar?.progress = 0
+            syncDockProgress()
+            return
+        }
         val runnable = Runnable {
             progressFinishPending = null
             finishProgressBar()
@@ -8506,6 +8765,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         override fun onProgressChanged(webView: SiiWebView?, progress: Int) {
             if (webView !== tabManager.currentWebView) return
             if (webView != null && pageLoadFinished[webView] == true) return
+            // 主页类地址的加载（冷启动 about:blank）不驱动进度条。
+            if (isHomeLikeLoad(webView)) return
             progressBar?.let {
                 animateProgressTo(progress.coerceAtMost(95))
             }
@@ -9819,16 +10080,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 installUserScript(url)
                 return true
             }
-            // 当前标签内的主框架导航：立即显示进度条与叉号，不等 onPageStarted。
+            // 当前标签内的主框架导航：立即回显目标链接并进入空白页，不等 onPageStarted。
             if ((request == null || request.isForMainFrame) &&
                 webView != null && webView === tabManager.currentWebView &&
                 (url.startsWith("http://") || url.startsWith("https://")) &&
                 !handleExternalScheme(url)
             ) {
-                tabManager.current?.let { it.url = url }
+                tabManager.current?.let { tab ->
+                    tab.url = url
+                    // 清旧标题：标题模式下地址栏先显示链接，新标题到达后自然换回。
+                    tab.title = ""
+                }
                 markPageLoading(webView)
                 updateSiteInfoIcon()
                 updateAddressBarForCurrent()
+                keepToolbarVisibleWhileLoading()
+                showPageLoadingCover()
             }
             return handleExternalScheme(url)
         }
@@ -10174,6 +10441,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onResume() {
         super.onResume()
+        if (overlaySettingsPending) {
+            overlaySettingsPending = false
+            // 用户可能没开就返回：没授予就安静退出，不反复弹窗。
+            if (context?.let { com.sii.browser.ui.overlay.OverlayManager.canDraw(it) } == true) {
+                view?.post { requestScreenTranslate() }
+            }
+        }
         if (pendingScreenTranslate) {
             pendingScreenTranslate = false
             view?.post { requestScreenTranslate() }
@@ -11024,7 +11298,18 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             )
         }
         bar.elevation = 0f
+        // 经典样式不再用系统 ProgressBar 的色块，换成同一套自绘细条：
+        // 两端圆头 + 横向渐变 + 右缘柔光，停滞时同样有流光，两套观感统一。
+        val classic = classicProgress ?: run {
+            DockProgressDrawable(requireContext(), 0f, AppServices.settings.isNightMode(), dockStyle = false)
+                .also { classicProgress = it }
+        }
+        classic.hostView = bar
+        classic.setProgress(bar.progress)
         bar.background = null
+        bar.progressDrawable = classic
+        bar.progressTintList = null
+        bar.progressBackgroundTintList = null
     }
 
     /**
@@ -11543,16 +11828,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val night = AppServices.settings.isNightMode()
         val strength = AppServices.settings.glassStrength()
         val radius = dp(28).toFloat()
-        // 进度用胶囊本身的背景表达：一层从左往右裁剪的主色，插在填充与高光之间。
-        val accent = ThemeAccent.color(requireContext())
-        val fillAlpha = if (night) 0x3D else 0x33
-        val clip = android.graphics.drawable.ClipDrawable(
-            android.graphics.drawable.ColorDrawable((fillAlpha shl 24) or (accent and 0x00FFFFFF)),
-            android.view.Gravity.START,
-            android.graphics.drawable.ClipDrawable.HORIZONTAL
-        ).apply {
-            level = (progressBar?.progress ?: 0).coerceIn(0, 100) * 100
+        // 进度用胶囊本身的背景表达：一层主色横向渐变，插在填充与高光之间。
+        // 渐变由 DockProgressDrawable 自绘，左侧贴合胶囊圆角、右侧是裁切口；
+        // 停滞流光也由它负责，这里只把当前进度灌进去。
+        val clip = DockProgressDrawable(requireContext(), radius, night).apply {
+            // 进度层塞在胶囊背景里，必须把重绘请求转给胶囊本身，否则动画跑了屏幕不刷新。
+            hostView = dock
+            setProgress(progressBar?.progress ?: 0)
         }
+        // 旧背景里的动画还在跑，换背景前必须先停，否则 Drawable 失去宿主后仍占用帧回调。
+        dockProgressClip?.release()
         dockProgressClip = clip
         val frosted = AppServices.settings.homeFrosted()
         val dockAlpha = AppServices.settings.homeDockAlpha().coerceIn(0, 100)
@@ -11605,13 +11890,52 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             host?.height?.takeIf { it > 0 }
                 ?: (quickEngineFullHeight.takeIf { it > 0 } ?: dp(40)) + dp(2)
         } else 0
+        // 进度动画每帧都会调到这里，值没变就别再 setLayerInset（那会触发重新布局）。
+        if (top == dockProgressInsetTop && layer === dockInsetLayer) return
+        dockProgressInsetTop = top
+        dockInsetLayer = layer
         layer.setLayerInset(index, 0, top, 0, 0)
+        // 地址行高度随芯片行出现/消失变化，告诉绘制层新高度，好重算渐变与柔化宽度。
+        val dockHeight = view?.findViewById<View>(R.id.modern_chrome)?.height ?: 0
+        dockProgressClip?.hostHeight = (dockHeight - top).coerceAtLeast(0)
     }
 
-    /** 把当前加载进度同步到胶囊的填充层。 */
+    /** 把当前加载进度同步到胶囊的填充层，并按需启停停滞扫光。 */
     private fun syncDockProgress() {
-        syncDockProgressInset()
-        dockProgressClip?.level = (progressBar?.progress ?: 0).coerceIn(0, 100) * 100
+        // 只改进度不改 inset：inset 每次都 setLayerInset 会触发重排，动画帧里不能跟着跑。
+        val current = progressBar?.progress ?: 0
+        dockProgressClip?.setProgress(current)
+        classicProgress?.setProgress(current)
+        updateDockStall()
+    }
+
+    /**
+     * 停滞扫光调度：加载中且已有进度，只要进度没在推进就计时，[DOCK_STALL_DELAY_MS] 后开扫光。
+     *
+     * 原先要求「进度动画必须已经跑完」才计时，实际上慢站会反复收到 1%～5% 的回调并不断重启动画，
+     * 计时被无限推迟，扫光永远不出现。现在改为：动画在跑 = 有进展 = 不扫光；
+     * 动画停下并静置 600ms 仍无新进度 = 停滞 = 开始扫光。
+     */
+    private fun updateDockStall() {
+        val loading = isCurrentPageLoading()
+        // 不再要求 progress > 0：DNS/连接阶段进度就是 0，而那正是最像卡死的时候。
+        val animating = progressAnimator?.isRunning == true
+        if (!loading || animating) {
+            cancelDockStall()
+            return
+        }
+        // 已经在计时就不重复排队，避免每帧 remove/post 抖动。
+        if (dockStallPending) return
+        dockStallPending = true
+        view?.postDelayed(dockStallRunnable, DOCK_STALL_DELAY_MS)
+    }
+
+    /** 停掉扫光与计时：进度变化、加载结束、离开界面时都要走这里。 */
+    private fun cancelDockStall() {
+        view?.removeCallbacks(dockStallRunnable)
+        dockStallPending = false
+        dockProgressClip?.setRunning(false)
+        classicProgress?.setRunning(false)
     }
 
     /** 悬浮底栏底色：选中「工具栏」且（主页或已开网页应用）时用主色淡底，与玻璃强度叠加。 */
@@ -11646,6 +11970,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     private fun handleToolbarAutoHide(rawDy: Int) {
         if (rawDy == 0) return
+        // 加载中不收起：空白页盖住内容时用户要靠底栏看进度。
+        if (rawDy > 0 && isCurrentPageLoading()) return
         val dir = if (rawDy > 0) 1 else -1
         // 方向必须单独记：累计值达标后会归零，不能再用它判断方向，否则同方向滚动会被当成反转。
         if (scrollDir != 0 && scrollDir != dir) {
@@ -11834,6 +12160,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         progressAnimator?.cancel()
         progressAnimator = null
         cancelProgressFinish()
+        cancelDockStall()
+        dockProgressClip?.release()
+        dockProgressClip = null
+        classicProgress?.release()
+        classicProgress = null
+        dockGlassLayer = null
+        dockProgressLayerIndex = -1
+        dockProgressInsetTop = -1
+        dockInsetLayer = null
         cancelTranslateFabAutoHide()
         homePanel?.release()
         homePanel = null
@@ -11936,20 +12271,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun applyDockImeOffset() {
         if (AppServices.settings.uiStyle() != 1) return
         val dock = view?.findViewById<View>(R.id.modern_chrome) ?: return
+        // 主页搜索聚焦优先：键盘直接把底栏盖住，底栏留在原位不动。
+        // 这个判断必须放在地址栏编辑之前——主页搜索时 addressEditImeSuspend 可能还是 true，
+        // 一旦走下面那条分支就会把底栏抬到键盘上方，表现为「浮动工具栏飘在输入法上面」。
+        if (AppServices.homeSearchImeSuspend) {
+            if (dock.translationY != 0f) {
+                dock.animate().cancel()
+                dock.translationY = 0f
+            }
+            return
+        }
         // 地址栏编辑时页面不缩，只把底栏抬到键盘上方。
         if (AppServices.addressEditImeSuspend) {
             val target = -imeInsetBottom.toFloat()
             if (dock.translationY != target) {
                 dock.animate().cancel()
                 dock.translationY = target
-            }
-            return
-        }
-        // 主页搜索聚焦时键盘直接盖住底栏，不做收起动画。
-        if (AppServices.homeSearchImeSuspend) {
-            if (dock.translationY != 0f) {
-                dock.animate().cancel()
-                dock.translationY = 0f
             }
             return
         }
@@ -11963,6 +12300,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .setDuration(140L)
             .setInterpolator(android.view.animation.DecelerateInterpolator())
             .start()
+    }
+
+    /** 导航开始：取消正在排队的自动收起，并确保底栏可见（加载中要能看到进度）。 */
+    private fun keepToolbarVisibleWhileLoading() {
+        scrollAccum = 0
+        scrollDir = 0
+        pendingScrollDir = 0
+        view?.removeCallbacks(applyScrollDirection)
+        revealToolbarOnNavigate()
     }
 
     /** 导航/后退时把滚动收起的工具栏调出来，避免新页面或返回后底栏停在屏幕外。 */
@@ -12151,6 +12497,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         private const val SCROLL_HIDE_DELAY_MS = 32L
         private const val SCROLL_TOGGLE_COOLDOWN_MS = 120L
 
+        /** 慢站节点停顿多久后让胶囊进度层开始扫光：留出正常波动的余地，别一晃就动。 */
+        private const val DOCK_STALL_DELAY_MS = 600L
+
+        /** 加载完成的收尾节奏：补满 → 停留 → 淡出，给用户一个「完成」的收束感。 */
+        private const val PROGRESS_FILL_DURATION_MS = 180L
+        private const val PROGRESS_HOLD_DURATION_MS = 120L
+        private const val PROGRESS_FADE_DURATION_MS = 200L
+
         /** 同一次播放触发的资源归为一批的时间窗。 */
         private const val SNIFF_PROMPT_BURST_MS = 1500L
         const val KEY_URL = "sii_browser_url"
@@ -12173,6 +12527,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         const val TRANSLATE_FAB_IDLE_MS = 30_000L
         /** 退出二次确认的有效窗口。 */
         const val EXIT_CONFIRM_MS = 2_000L
+        /** 加载覆盖层：延迟显示防秒开白闪；淡入/淡出时长。 */
+        private const val COVER_SHOW_DELAY_MS = 90L
+        private const val COVER_FADE_IN_MS = 90L
+        private const val COVER_FADE_OUT_MS = 120L
         const val THUMB_MAX_WIDTH = 360
 
         /** 页面内“返回”控件：找到可见、位于页面上部的「返回/上一级」就点它，否则报告 NONE。 */

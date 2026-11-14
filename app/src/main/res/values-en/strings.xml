@@ -221,6 +221,13 @@
     <string name="text_translate_download_progress">Downloading pack %1$d%%</string>
     <string name="text_translate_pack_failed">Download failed; check your network and Google Play services</string>
     <string name="text_translate_need_pack">Language pack not downloaded</string>
+    <string name="offline_pack_message">Offline translation needs the Chinese and English language packs (about 60MB total, via Google Play services). Download now?</string>
+    <string name="offline_pack_message_dynamic">Offline translation needs the %1$s language pack(s) (~30MB each, via Google Play services, Wi-Fi recommended). Download now?</string>
+    <string name="offline_pack_download">Download</string>
+    <string name="offline_pack_switch_online">Use online translation</string>
+    <string name="offline_pack_progress">Downloading language packs %1$d%% (%2$d/%3$d)</string>
+    <string name="offline_pack_ready">Language packs are ready</string>
+    <string name="settings_offline_pack">Offline language packs</string>
     <string name="text_translate_go_download">Download</string>
     <string name="text_translate_cloud_notice_title">Use cloud translation?</string>
     <string name="text_translate_cloud_notice">Text is sent to the selected provider. You can change it in Settings → Translation.</string>
@@ -316,6 +323,7 @@
     <string name="scan_result_copied">Result copied</string>
     <string name="scan_permission_denied">Camera permission is required to scan</string>
     <string name="shortcut_unsupported">Pinned shortcuts are not supported by this launcher</string>
+    <string name="shortcut_exists">Shortcut already exists</string>
     <string name="script_menu_empty">No script menu registered on this page</string>
     <string name="ad_pick_hint">Tap the ad element to hide</string>
     <string name="ad_pick_blocked">Page navigation blocked while picking</string>
@@ -468,6 +476,11 @@
     <string name="bookmark_desc">Long-press a bookmark to pin, edit or delete; drag the handle to reorder.</string>
     <string name="bookmark_export_html">Export bookmarks HTML</string>
     <string name="bookmark_import_html">Import bookmarks HTML</string>
+    <string name="bookmark_import">Import bookmarks</string>
+    <string name="bookmark_export">Export bookmarks</string>
+    <string name="bookmark_format_html">HTML (browser compatible)</string>
+    <string name="bookmark_format_json">JSON (Sii backup)</string>
+    <string name="bookmark_import_done">Imported %1$d bookmarks, %2$d folders</string>
     <string name="folder_name">Folder name</string>
     <string name="up_folder">Up</string>
     <string name="bookmarks_empty">No bookmarks</string>
@@ -1353,6 +1366,9 @@
     <string name="menu_devtools">Developer tools</string>
     <string name="menu_user_scripts">User scripts</string>
     <string name="menu_edit_buttons">Edit buttons</string>
+    <string name="menu_long_press_hint">Long-press an icon to open its settings</string>
+    <string name="menu_long_press_hint_close_confirm">Hide this reminder? It will not show again. Long-pressing icons still works.</string>
+    <string name="menu_long_press_hint_hide">Hide</string>
 
     <string name="shortcut_screen_translate">Screen translation</string>
     <string name="screen_translate_title">Screen translation</string>
@@ -1363,6 +1379,7 @@
     <string name="screen_translate_no_text">No text detected</string>
     <string name="screen_translate_failed">Translation failed, try again</string>
     <string name="screen_translate_permission_overlay">Overlay permission is required to show the translation</string>
+    <string name="screen_translate_overlay_required">Screen translation needs the \"display over other apps\" permission to show the translation. In the next system screen, allow Sii to display over other apps.</string>
     <string name="settings_screen_translate">Screen translation</string>
     <string name="settings_screen_translate_desc">Recognize screen text and show the translation</string>
     <string name="settings_screen_translate_speak">Speak the result</string>

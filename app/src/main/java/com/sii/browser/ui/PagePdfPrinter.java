@@ -27,7 +27,7 @@ public final class PagePdfPrinter {
                              final Callback callback) {
         final PrintDocumentAdapter adapter = webView.createPrintDocumentAdapter("Sii");
         adapter.onLayout(null, attrs, null,
-                new PrintDocumentAdapter.LayoutResultCallback() {
+                new android.print.SiiLayoutResultCallback() {
                     @Override
                     public void onLayoutFinished(PrintDocumentInfo info, boolean changed) {
                         final ParcelFileDescriptor descriptor;
@@ -46,7 +46,7 @@ public final class PagePdfPrinter {
                                 new PageRange[]{PageRange.ALL_PAGES},
                                 descriptor,
                                 new CancellationSignal(),
-                                new PrintDocumentAdapter.WriteResultCallback() {
+                                new android.print.SiiWriteResultCallback() {
                                     @Override
                                     public void onWriteFinished(PageRange[] pages) {
                                         close(descriptor);

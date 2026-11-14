@@ -146,8 +146,9 @@ object OfflineTranslator {
         for (code in targets) {
             runCatching { manager.deleteDownloadedModel(model(code)).awaitResult() }
                 .onFailure { ok = false }
-            synchronized(readyCache) { readyCache[code] = false }
         }
+        // 删除后全部重新查一次：readyCache 可能还留着其它语言的旧状态。
+        synchronized(readyCache) { readyCache.clear() }
         synchronized(clients) {
             clients.values.forEach { runCatching { it.close() } }
             clients.clear()

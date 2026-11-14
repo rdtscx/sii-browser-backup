@@ -34,6 +34,10 @@ class SettingsDetailFragment : Fragment() {
     private var offlineProgress: android.widget.ProgressBar? = null
     private val settings: Settings get() = AppServices.settings
     private val viewId: String get() = arguments?.getString(ARG_VIEW).orEmpty()
+    /** 刚从悬浮窗设置返回：授予后自动开启屏幕翻译。 */
+    private var overlaySettingsPending = false
+    /** 等待悬浮窗授权后自动创建桌面快捷方式。 */
+    private var pendingPinShortcut = false
 
     /** 导入数据用的 SAF 文件选择器。 */
     private val importLauncher = registerForActivityResult(
@@ -557,11 +561,15 @@ class SettingsDetailFragment : Fragment() {
         card(statusBox)
 
         val valueViews = mutableMapOf<String, TextView>()
-        val rows = com.sii.browser.core.webview.TranslateLanguages.ALL.map { lang ->
+        // 简体/繁体在 ML Kit 里共用同一个 zh 模型，列表合并成一行避免“删一个两个都消失”的困惑。
+        val displayLanguages = com.sii.browser.core.webview.TranslateLanguages.ALL
+            .filter { it.tag != "zh-TW" }
+        val rows = displayLanguages.map { lang ->
+            val label = if (lang.tag == "zh-CN") "中文（含繁體）" else lang.label
             val value = valueView("…")
             valueViews[lang.tag] = value
             CardList.row(context).apply {
-                addView(titleView(lang.label), weightParams())
+                addView(titleView(label), weightParams())
                 addView(value)
                 setOnClickListener { onOfflineLanguageClick(lang) }
                 setOnLongClickListener {
@@ -584,6 +592,7 @@ class SettingsDetailFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             val translator = com.sii.browser.core.webview.OfflineTranslator
             val languages = com.sii.browser.core.webview.TranslateLanguages.ALL
+                .filter { it.tag != "zh-TW" }
             val states = languages.map { lang ->
                 lang.tag to translator.isModelReady(requireContext(), lang.mlkit)
             }
@@ -2449,6 +2458,55 @@ class SettingsDetailFragment : Fragment() {
         com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
     }
 
+    /** 从系统设置返回后：已授予悬浮窗权限就自动开启屏幕翻译开关。 */
+    override fun onResume() {
+        super.onResume()
+        if (!overlaySettingsPending) return
+        overlaySettingsPending = false
+        if (!com.sii.browser.ui.overlay.OverlayManager.canDraw(requireContext())) {
+            pendingPinShortcut = false
+            return
+        }
+        if (pendingPinShortcut) {
+            pendingPinShortcut = false
+            Shortcuts.pinScreenTranslate(requireContext())
+            return
+        }
+        settings.setScreenTranslateBall(true)
+        com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
+        build()
+    }
+
+    /** 创建快捷方式前先确认悬浮窗权限：快捷方式一打开就要能用。 */
+    private fun requestScreenTranslateShortcut() {
+        if (!com.sii.browser.ui.overlay.OverlayManager.canDraw(requireContext())) {
+            pendingPinShortcut = true
+            showOverlayPermissionDialog()
+            return
+        }
+        Shortcuts.pinScreenTranslate(requireContext())
+    }
+
+    /** 开启屏幕翻译前需要悬浮窗权限，说明原因并提供跳转。 */
+    private fun showOverlayPermissionDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_screen_translate)
+            .setMessage(R.string.screen_translate_overlay_required)
+            .setPositiveButton(R.string.screen_translate_open_settings) { _, _ ->
+                overlaySettingsPending = true
+                runCatching {
+                    startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${requireContext().packageName}")
+                        )
+                    )
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun buildV2ScreenTranslate() {
         var pendingBallSize = settings.screenTranslateBallSize()
         var pendingBallAlpha = settings.screenTranslateBallAlpha()
@@ -2478,14 +2536,21 @@ class SettingsDetailFragment : Fragment() {
                 settings.screenTranslateBall(),
                 getString(R.string.settings_screen_translate_enabled_desc)
             ) { value ->
-                settings.setScreenTranslateBall(value)
-                if (value) {
-                    com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
+                if (value && !com.sii.browser.ui.overlay.OverlayManager.canDraw(requireContext())) {
+                    // 没有悬浮窗权限：先提醒并引导去开启，开关保持关闭。
+                    settings.setScreenTranslateBall(false)
+                    build()
+                    showOverlayPermissionDialog()
                 } else {
-                    com.sii.browser.ui.translate.ScreenTranslateBallService.stop(requireContext())
-                    com.sii.browser.ui.translate.ScreenTranslateService.stop(requireContext())
+                    settings.setScreenTranslateBall(value)
+                    if (value) {
+                        com.sii.browser.ui.translate.ScreenTranslateBallService.start(requireContext())
+                    } else {
+                        com.sii.browser.ui.translate.ScreenTranslateBallService.stop(requireContext())
+                        com.sii.browser.ui.translate.ScreenTranslateService.stop(requireContext())
+                    }
+                    build()
                 }
-                build()
             },
             sliderRow(
                 getString(R.string.settings_screen_translate_ball_size),
@@ -2544,7 +2609,19 @@ class SettingsDetailFragment : Fragment() {
                 1
             ) { value -> settings.setScreenTranslateFont(value) },
             navRow(getString(R.string.screen_translate_create_shortcut)) {
-                Shortcuts.pinScreenTranslate(requireContext())
+                requestScreenTranslateShortcut()
+            },
+            navRow(getString(R.string.settings_offline_pack)) {
+                com.sii.browser.ui.translate.OfflinePackGate.ensure(
+                    requireActivity(),
+                    onReady = {
+                        Toast.makeText(
+                            requireContext(),
+                            R.string.offline_pack_ready,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
             }
         )
         aboutText(R.string.settings_screen_translate_desc)

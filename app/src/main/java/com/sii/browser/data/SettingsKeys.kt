@@ -300,6 +300,8 @@ object SettingsKeys {
     const val FIXED_MENU_TEXT_SIZE = "fixed_menu_text_size"
     const val MENU_SHOW_LABELS = "menu_show_labels"
     const val FIXED_MENU_SHOW_LABELS = "fixed_menu_show_labels"
+    /** 菜单标题行「长按图标可进入设置」提示是否显示；用户点掉后置 false。 */
+    const val MENU_LONG_PRESS_HINT = "menu_long_press_hint"
     const val MENU_TEXT_SIZE = "menu_text_size"
     const val MENU_ICON_SIZE = "menu_icon_size"
     const val MENU_COLUMNS = "menu_columns"
