@@ -18,7 +18,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * 已启用资源嗅探的站点：默认所有站点关闭嗅探，只有这里列出的站点会记录资源。
+ * 资源嗅探启用站点：默认所有站点关闭嗅探，只有这里列出的站点会记录资源。
+ *
+ * 视觉与设置页保持一致：根背景 bg_page、内容边距 14/10/14/20、卡片统一用
+ * CardList.pageCard + addRows（跟随后卡片透明度与外框设置）、分组用 sectionTitle、
+ * 页尾说明用 aboutText 同款样式。
  */
 class SniffSitesFragment : Fragment() {
 
@@ -31,12 +35,12 @@ class SniffSitesFragment : Fragment() {
     ): View {
         val root = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(requireContext().getColor(R.color.bg))
+            setBackgroundColor(requireContext().getColor(R.color.bg_page))
         }
         root.addView(
             PageHeader.build(
                 requireContext(),
-                getString(R.string.settings_sniff_sites),
+                getString(R.string.sniff_sites_title),
                 onBack = { parentFragmentManager.popBackStack() }
             )
         )
@@ -46,7 +50,7 @@ class SniffSitesFragment : Fragment() {
         })
         val content = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(12))
+            setPadding(dp(14), dp(10), dp(14), dp(20))
         }
         root.addView(
             CardList.scroll(requireContext(), content),
@@ -68,6 +72,15 @@ class SniffSitesFragment : Fragment() {
 
     private fun render() {
         container.removeAllViews()
+        // 总开关单独一组，与下面的站点列表用分组标题隔开。
+        container.addView(CardList.sectionTitle(requireContext(), getString(R.string.settings_sniff)))
+        val master = CardList.pageCard(requireContext())
+        CardList.addRows(master, listOf(buildMasterSwitch()))
+        container.addView(master)
+
+        container.addView(
+            CardList.sectionTitle(requireContext(), getString(R.string.sniff_sites_enabled_title))
+        )
         val hosts = AppServices.siteConfigRepository.cachedAll()
             .filterValues { SiteConfig.sniffEnabledRaw(it) }
             .keys
@@ -75,9 +88,11 @@ class SniffSitesFragment : Fragment() {
         if (hosts.isEmpty()) {
             container.addView(TextView(requireContext()).apply {
                 text = getString(R.string.sniff_sites_empty)
-                setTextSize(13f)
+                setTextSize(12f)
                 setTextColor(requireContext().getColor(R.color.text_secondary))
-                setPadding(dp(8), dp(16), dp(8), dp(8))
+                gravity = android.view.Gravity.CENTER
+                setLineSpacing(0f, 1.8f)
+                setPadding(dp(18), dp(26), dp(18), dp(20))
             })
             return
         }
@@ -86,18 +101,55 @@ class SniffSitesFragment : Fragment() {
         container.addView(card)
     }
 
+    /** 资源嗅探总开关：与设置页的 switchRow 同一套字号/副说明样式。 */
+    private fun buildMasterSwitch(): View {
+        val context = requireContext()
+        val switch = android.widget.Switch(context).apply {
+            isChecked = AppServices.settings.sniffEnabled()
+            trackDrawable = androidx.core.content.ContextCompat
+                .getDrawable(context, R.drawable.switch_track)
+            thumbDrawable = androidx.core.content.ContextCompat
+                .getDrawable(context, R.drawable.switch_thumb)
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(26))
+            setOnCheckedChangeListener { _, value -> AppServices.settings.setSniffEnabled(value) }
+        }
+        return CardList.row(context).apply {
+            addView(
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(context).apply {
+                        text = context.getString(R.string.settings_sniff)
+                        setTextSize(14f)
+                        setTextColor(context.getColor(R.color.text_primary))
+                    })
+                    addView(TextView(context).apply {
+                        text = context.getString(R.string.settings_sniff_desc)
+                        setTextSize(12.5f)
+                        setTextColor(context.getColor(R.color.text_secondary))
+                        alpha = 0.55f
+                        setLineSpacing(0f, 1.35f)
+                        setPadding(0, dp(3), 0, 0)
+                    })
+                },
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(switch)
+        }
+    }
+
     private fun row(host: String): View {
         val name = TextView(requireContext()).apply {
             text = host
             setTextSize(14f)
             setTextColor(requireContext().getColor(R.color.text_primary))
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val remove = TextView(requireContext()).apply {
             text = getString(R.string.sniff_sites_remove)
             setTextSize(13f)
             setTextColor(ThemeAccent.color(requireContext()))
-            setPadding(dp(10), dp(6), 0, dp(6))
+            setPadding(dp(12), dp(6), dp(2), dp(6))
             setOnClickListener { removeHost(host) }
         }
         return CardList.row(requireContext()).apply {

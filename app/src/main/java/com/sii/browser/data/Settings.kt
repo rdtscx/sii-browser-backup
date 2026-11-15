@@ -235,6 +235,18 @@ interface AppearanceSettings {
     /** 菜单标题行「长按图标可进入设置」提示是否显示。 */
     fun menuLongPressHint(): Boolean
     fun setMenuLongPressHint(value: Boolean)
+
+    /** 熊猫头浮条提示是否已显示过（true 后不再自动浮出）。 */
+    fun siteInfoTipShown(): Boolean
+    fun setSiteInfoTipShown(value: Boolean)
+
+    /** 点按熊猫头的收藏说明是否已展示过。 */
+    fun siteInfoTapTipShown(): Boolean
+    fun setSiteInfoTapTipShown(value: Boolean)
+
+    /** 长按熊猫头的菜单提示是否已展示过。 */
+    fun siteInfoHoldTipShown(): Boolean
+    fun setSiteInfoHoldTipShown(value: Boolean)
     fun fixedMenuShowLabels(): Boolean
     fun setFixedMenuShowLabels(value: Boolean)
 

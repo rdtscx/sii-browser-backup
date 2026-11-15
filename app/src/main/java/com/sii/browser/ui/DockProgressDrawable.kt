@@ -19,18 +19,23 @@ import androidx.core.graphics.ColorUtils
 /**
  * 页面加载进度条，一套绘制核心供两种工具栏使用。
  *
- * 悬浮胶囊：横向渐变填充地址行（左淡右浓），右缘 10dp 柔化，不做硬裁切；
- * 经典工具栏：3dp 细条，两端收圆，右缘 2dp 柔光收尾。
+ * 悬浮胶囊：横向渐变填充地址行（左淡右浓），末端柔化收细；
+ * 经典工具栏：3dp 细条，两端收圆，末端同样柔化收细。
  *
- * 停滞光效只叠在**已填充的主色**上：主色饱和，白色高光对比足够，
- * 不再需要暗带补偿（旧实现白+黑互相找补，浅色胶囊上只会显得脏）。
+ * 末端处理的关键：不再往填充上**叠一层白**（那会在末端留下亮度台阶，
+ * 看起来像「多叠了一小段」），而是把柔化直接写进填充自身的渐变里
+ * —— 主色走到底、末端微微提亮、再渐变到透明。任何进度下填充都裁在同一
+ * 个圆角形状内，100% 时右端圆角与轨道/胶囊严丝合缝，不会盖出方角。
+ *
+ * 0% 不是「什么都不画」：加载中但还没有进度时画一条极淡底线，
+ * 让 DNS/TLS 首包阶段也有「正在加载」的反馈。
  *
  * 用自绘 Drawable 而非往 LayerDrawable 塞图层：旧做法里无效化传不到父容器、
  * 子层可见性传播时机不可靠，是「流光不出现」的根因。
  */
 class DockProgressDrawable(
     context: Context,
-    /** 左缘圆角（跟随胶囊 28dp）；经典细条可传 0。 */
+    /** 左缘圆角（跟随胶囊 28dp）；经典细条可传 0，绘制时按半高收圆。 */
     private val radius: Float,
     night: Boolean,
     /** 是否悬浮胶囊样式：只影响边缘柔化宽度与渐变浓度。 */
@@ -47,17 +52,18 @@ class DockProgressDrawable(
         0xFF
     }
 
-    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glossPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val tipPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val tipMatrix = Matrix()
+    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val rect = RectF()
     private val glossMatrix = Matrix()
 
     private var progress = 0
     private var running = false
+    /** 加载中：用于 0% 时显示极淡底线，避免连接阶段毫无反馈。 */
+    private var active = false
     private var phase = 0f
     private var alphaScale = 255
     private var animator: ValueAnimator? = null
@@ -88,15 +94,17 @@ class DockProgressDrawable(
         set(value) {
             if (field == value) return
             field = value
-            shaderWidth = -1
+            shaderRight = -1f
             invalidateHost()
         }
 
-    /** 渐变按 bounds 宽度铺满，bounds 变化时才重建 shader。 */
-    private var shaderWidth = -1
+    /** 渐变按 bounds 与进度重建，只有这些量变化时才刷新 shader。 */
+    private var shaderLeft = -1f
+    private var shaderRight = -1f
+    private var shaderFade = -1f
 
     /** 右缘柔化宽度：悬浮跟着胶囊圆角走，只需极窄一段避免硬边；细条 2dp 收尖。 */
-    private val fadeWidth: Float = (if (dockStyle) 2f else 2f) * density
+    private val fadeWidth: Float = 2f * density
 
     /** 扫光带宽：悬浮略宽更醒目，细条窄一些避免糊成一片。 */
     private val bandWidth: Float = (if (dockStyle) 56f else 40f) * density
@@ -104,18 +112,13 @@ class DockProgressDrawable(
     init {
         // 轨道底：只暗示「这里有进度条」，不能让人以为已经有进度。
         trackPaint.color = ColorUtils.setAlphaComponent(accent, 0x14)
+        // 0% 加载中的极淡底线：比轨道再淡一档，不抢视线。
+        hintPaint.color = ColorUtils.setAlphaComponent(accent, 0x24)
         // 停滞流光：叠在主色填充上，55% 白足够清楚又不刺眼。
         glossPaint.shader = LinearGradient(
             0f, 0f, bandWidth, 0f,
             intArrayOf(0x00FFFFFF, 0x8CFFFFFF.toInt(), 0x00FFFFFF),
             floatArrayOf(0f, 0.5f, 1f),
-            Shader.TileMode.CLAMP
-        )
-        // 尖端柔光：填充末端一小段提亮，指示推进方向。
-        tipPaint.shader = LinearGradient(
-            0f, 0f, fadeWidth, 0f,
-            intArrayOf(0x66FFFFFF, 0x00FFFFFF),
-            floatArrayOf(0f, 1f),
             Shader.TileMode.CLAMP
         )
     }
@@ -125,6 +128,13 @@ class DockProgressDrawable(
         val next = value.coerceIn(0, 100)
         if (next == progress) return
         progress = next
+        invalidateHost()
+    }
+
+    /** 加载中标记：只影响 0% 时是否画极淡底线，不影响正常填充与收尾动画。 */
+    fun setActive(value: Boolean) {
+        if (active == value) return
+        active = value
         invalidateHost()
     }
 
@@ -165,30 +175,58 @@ class DockProgressDrawable(
 
     override fun onBoundsChange(bounds: Rect) {
         super.onBoundsChange(bounds)
-        shaderWidth = -1
-    }
-
-    /** 横向渐变填充：悬浮用轻微渐变（保持原纯色的整体浓度），细条左浅右满。 */
-    private fun ensureShader(bounds: Rect) {
-        val width = bounds.width()
-        if (width <= 0 || width == shaderWidth) return
-        shaderWidth = width
-        // 悬浮原来是均匀的 0x33/0x3D，这里只做轻微层次：0.85 → 1.15，整体浓度基本不变。
-        val startRatio = if (dockStyle) 0.85f else 0.70f
-        val endRatio = if (dockStyle) 1.15f else 1.00f
-        fillPaint.shader = LinearGradient(
-            bounds.left.toFloat(), 0f, bounds.left + width.toFloat(), 0f,
-            intArrayOf(
-                ColorUtils.setAlphaComponent(accent, alphaOf(startRatio)),
-                ColorUtils.setAlphaComponent(accent, alphaOf(endRatio))
-            ),
-            null, Shader.TileMode.CLAMP
-        )
-        fillPaint.alpha = alphaScale
+        shaderRight = -1f
     }
 
     private fun alphaOf(ratio: Float): Int =
         (baseAlpha * ratio).toInt().coerceIn(1, 255)
+
+    /**
+     * 填充渐变：主色从左侧淡到右侧浓，末端 [fade] 宽度内微微提亮后渐变到透明。
+     *
+     * 亮点只在末端一小段且**随淡出一起减弱**，所以不会再出现「叠了一层」的亮度台阶，
+     * 但保留一点向前的推进感。
+     */
+    private fun ensureFillShader(left: Float, right: Float, fade: Float) {
+        // 动画每帧都会进来，位移不到 0.75px 就复用旧 shader，避免高频分配。
+        if (left == shaderLeft && fade == shaderFade &&
+            kotlin.math.abs(right - shaderRight) < 0.75f
+        ) return
+        shaderLeft = left
+        shaderRight = right
+        shaderFade = fade
+
+        val length = (right - left).coerceAtLeast(1f)
+        val startRatio = if (dockStyle) 0.85f else 0.70f
+        val endRatio = if (dockStyle) 1.15f else 1.00f
+        val solid = ColorUtils.setAlphaComponent(accent, alphaOf(endRatio))
+        fillPaint.shader = if (fade <= 0f) {
+            LinearGradient(
+                left, 0f, right, 0f,
+                intArrayOf(ColorUtils.setAlphaComponent(accent, alphaOf(startRatio)), solid),
+                null, Shader.TileMode.CLAMP
+            )
+        } else {
+            val fadeStop = ((length - fade) / length).coerceIn(0.06f, 0.94f)
+            // 末端提亮仅 12% 白，且止于渐隐起点，肉眼只留下「还在往前」的暗示。
+            val tipGlow = ColorUtils.setAlphaComponent(
+                ColorUtils.blendARGB(accent, android.graphics.Color.WHITE, 0.12f),
+                alphaOf(endRatio)
+            )
+            LinearGradient(
+                left, 0f, right, 0f,
+                intArrayOf(
+                    ColorUtils.setAlphaComponent(accent, alphaOf(startRatio)),
+                    solid,
+                    tipGlow,
+                    0x00000000
+                ),
+                floatArrayOf(0f, (fadeStop * 0.55f).coerceAtLeast(0.02f), fadeStop, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        fillPaint.alpha = alphaScale
+    }
 
     override fun draw(canvas: Canvas) {
         val bounds = bounds
@@ -197,67 +235,50 @@ class DockProgressDrawable(
         if (fullWidth <= 0 || height <= 0) return
 
         val left = bounds.left.toFloat()
-        // 悬浮样式保持原有观感：进度就是胶囊背景从左往右铺满，不做成细条。
-        // 这次只换配色层次（横向渐变）与停滞流光，形状与占用区域跟原来一致。
         val top = bounds.top.toFloat()
         val bottom = bounds.bottom.toFloat()
         val right = left + fullWidth * progress / 100f
         val half = height / 2f
         val corner = radius.coerceAtMost(half)
 
-        ensureShader(bounds)
-
-        // 悬浮样式不做轨道底：原版是纯 ClipDrawable，胶囊本身已有玻璃底，
-// 再铺一层淡色会整块变色，与原来观感不一致。只有经典细条才需要轨道底。
-        val save = canvas.save()
+        // 轨道底：经典细条常驻；悬浮胶囊只在「加载中且 0%」时画一条极淡底线。
+        // 悬浮平时不铺轨道——胶囊本身已有玻璃底，再铺会整块变色。
         if (!dockStyle) {
+            trackPaint.color = ColorUtils.setAlphaComponent(
+                accent, if (active && progress <= 0) 0x26 else 0x14
+            )
             rect.set(left, top, left + fullWidth, bottom)
             path.reset()
             path.addRoundRect(rect, half, half, Path.Direction.CW)
             canvas.drawPath(path, trackPaint)
+        } else if (progress <= 0 && active) {
+            val lineHeight = (1.5f * density).coerceAtMost(height / 3f)
+            rect.set(left, bottom - lineHeight, left + fullWidth, bottom)
+            path.reset()
+            path.addRoundRect(rect, lineHeight / 2f, lineHeight / 2f, Path.Direction.CW)
+            canvas.drawPath(path, hintPaint)
         }
 
         if (progress > 0 && right > left) {
-            // 填充：左缘跟随形状，右缘用 fadeWidth 柔化收尾，不做硬裁切。
-            val fade = fadeWidth.coerceAtMost(right - left)
-            val solidRight = right - fade
+            val length = right - left
+            // 100% 不再渐隐：右端圆角收尾与轨道严丝合缝，避免末端缺一小口。
+            val fade = if (progress >= 100) 0f else fadeWidth.coerceAtMost(length * 0.5f)
+            ensureFillShader(left, right, fade)
 
-            // 渐变按整条轨道铺开，再裁到已填充范围内：各段共用同一套浓度，不会每段重新起坡。
-            val fillSave = canvas.save()
-            canvas.clipRect(left, top, right, bottom)
+            // 填充：四角圆角，保证任何进度都不会伸出圆头；右端不再有直角。
             rect.set(left, top, right, bottom)
             path.reset()
-            if (dockStyle) {
-                path.addRoundRect(
-                    rect,
-                    floatArrayOf(corner, corner, 0f, 0f, 0f, 0f, 0f, 0f),
-                    Path.Direction.CW
-                )
-            } else {
-                path.addRoundRect(
-                    rect,
-                    floatArrayOf(half, half, 0f, 0f, 0f, 0f, half, half),
-                    Path.Direction.CW
-                )
-            }
+            path.addRoundRect(
+                rect,
+                floatArrayOf(corner, corner, corner, corner, corner, corner, corner, corner),
+                Path.Direction.CW
+            )
             canvas.drawPath(path, fillPaint)
-            canvas.restoreToCount(fillSave)
-
-            // 右缘柔化：从实心末端渐变到透明，边缘就软了。
-            if (fade > 0f) {
-                val fadeSave = canvas.save()
-                canvas.clipRect(solidRight, top, right, bottom)
-                tipMatrix.setTranslate(solidRight, 0f)
-                tipPaint.shader?.setLocalMatrix(tipMatrix)
-                tipPaint.alpha = alphaScale
-                canvas.drawRect(solidRight, top, right, bottom, tipPaint)
-                canvas.restoreToCount(fadeSave)
-            }
 
             if (running) {
                 // 流光在已填充段内扫过：主色饱和，白光对比够，不需要暗带补偿。
                 val band = bandWidth
-                val travel = (right - left) + band
+                val travel = length + band
                 val x = left - band + travel * phase
                 glossMatrix.setTranslate(x, 0f)
                 glossPaint.shader?.setLocalMatrix(glossMatrix)
@@ -269,7 +290,6 @@ class DockProgressDrawable(
                 canvas.restoreToCount(glowSave)
             }
         }
-        canvas.restoreToCount(save)
     }
 
     override fun setAlpha(alpha: Int) {
@@ -278,15 +298,14 @@ class DockProgressDrawable(
         alphaScale = next
         fillPaint.alpha = next
         glossPaint.alpha = next
-        tipPaint.alpha = next
         invalidateSelf()
     }
 
     override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {
         fillPaint.colorFilter = colorFilter
         glossPaint.colorFilter = colorFilter
-        tipPaint.colorFilter = colorFilter
         trackPaint.colorFilter = colorFilter
+        hintPaint.colorFilter = colorFilter
         invalidateSelf()
     }
 

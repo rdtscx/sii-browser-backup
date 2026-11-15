@@ -364,7 +364,7 @@
     <string name="ad_pick_hint">点击要隐藏的广告元素</string>
     <string name="ad_pick_blocked">选取模式下已阻止页面跳转</string>
     <string name="ad_pick_exit">已退出选取模式</string>
-    <string name="settings_translate">翻译</string>
+    <string name="settings_translate">网页翻译</string>
     <string name="settings_translate_baidu">百度配置</string>
     <string name="settings_translate_custom">自定义请求</string>
     <string name="settings_translate_params">翻译参数</string>
@@ -374,7 +374,7 @@
     <string name="translate_log_empty">暂无翻译日志，先翻译一次页面再看</string>
     <string name="translate_log_export">导出翻译日志</string>
     <string name="translate_log_clear">清空翻译日志</string>
-    <string name="settings_reading">阅读与展开</string>
+    <string name="settings_reading">阅读</string>
     <string name="settings_reading_mode">阅读模式</string>
     <string name="settings_reader_size">阅读模式字号</string>
     <string name="settings_reader_size_desc">0 表示跟随字体大小</string>
@@ -443,6 +443,10 @@
     <string name="menu_history">历史</string>
     <string name="menu_add_bookmark">添加书签</string>
     <string name="bookmark_added">已添加书签</string>
+    <string name="bookmark_new">新建书签</string>
+    <string name="bookmark_name">名称</string>
+    <string name="bookmark_url_hint">网址，如 example.com</string>
+    <string name="bookmark_url_invalid">请输入有效网址</string>
     <string name="new_folder">新建文件夹</string>
     <string name="bookmark_sort">书签排序</string>
     <string name="bookmark_sort_order">默认顺序</string>
@@ -558,7 +562,7 @@
     <string name="settings_site_block_js_desc">全站不执行脚本，大量网站不可用</string>
     <string name="section_privacy_tracking">跟踪与安全</string>
     <string name="section_privacy_data">数据清理</string>
-    <string name="about_privacy">无痕模式不记录浏览历史；「退出时清除数据」会同时退出网站登录。</string>
+    <string name="about_privacy">广告拦截已移到「特别功能」。这里的开关对所有网站生效；单个网站的例外请在站点规则里设。清除数据会同时退出网站登录。</string>
     <string name="about_general">这里的设置影响所有网页的默认行为。</string>
     <string name="about_download">下载目录留空时保存在应用目录；可另选 SAF 目录。</string>
     <string name="about_appearance">夜间模式可跟随系统，也可由浏览器菜单手动切换。</string>
@@ -684,9 +688,9 @@
     <string name="tab_op_close_right">关闭右侧标签</string>
     <string name="tab_op_duplicate">复制标签</string>
     <string name="tab_label">标签</string>
-    <string name="settings_general_desc">搜索引擎、语言与脚本</string>
+    <string name="settings_general_desc">搜索引擎、语言、内容与网站</string>
     <string name="settings_privacy_security">隐私与安全</string>
-    <string name="settings_privacy_security_desc">广告拦截、清除数据与无痕</string>
+    <string name="settings_privacy_security_desc">隐私保护、密码库、无痕与清除数据</string>
     <string name="settings_appearance_desc">主题、字体、布局、菜单与手势</string>
     <string name="settings_home_group">主页</string>
     <string name="settings_home_group_desc">主页地址、常用网站与样式</string>
@@ -1194,8 +1198,8 @@
     <string name="download_bar_downloading">文件正在下载：%1$s</string>
     <string name="history_load_more">加载更多</string>
     <string name="settings_sniff">资源嗅探</string>
-    <string name="settings_sniff_sites">已启用嗅探的站点</string>
-    <string name="sniff_sites_empty">还没有站点启用资源嗅探。在网页菜单里点「资源嗅探」即可为当前站点开启。</string>
+    <string name="settings_sniff_sites">资源嗅探启用站点</string>
+    <string name="sniff_sites_empty">还没有启用嗅探的站点。默认全部关闭，需要时在网页菜单里为单个站点开启。</string>
     <string name="sniff_sites_remove">移除</string>
     <string name="sniff_sites_removed">已移除本站嗅探</string>
     <string name="settings_sniff_desc">默认不嗅探；在网页菜单里按站点开启</string>
@@ -1439,4 +1443,38 @@
     <string name="settings_screen_translate_display_card">结果卡片</string>
 
     <string name="screen_translate_ready">截屏已就绪，点悬浮球开始翻译</string>
+    <!-- 设置分组标题（1.6.0 重排） -->
+    <string name="settings_section_browse">浏览</string>
+    <string name="settings_section_protect">拦截与保护</string>
+    <string name="settings_section_dev">开发</string>
+    <string name="settings_section_dl_engine">下载引擎</string>
+    <string name="settings_section_dl_behavior">下载行为</string>
+    <string name="settings_section_dl_appearance">外观与播放</string>
+    <string name="settings_section_dl_location">保存位置</string>
+    <string name="settings_section_version">版本信息</string>
+    <string name="settings_section_help">帮助与反馈</string>
+    <string name="settings_section_legal">法律</string>
+    <string name="settings_about_project">项目说明</string>
+    <!-- 特别功能 -->
+    <string name="settings_special">特别功能</string>
+    <string name="settings_special_desc">脚本、翻译、嗅探、DNS、广告拦截等进阶能力</string>
+    <string name="settings_special_group_ext">扩展与内容</string>
+    <string name="settings_special_group_content">内容</string>
+    <string name="settings_special_group_privacy">隐私</string>
+    <string name="settings_special_group_auto">自动化</string>
+    <string name="settings_special_about">这些是 Sii 的进阶能力，日常浏览不必开启。</string>
+    <!-- 熊猫头提示 -->
+    <string name="settings_site_info_tip">显示熊猫头提示</string>
+    <string name="settings_site_info_tip_reset">重新查看功能介绍</string>
+    <string name="site_info_tip_bar">点熊猫头收藏本站，长按查看网站信息与设置</string>
+    <string name="site_info_tip_got_it">知道了</string>
+    <string name="site_info_tap_title">点一下就能收藏</string>
+    <string name="site_info_tap_body">点熊猫头可收藏或取消收藏当前网站。长按可查看网站信息与设置。</string>
+    <string name="site_info_hold_hint">点一下可收藏本站</string>
+    <string name="site_info_tip_no_more">不再提示</string>
+    <string name="settings_special_group_network">网络解析</string>
+    <string name="settings_special_group_translate">翻译</string>
+    <string name="settings_section_extreme">极端拦截</string>
+    <string name="sniff_sites_title">资源嗅探启用站点</string>
+    <string name="sniff_sites_enabled_title">已启用站点</string>
 </resources>
