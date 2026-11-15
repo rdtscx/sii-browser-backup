@@ -97,6 +97,21 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 进度条平滑动画：新进度到来时取消旧动画、从当前值继续追，避免瞬跳。 */
     private var progressAnimator: ValueAnimator? = null
     private var progressFinishPending: Runnable? = null
+    /**
+     * 进度收尾的代际令牌。
+     *
+     * 收尾是「补满 → 停留 → 淡出 → 归零」一串 postDelayed + animator，最长约 750ms。
+     * 期间用户从搜索页点结果（或任何方式发起新导航）时，旧链路还在跑：淡出把 Drawable
+     * 透明度压到 0、末尾 runnable 把 progress 清回 0 —— 新页面的进度就「看不见」了，
+     * 表现为「有时显示、有时不显示」。每次新加载 ++，旧链路的回调发现令牌不符即放弃。
+     */
+    private var progressToken = 0
+    /** 上一轮导航的目标地址：用于区分「重定向续跑」与「真的换了页面」。 */
+    private var progressNavUrl: String? = null
+    /** 本轮进度的起始时刻：新的一轮才刷新，用于判断中途的二次 onPageStarted 是否续跑。 */
+    private var progressRoundStartAt = 0L
+    /** 本轮收尾完成的时刻：刚收尾就来的导航仍属同一轮（重定向常在页面"完成"后触发）。 */
+    private var progressRoundEndAt = 0L
     /** 经典样式的进度条绘制层：与悬浮胶囊共用同一套实现，只是参数不同。 */
     private var classicProgress: DockProgressDrawable? = null
     /** 慢站长时间不回进度时，让胶囊进度层播放扫光，避免用户误以为卡死。 */
@@ -277,11 +292,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
         }
         view.post { restoreTranslateUi() }
-        siteInfoButton?.setOnClickListener { toggleBookmarkForCurrent() }
+        siteInfoButton?.setOnClickListener {
+            toggleBookmarkForCurrent()
+            maybeShowSiteInfoTapTip()
+        }
         siteInfoButton?.setOnLongClickListener { anchor ->
+            // 标记由 showSiteInfoMenu 在构建条目后写入，保证那一行真的出现过。
             showSiteInfoMenu(anchor)
             true
         }
+        setupSiteInfoTipBar()
         progressBar = view.findViewById(R.id.progress_bar)
         tabStrip = view.findViewById(R.id.tab_strip)
         tabBar = view.findViewById(R.id.tab_bar)
@@ -1458,7 +1478,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         R.id.tts_bar,
         R.id.find_bar,
         R.id.sniff_prompt,
-        R.id.open_app_prompt
+        R.id.open_app_prompt,
+        // 熊猫头引导优先级最低：不能盖住下载/嗅探等实时状态条。
+        R.id.site_info_tip
     )
 
     /** 出现动效：淡入 + 12dp 上滑。restore/fill 动态条自己带动画，不重复调用。 */
@@ -1483,7 +1505,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             R.id.tts_bar to dp(8),
             R.id.find_bar to dp(8),
             R.id.sniff_prompt to dp(10),
-            R.id.open_app_prompt to dp(10)
+            R.id.open_app_prompt to dp(10),
+            R.id.site_info_tip to dp(10)
         )
         var stackTop = 0
         for (id in hintBarIds) {
@@ -4675,6 +4698,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 注意：这里不能要求「主页已不可见」才显示。从主页点搜索/书签发起导航时，
         // 此刻主页还是可见的，跳过这段就会导致「进站后进度条一直不出现，切后台再回来才显示」。
         if (!isHomeLikeUrl(url)) {
+            // 主动导航同样作废旧收尾链路：从搜索页点结果、或在上一页刚加载完的 750ms 内
+            // 点书签时，旧链路的淡出/归零会把这次新进度一并抹掉。
+            progressToken++
+            progressNavUrl = tabManager.current?.url ?: url
+            // 用户主动导航：明确开启新的一轮，时间戳重置，避免被上一轮的时间窗吞掉。
+            progressRoundStartAt = android.os.SystemClock.elapsedRealtime()
+            progressRoundEndAt = 0L
+            dockProgressClip?.setAlpha(255)
+            classicProgress?.setAlpha(255)
+            dockProgressClip?.setActive(true)
+            classicProgress?.setActive(true)
             progressBar?.let { bar ->
                 bar.animate().cancel()
                 progressAnimator?.cancel()
@@ -4991,6 +5025,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         // 回主页时进度条可能还在淡出动画中，直接取消并隐藏，避免叠在主页上方。
         progressAnimator?.cancel()
+        progressToken++
+        dockProgressClip?.setActive(false)
+        classicProgress?.setActive(false)
         progressBar?.let {
             it.visibility = View.GONE
             it.progress = 0
@@ -6527,15 +6564,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         "downloads" -> SettingsDetailFragment.VIEW_V2_DOWNLOAD
         "netlog" -> SettingsDetailFragment.VIEW_V2_NETLOG
         "jsconsole" -> SettingsDetailFragment.VIEW_V2_NETWORK
-        "reader" -> SettingsDetailFragment.VIEW_V2_READING_MODE
-        "sniff" -> SettingsDetailFragment.VIEW_V2_BROWSE
+        "reader" -> SettingsDetailFragment.VIEW_V2_READING
+        "sniff" -> SettingsDetailFragment.VIEW_SPECIAL
         "translatepage" -> SettingsDetailFragment.VIEW_V2_TRANSLATE
         "texttranslate" -> SettingsDetailFragment.VIEW_V2_TRANSLATE
         "passwords" -> SettingsDetailFragment.VIEW_V2_PASSWORD
         "cleardata" -> SettingsDetailFragment.VIEW_V2_CLEAR
         "adblock", "adpick" -> "rules"
         "privacy" -> SettingsDetailFragment.VIEW_V2_PRIVACY_PROTECTION
-        "doh" -> SettingsDetailFragment.VIEW_V2_NETWORK
+        "doh" -> SettingsDetailFragment.VIEW_V2_DOH
         "dark", "nightauto" -> SettingsDetailFragment.VIEW_V2_NIGHT
         "incog" -> SettingsDetailFragment.VIEW_V2_INCOG
         "newtab" -> SettingsDetailFragment.VIEW_V2_OPERATE
@@ -6600,6 +6637,85 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         ).show()
     }
 
+    // ---- 地址栏熊猫头引导 ----
+
+    /** 浮条自动收起：只收起、不写「已看过」，下次进网页仍会出现。 */
+    private var siteInfoTipDismiss: Runnable? = null
+
+    private fun setupSiteInfoTipBar() {
+        val bar = view?.findViewById<View>(R.id.site_info_tip) ?: return
+        val dismiss = Runnable {
+            bar.animate().cancel()
+            bar.animate().alpha(0f).setDuration(160).withEndAction {
+                bar.visibility = View.GONE
+                bar.alpha = 1f
+                relayoutHintBars()
+            }.start()
+        }
+        // 「知道了」/ x 才写入「已看过」；自动淡出不写。
+        bar.findViewById<View>(R.id.site_info_tip_ok)?.setOnClickListener {
+            AppServices.settings.setSiteInfoTipShown(true)
+            dismiss.run()
+        }
+        bar.findViewById<View>(R.id.site_info_tip_close)?.setOnClickListener {
+            AppServices.settings.setSiteInfoTipShown(true)
+            dismiss.run()
+        }
+    }
+
+    /**
+     * 首次进入网页时浮一条合并提示。
+     *
+     * 只在实际网页（非主页）、且没有更高优先级浮条占用时出现；
+     * 自动淡出后不写标记 —— 用户没看到就等于没提示过。
+     */
+    private fun maybeShowSiteInfoTipBar() {
+        if (AppServices.settings.siteInfoTipShown()) return
+        if (!isAdded || view == null) return
+        val bar = view?.findViewById<View>(R.id.site_info_tip) ?: return
+        if (bar.visibility == View.VISIBLE) return
+        if (homeContainer?.visibility == View.VISIBLE) return
+        if (pageLoadingCover?.visibility == View.VISIBLE) return
+        if (addressEditing) return
+        val url = tabManager.current?.url.orEmpty()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return
+        bar.visibility = View.VISIBLE
+        showHintBarEnter(bar)
+        relayoutHintBars()
+        siteInfoTipDismiss?.let { bar.removeCallbacks(it) }
+        val auto = Runnable {
+            if (!isAdded || view == null) return@Runnable
+            if (bar.visibility != View.VISIBLE) return@Runnable
+            bar.animate().alpha(0f).setDuration(180).withEndAction {
+                bar.visibility = View.GONE
+                bar.alpha = 1f
+                relayoutHintBars()
+            }.start()
+        }
+        siteInfoTipDismiss = auto
+        bar.postDelayed(auto, SITE_INFO_TIP_AUTO_HIDE_MS)
+    }
+
+    /**
+     * 首次点按熊猫头的说明。
+     *
+     * 收藏动作已经执行，结果由图标变色体现，这里不再叠一层 Toast。
+     */
+    private fun maybeShowSiteInfoTapTip() {
+        if (AppServices.settings.siteInfoTapTipShown()) return
+        if (!isAdded) return
+        AppServices.settings.setSiteInfoTapTipShown(true)
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.site_info_tap_title)
+            .setMessage(R.string.site_info_tap_body)
+            .setPositiveButton(R.string.site_info_tip_got_it, null)
+            .setNegativeButton(R.string.site_info_tip_no_more) { _, _ ->
+                // 「不再提示」= 关掉所有熊猫头引导。
+                AppServices.settings.setSiteInfoTipShown(true)
+                AppServices.settings.setSiteInfoHoldTipShown(true)
+            }
+            .show()
+    }
     /** 用户点击菜单标题行的长按提示：确认后永久关闭该提示。 */
     private fun confirmHideLongPressHint() {
         android.app.AlertDialog.Builder(requireContext())
@@ -7525,6 +7641,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (scripts.isNotEmpty()) {
                 entries.add(getString(R.string.site_menu_scripts) to { showMatchingScripts(scripts) })
             }
+            // 首次长按的引导：只加一行不可点的说明，不弹对话框（避免在菜单上再叠一层焦点）。
+            // 用协程内快照判断，避免与 onLongClick 里的写标记时序打架而导致「每次都有」。
+            if (!AppServices.settings.siteInfoHoldTipShown()) {
+                entries.add(getString(R.string.site_info_hold_hint) to {})
+                AppServices.settings.setSiteInfoHoldTipShown(true)
+            }
             entries.add(
                 getString(R.string.site_menu_add_desktop) to {
                     // 手机模式下：把当前站加入默认电脑模式网站并启用，再直达设置页。
@@ -8094,12 +8216,36 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return
         }
         // 同一轮加载中的重定向/跳转：保留当前进度，不清零。
-        val continuing = progressFinishPending != null || pageLoadFinished[wv] == false
+        //
+        // 判据不是「URL 是否相同」，而是「这一轮是否已经画出了可见进度」：
+        // 一次点击常常伴随第二个 onPageStarted（m→www、http→https、JS location.replace、
+        // 广告跳转页），此时 URL 必然变了。若按 URL 判成新轮就会把进度清零，紧接着
+        // onPageFinished 又从 0 补满到 100 —— 用户看到的就是「进度走一半，页面出来后
+        // 又从头快速走一遍」。
+        //
+        // 反过来，正常点开下一个页面时上一轮早已收尾、进度归 0，此时 continuing 无论真假
+        // 都不影响观感（清零等于不清），所以这条判据可以放心放宽。
+        val now = android.os.SystemClock.elapsedRealtime()
+        val navUrl = tabManager.tabs.firstOrNull { it.webView === wv }?.url
+            ?.takeIf { it.isNotBlank() } ?: wv.url.orEmpty()
+        val currentProgress = progressBar?.progress ?: 0
+        val justFinished = progressRoundEndAt > 0 && now - progressRoundEndAt < ROUND_JOIN_AFTER_FINISH_MS
+        val inSameRound = progressRoundStartAt > 0 && now - progressRoundStartAt < ROUND_PROGRESS_WINDOW_MS
+        val continuing = currentProgress in 1..97 &&
+            (progressFinishPending != null || justFinished || inSameRound)
+        progressNavUrl = navUrl
+        if (!continuing) progressRoundStartAt = now
+        progressRoundEndAt = 0L
         cancelProgressFinish()
         pageLoadFinished[wv] = false
         if (wv === tabManager.currentWebView) {
             setRefreshLoading(true)
             if (homeContainer?.visibility != View.VISIBLE) {
+                // 无论是否同一轮，都要作废旧收尾链路（它的淡出会把 alpha 压到 0、末尾把
+                // progress 清回 0），并把透明度复位；只有确认是新的一轮时才清零进度。
+                progressToken++
+                dockProgressClip?.setAlpha(255)
+                classicProgress?.setAlpha(255)
                 progressBar?.let { bar ->
                     bar.animate().cancel()
                     progressAnimator?.cancel()
@@ -8108,6 +8254,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     // 悬浮模式的进度由胶囊填充层表达，不显示独立横条。
                     if (AppServices.settings.uiStyle() != 1) bar.visibility = View.VISIBLE
                 }
+                // 加载中标记：0% 时也要有「正在加载」的反馈（极淡底线）。
+                dockProgressClip?.setActive(true)
+                classicProgress?.setActive(true)
                 syncDockProgress()
                 // 加载一开始就排上停滞计时：DNS/连接阶段可能长时间没有任何进度回调，
                 // 光等 onProgressChanged 会一直等不到，用户就只能盯着不动的色块。
@@ -8165,7 +8314,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 进度要动了：先停扫光，动画结束后由 updateDockStall 重新计时。
         cancelDockStall()
         progressAnimator?.cancel()
-        val duration = ((desired - current) * 60L).coerceIn(600L, 5000L)
+        // 起步要快：原来 (desired-current)*60 让 0→80 走 4.8 秒，前 300ms 几乎看不出变化，
+        // 主观上就是「进度条没出现」。压缩到 22ms/百分点并封顶 1.4s，配合减速插值
+        // 形成「先冲一段、再慢慢熬」的观感。
+        val duration = ((desired - current) * 22L).coerceIn(280L, 1400L)
         val animator = ValueAnimator.ofInt(current, desired).apply {
             this.duration = duration
             interpolator = DecelerateInterpolator()
@@ -8198,6 +8350,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         progressAnimator?.cancel()
         progressAnimator = null
         bar.animate().cancel()
+        // 本轮收尾的令牌：整条链路里每一步都校验，一旦中途发起了新导航就整体作废。
+        val token = ++progressToken
 
         // 1. 补满：从当前值追到 100，快收尾。
         dockProgressClip?.setRunning(false)
@@ -8208,6 +8362,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 duration = PROGRESS_FILL_DURATION_MS
                 interpolator = DecelerateInterpolator()
                 addUpdateListener {
+                    if (token != progressToken) return@addUpdateListener
                     val v = it.animatedValue as Int
                     bar.progress = v
                     dockProgressClip?.setProgress(v)
@@ -8223,6 +8378,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
         // 2. 停留 → 3. 淡出 → 4. 收起并归零，为下一次加载准备干净状态。
         view?.postDelayed({
+            if (token != progressToken) return@postDelayed
             val clip = dockProgressClip
             val classic = classicProgress
             if (AppServices.settings.uiStyle() == 1) {
@@ -8230,6 +8386,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 val fade = ValueAnimator.ofInt(255, 0).apply {
                     duration = PROGRESS_FADE_DURATION_MS
                     addUpdateListener {
+                        if (token != progressToken) return@addUpdateListener
                         val a = it.animatedValue as Int
                         clip?.setAlpha(a)
                         classic?.setAlpha(a)
@@ -8240,13 +8397,19 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 bar.animate().alpha(0f).setDuration(PROGRESS_FADE_DURATION_MS).start()
             }
             view?.postDelayed({
+                // 令牌不符说明中途已开始新加载：这时把 alpha/progress 清掉正是「进度条不显示」的成因。
+                if (token != progressToken) return@postDelayed
                 bar.progress = 0
                 bar.alpha = 1f
                 bar.visibility = View.GONE
                 clip?.setAlpha(255)
                 clip?.setProgress(0)
+                clip?.setActive(false)
                 classic?.setAlpha(255)
                 classic?.setProgress(0)
+                classic?.setActive(false)
+                // 记下收尾时刻：紧随其后的导航（重定向、JS 跳转）仍算同一轮，不能重走一遍进度。
+                progressRoundEndAt = android.os.SystemClock.elapsedRealtime()
                 setRefreshLoading(false)
             }, PROGRESS_FADE_DURATION_MS)
         }, PROGRESS_HOLD_DURATION_MS)
@@ -8260,6 +8423,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val wv = tabManager.currentWebView
         if (wv != null && isHomeLikeLoad(wv)) {
             progressBar?.progress = 0
+            dockProgressClip?.setActive(false)
+            classicProgress?.setActive(false)
             syncDockProgress()
             return
         }
@@ -9002,6 +9167,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 hidePageLoadingCover()
             }
             markPageFinished(webView)
+            if (webView === tabManager.currentWebView) maybeShowSiteInfoTipBar()
             maybeOfferScriptFromPage(webView, url)
             // 补注入抓包 hook：onPageStarted 的注入可能落在旧文档上，
             // 加载完成后补一次，确保后续 XHR/接口请求被记录（脚本自身幂等）。
@@ -11835,6 +12001,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             // 进度层塞在胶囊背景里，必须把重绘请求转给胶囊本身，否则动画跑了屏幕不刷新。
             hostView = dock
             setProgress(progressBar?.progress ?: 0)
+            // 换背景（日夜/主页背景图变更）会重建 Drawable：把「加载中」状态带过去，
+            // 否则 0% 阶段的极淡底线会在重建后消失。
+            setActive(isCurrentPageLoading())
         }
         // 旧背景里的动画还在跑，换背景前必须先停，否则 Drawable 失去宿主后仍占用帧回调。
         dockProgressClip?.release()
@@ -12145,6 +12314,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         restoreAutoDismiss = null
         restorePromptBar = null
         dismissFillBar()
+        siteInfoTipDismiss?.let { view?.findViewById<View>(R.id.site_info_tip)?.removeCallbacks(it) }
+        siteInfoTipDismiss = null
         view?.removeCallbacks(applyScrollDirection)
         MenuPopup.dismiss()
         // 建议弹层是独立 PopupWindow，必须在这里强制关掉，否则会漂到其他页面。
@@ -12499,6 +12670,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
         /** 慢站节点停顿多久后让胶囊进度层开始扫光：留出正常波动的余地，别一晃就动。 */
         private const val DOCK_STALL_DELAY_MS = 600L
+
+        /** 熊猫头引导浮条自动淡出时长：足够看清，又不长期占位。 */
+        private const val SITE_INFO_TIP_AUTO_HIDE_MS = 6000L
+
+        /** 同一轮加载的时间窗：中途的二次 onPageStarted 只要落在这个窗口内就续跑，不清零。 */
+        private const val ROUND_PROGRESS_WINDOW_MS = 15_000L
+        /** 刚收尾这么久内的导航仍算同一轮：重定向/JS 跳转常在页面「完成」之后才发起。 */
+        private const val ROUND_JOIN_AFTER_FINISH_MS = 1_500L
 
         /** 加载完成的收尾节奏：补满 → 停留 → 淡出，给用户一个「完成」的收束感。 */
         private const val PROGRESS_FILL_DURATION_MS = 180L

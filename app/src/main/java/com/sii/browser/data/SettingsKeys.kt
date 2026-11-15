@@ -302,6 +302,10 @@ object SettingsKeys {
     const val FIXED_MENU_SHOW_LABELS = "fixed_menu_show_labels"
     /** 菜单标题行「长按图标可进入设置」提示是否显示；用户点掉后置 false。 */
     const val MENU_LONG_PRESS_HINT = "menu_long_press_hint"
+    /** 地址栏熊猫头提示：浮条 / 点按说明 / 长按说明各自一个「已显示过」标记。 */
+    const val SITE_INFO_TIP_SHOWN = "site_info_tip_shown"
+    const val SITE_INFO_TAP_TIP_SHOWN = "site_info_tap_tip_shown"
+    const val SITE_INFO_HOLD_TIP_SHOWN = "site_info_hold_tip_shown"
     const val MENU_TEXT_SIZE = "menu_text_size"
     const val MENU_ICON_SIZE = "menu_icon_size"
     const val MENU_COLUMNS = "menu_columns"

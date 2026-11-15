@@ -364,7 +364,7 @@
     <string name="ad_pick_hint">隠す広告要素をタップしてください</string>
     <string name="ad_pick_blocked">要素選択中はページ遷移をブロックしました</string>
     <string name="ad_pick_exit">要素選択を終了しました</string>
-    <string name="settings_translate">翻訳</string>
+    <string name="settings_translate">ページ翻訳</string>
     <string name="settings_translate_baidu">Baidu の設定</string>
     <string name="settings_translate_custom">カスタムリクエスト</string>
     <string name="settings_translate_params">翻訳パラメータ</string>
@@ -374,7 +374,7 @@
     <string name="translate_log_empty">翻訳ログはまだありません。まずページを翻訳してください</string>
     <string name="translate_log_export">翻訳ログを書き出す</string>
     <string name="translate_log_clear">翻訳ログを消去</string>
-    <string name="settings_reading">リーダーと展開</string>
+    <string name="settings_reading">読書</string>
     <string name="settings_reading_mode">リーダーモード</string>
     <string name="settings_reader_size">リーダーモードの文字サイズ</string>
     <string name="settings_reader_size_desc">0 は文字サイズ設定に従います</string>
@@ -443,6 +443,10 @@
     <string name="menu_history">履歴</string>
     <string name="menu_add_bookmark">ブックマークを追加</string>
     <string name="bookmark_added">ブックマークを追加しました</string>
+    <string name="bookmark_new">ブックマークを新規作成</string>
+    <string name="bookmark_name">名前</string>
+    <string name="bookmark_url_hint">URL（例: example.com）</string>
+    <string name="bookmark_url_invalid">有効な URL を入力してください</string>
     <string name="new_folder">新しいフォルダ</string>
     <string name="bookmark_sort">ブックマークの並び順</string>
     <string name="bookmark_sort_order">既定の順序</string>
@@ -558,7 +562,7 @@
     <string name="settings_site_block_js_desc">サイト全体でスクリプトを実行しません。多くのサイトが使えなくなります</string>
     <string name="section_privacy_tracking">トラッキングと安全</string>
     <string name="section_privacy_data">データの消去</string>
-    <string name="about_privacy">シークレットモードでは閲覧履歴を記録しません。「終了時にデータを消去」はサイトのログインも解除します。</string>
+    <string name="about_privacy">広告ブロックは「特別な機能」に移しました。ここのスイッチは全サイトに適用されます。サイト単位の例外はサイトルールで設定してください。データを消去するとサイトからもログアウトします。</string>
     <string name="about_general">ここの設定はすべてのページの既定の動作に影響します。</string>
     <string name="about_download">ダウンロード先が空の場合はアプリ内に保存されます。SAF のフォルダも選べます。</string>
     <string name="about_appearance">ダークモードはシステムに従うか、ブラウザのメニューから手動で切り替えられます。</string>
@@ -684,9 +688,9 @@
     <string name="tab_op_close_right">右のタブを閉じる</string>
     <string name="tab_op_duplicate">タブを複製</string>
     <string name="tab_label">タブ</string>
-    <string name="settings_general_desc">検索エンジン、言語、スクリプト</string>
+    <string name="settings_general_desc">検索、言語、コンテンツ、サイト</string>
     <string name="settings_privacy_security">プライバシーと安全</string>
-    <string name="settings_privacy_security_desc">広告ブロック、データ消去、シークレット</string>
+    <string name="settings_privacy_security_desc">プライバシー保護、パスワード、シークレット、データ消去</string>
     <string name="settings_appearance_desc">テーマ、フォント、レイアウト、メニュー、ジェスチャー</string>
     <string name="settings_home_group">ホーム</string>
     <string name="settings_home_group_desc">ホームのアドレス、よく使うサイト、スタイル</string>
@@ -1194,8 +1198,8 @@
     <string name="download_bar_downloading">ファイルをダウンロード中：%1$s</string>
     <string name="history_load_more">さらに読み込む</string>
     <string name="settings_sniff">メディア検出</string>
-    <string name="settings_sniff_sites">検出を有効にしたサイト</string>
-    <string name="sniff_sites_empty">まだサイトが登録されていません。ページメニューの「メディア検出」で現在のサイトを有効にできます。</string>
+    <string name="settings_sniff_sites">スニッフ有効サイト</string>
+    <string name="sniff_sites_empty">スニッフを有効にしたサイトはまだありません。既定ではすべて無効です。ページのメニューからサイト単位で有効にできます。</string>
     <string name="sniff_sites_remove">削除</string>
     <string name="sniff_sites_removed">このサイトの検出を解除しました</string>
     <string name="settings_sniff_desc">既定では無効。ページメニューからサイトごとに有効化</string>
@@ -1433,4 +1437,35 @@
     <string name="settings_screen_translate_display_card">結果カード</string>
 
     <string name="screen_translate_ready">画面キャプチャの準備ができました。ボールをタップして翻訳してください</string>
+    <string name="settings_section_browse">ブラウズ</string>
+    <string name="settings_section_protect">ブロックと保護</string>
+    <string name="settings_section_dev">開発</string>
+    <string name="settings_section_dl_engine">ダウンロードエンジン</string>
+    <string name="settings_section_dl_behavior">ダウンロードの動作</string>
+    <string name="settings_section_dl_appearance">外観と再生</string>
+    <string name="settings_section_dl_location">保存先</string>
+    <string name="settings_section_version">バージョン情報</string>
+    <string name="settings_section_help">ヘルプとフィードバック</string>
+    <string name="settings_section_legal">法的情報</string>
+    <string name="settings_about_project">このプロジェクトについて</string>
+    <string name="settings_special">特別な機能</string>
+    <string name="settings_special_desc">スクリプト、翻訳、スニッフ、DNS、広告ブロックなどの上級機能</string>
+    <string name="settings_special_group_ext">拡張とコンテンツ</string>
+    <string name="settings_special_group_content">コンテンツ</string>
+    <string name="settings_special_group_privacy">プライバシー</string>
+    <string name="settings_special_group_auto">自動化</string>
+    <string name="settings_special_about">Sii の上級機能です。通常の閲覧では有効にする必要はありません。</string>
+    <string name="settings_site_info_tip">アドレスバーのアイコンのヒントを表示</string>
+    <string name="settings_site_info_tip_reset">機能の説明をもう一度見る</string>
+    <string name="site_info_tip_bar">パンダをタップでブックマーク、長押しでサイト情報と設定</string>
+    <string name="site_info_tip_got_it">了解</string>
+    <string name="site_info_tap_title">タップでブックマーク</string>
+    <string name="site_info_tap_body">パンダをタップするとこのサイトをブックマーク／解除できます。長押しでサイト情報と設定を開きます。</string>
+    <string name="site_info_hold_hint">タップでこのサイトをブックマーク</string>
+    <string name="site_info_tip_no_more">今後表示しない</string>
+    <string name="settings_special_group_network">DNS</string>
+    <string name="settings_special_group_translate">翻訳</string>
+    <string name="settings_section_extreme">極端なブロック</string>
+    <string name="sniff_sites_title">スニッフ有効サイト</string>
+    <string name="sniff_sites_enabled_title">有効なサイト</string>
 </resources>

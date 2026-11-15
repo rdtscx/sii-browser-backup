@@ -52,7 +52,7 @@ class ScriptsFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View = LinearLayout(requireContext()).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(requireContext().getColor(R.color.bg))
+        setBackgroundColor(requireContext().getColor(R.color.bg_page))
 
         addView(
             PageHeader.build(
@@ -102,30 +102,26 @@ class ScriptsFragment : Fragment() {
                 setPadding(dp(12), dp(60), dp(12), dp(20))
             })
         } else {
-            scripts.forEach { listContainer.addView(scriptCard(it)) }
+            // 一张卡装所有脚本行：分隔线与卡片透明度/外框由 CardList 统一管理，
+            // 否则设置里的「卡片背景透明度」「卡片外框」对这个页面完全无效。
+            val card = CardList.pageCard(requireContext())
+            CardList.addRows(card, scripts.map { scriptCard(it) })
+            listContainer.addView(card)
         }
+        // 页尾说明：与设置页 aboutText 完全同款（12sp、居中、行距 1.8）。
         listContainer.addView(TextView(requireContext()).apply {
             text = getString(R.string.scripts_about)
             setTextSize(12f)
             setTextColor(requireContext().getColor(R.color.text_secondary))
             gravity = Gravity.CENTER
-            setLineSpacing(0f, 1.7f)
-            setPadding(dp(12), dp(18), dp(12), dp(12))
+            setLineSpacing(0f, 1.8f)
+            setPadding(dp(18), dp(26), dp(18), dp(20))
         })
     }
 
     private fun scriptCard(script: ScriptEntity): View {
         val context = requireContext()
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.bg_card)
-            clipToOutline = true
-            setPadding(dp(14), dp(12), dp(8), dp(12))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(10) }
+        val card = CardList.row(context).apply {
             setOnClickListener { showEditScriptDialog(script) }
             setOnLongClickListener {
                 val options = mutableListOf<String>()
@@ -190,11 +186,13 @@ class ScriptsFragment : Fragment() {
             addView(TextView(context).apply {
                 val match = script.match.ifEmpty { "*" }
                 text = match + " · " + runAtLabel(script.runAt)
-                setTextSize(11.5f)
+                setTextSize(12.5f)
                 setTextColor(context.getColor(R.color.text_secondary))
+                alpha = 0.55f
                 typeface = Typeface.MONOSPACE
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
+                setLineSpacing(0f, 1.35f)
                 setPadding(0, dp(3), 0, 0)
             })
         }

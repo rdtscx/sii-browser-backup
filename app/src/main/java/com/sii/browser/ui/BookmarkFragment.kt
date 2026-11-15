@@ -497,6 +497,7 @@ class BookmarkFragment : Fragment() {
                         iconOption(R.string.bookmark_icon_none, "none")
                     )
                 ),
+                MenuPopup.Item(getString(R.string.bookmark_new)) { showNewItemDialog() },
                 MenuPopup.Item(getString(R.string.new_folder)) { showNewFolderDialog() },
                 MenuPopup.Item(getString(R.string.bookmark_import)) {
                     importLauncher.launch(
@@ -795,6 +796,105 @@ class BookmarkFragment : Fragment() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /**
+     * 新建书签：手填名称与网址，可选目标文件夹（默认当前所在文件夹）。
+     *
+     * 与「编辑此条」共用同一套三段式布局，但不依赖任何已有条目 —— 这是从 ⋮ 菜单
+     * 直接添加的入口，不需要先打开某个网页再收藏。
+     */
+    private fun showNewItemDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val folders = repository.allFoldersOnce()
+            val choices = folderChoices(folders)
+            var selectedFolderId = folderId
+            var selectedLabel = choices.firstOrNull { it.second == selectedFolderId }?.first
+                ?: getString(R.string.bookmark_root)
+
+            val nameInput = EditText(requireContext()).apply {
+                hint = getString(R.string.bookmark_name)
+                setSingleLine(true)
+            }
+            val urlInput = EditText(requireContext()).apply {
+                hint = getString(R.string.bookmark_url_hint)
+                setSingleLine(true)
+                inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+            }
+            // 网址优先聚焦：新建时绝大多数情况是先贴链接。
+            urlInput.requestFocus()
+            val location = TextView(requireContext()).apply {
+                text = "$selectedLabel  ›"
+                setTextSize(14f)
+                setTextColor(requireContext().getColor(R.color.text_primary))
+                setPadding(dp(4), dp(12), dp(4), dp(12))
+            }
+            location.setOnClickListener {
+                AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.bookmark_location)
+                    .setSingleChoiceItems(
+                        choices.map { it.first }.toTypedArray(),
+                        choices.indexOfFirst { it.second == selectedFolderId }.coerceAtLeast(0)
+                    ) { dialog, which ->
+                        selectedFolderId = choices[which].second
+                        selectedLabel = choices[which].first
+                        location.text = "$selectedLabel  ›"
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+            val box = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(8), dp(20), 0)
+                addView(nameInput)
+                addView(urlInput)
+                addView(TextView(requireContext()).apply {
+                    text = getString(R.string.bookmark_location)
+                    setTextSize(12f)
+                    setTextColor(requireContext().getColor(R.color.text_secondary))
+                    setPadding(dp(4), dp(10), 0, 0)
+                })
+                addView(location)
+            }
+            val dialog = AlertDialog.Builder(requireContext())
+                .setTitle(R.string.bookmark_new)
+                .setView(box)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create()
+            // 手动接管确定键：网址无效时保持对话框打开，避免静默失败。
+            dialog.setOnShowListener {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val url = normalizeBookmarkUrl(urlInput.text.toString())
+                    if (url == null) {
+                        urlInput.error = getString(R.string.bookmark_url_invalid)
+                        return@setOnClickListener
+                    }
+                    val title = nameInput.text.toString().trim().ifEmpty { hostOf(url).ifEmpty { url } }
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        repository.addItem(url, title, selectedFolderId)
+                    }
+                    dialog.dismiss()
+                }
+            }
+            dialog.show()
+        }
+    }
+
+    /** 补全协议：用户只打 `example.com` 也能存；明显不像网址的输入直接拒绝。 */
+    private fun normalizeBookmarkUrl(raw: String): String? {
+        val text = raw.trim()
+        if (text.isEmpty()) return null
+        val withScheme = when {
+            text.startsWith("http://", true) || text.startsWith("https://", true) -> text
+            text.contains("://") -> return null
+            else -> "https://$text"
+        }
+        val uri = runCatching { android.net.Uri.parse(withScheme) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") return null
+        return withScheme
     }
 
     private fun showNewFolderDialog() {

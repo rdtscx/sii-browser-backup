@@ -401,6 +401,55 @@
                     android:tint="@color/text_secondary" />
             </LinearLayout>
 
+            <!-- 熊猫头首次提示：说明点按收藏 / 长按看站点信息，点「知道了」或 x 后永久关闭 -->
+            <LinearLayout
+                android:id="@+id/site_info_tip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_hint_bar"
+                android:elevation="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/site_info_tip_text"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="@string/site_info_tip_bar"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/site_info_tip_ok"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="6dp"
+                    android:text="@string/site_info_tip_got_it"
+                    android:textColor="?android:attr/colorAccent"
+                    android:textSize="12.5sp" />
+
+                <ImageView
+                    android:id="@+id/site_info_tip_close"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="@string/site_info_tip_no_more"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_close"
+                    android:tint="@color/text_secondary" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/open_app_prompt"
                 android:layout_width="match_parent"

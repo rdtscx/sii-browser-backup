@@ -431,6 +431,18 @@ class DataStoreSettings(private val context: Context) : Settings {
         bool(SettingsKeys.MENU_LONG_PRESS_HINT, SettingsDefaults.MENU_LONG_PRESS_HINT)
     override fun setMenuLongPressHint(value: Boolean) =
         putBool(SettingsKeys.MENU_LONG_PRESS_HINT, value)
+    override fun siteInfoTipShown(): Boolean =
+        bool(SettingsKeys.SITE_INFO_TIP_SHOWN, SettingsDefaults.SITE_INFO_TIP_SHOWN)
+    override fun setSiteInfoTipShown(value: Boolean) =
+        putBool(SettingsKeys.SITE_INFO_TIP_SHOWN, value)
+    override fun siteInfoTapTipShown(): Boolean =
+        bool(SettingsKeys.SITE_INFO_TAP_TIP_SHOWN, SettingsDefaults.SITE_INFO_TAP_TIP_SHOWN)
+    override fun setSiteInfoTapTipShown(value: Boolean) =
+        putBool(SettingsKeys.SITE_INFO_TAP_TIP_SHOWN, value)
+    override fun siteInfoHoldTipShown(): Boolean =
+        bool(SettingsKeys.SITE_INFO_HOLD_TIP_SHOWN, SettingsDefaults.SITE_INFO_HOLD_TIP_SHOWN)
+    override fun setSiteInfoHoldTipShown(value: Boolean) =
+        putBool(SettingsKeys.SITE_INFO_HOLD_TIP_SHOWN, value)
     override fun fixedMenuShowLabels(): Boolean = bool(SettingsKeys.FIXED_MENU_SHOW_LABELS, true)
     override fun setFixedMenuShowLabels(value: Boolean) = putBool(SettingsKeys.FIXED_MENU_SHOW_LABELS, value)
 

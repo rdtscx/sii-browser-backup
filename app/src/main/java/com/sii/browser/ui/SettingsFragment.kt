@@ -36,12 +36,12 @@ class SettingsFragment : Fragment() {
         SearchEntry("语言", "通用", "language"),
         SearchEntry("搜索引擎", "通用", "engine"),
         SearchEntry("默认浏览器", "通用", "default browser"),
-        SearchEntry("翻译", "通用", "translate"),
+        SearchEntry("网页翻译", "特别功能", "translate 翻译 网页"),
         SearchEntry("朗读", "通用", "read aloud"),
         SearchEntry("剪贴板保护", "通用", "clipboard"),
         SearchEntry("站点默认", "通用", "站点规则"),
         SearchEntry("桌面站点", "通用", "desktop site"),
-        SearchEntry("脚本", "通用", "userscript"),
+        SearchEntry("脚本", "特别功能", "userscript"),
         SearchEntry("下载", "通用", "download"),
         SearchEntry("下载连接模式", "通用", "下载 协议 HTTP2 HTTP1.1 protocol"),
         SearchEntry("同时下载数", "通用", "并发 下载 parallel 多任务"),
@@ -55,7 +55,7 @@ class SettingsFragment : Fragment() {
         SearchEntry("返回二次确认", "通用", "退出 exit back"),
         SearchEntry("屏幕方向", "通用", "orientation"),
         SearchEntry("保持亮屏", "通用", "keep screen on"),
-        SearchEntry("广告拦截", "隐私与安全", "adblock"),
+        SearchEntry("广告拦截", "特别功能", "adblock"),
         SearchEntry("本页请求", "隐私与安全", "requests 请求 记录 抓包"),
         SearchEntry("无痕", "隐私与安全", "incognito"),
         SearchEntry("隐私保护", "隐私与安全", "privacy"),
@@ -64,9 +64,9 @@ class SettingsFragment : Fragment() {
         SearchEntry("填充方式", "隐私与安全", "密码 自动填充 提示 询问 password autofill fill"),
         SearchEntry("清除数据", "隐私与安全", "clear data"),
         SearchEntry("浏览器标识", "高级", "UA user agent"),
-        SearchEntry("网络", "高级", "network"),
-        SearchEntry("私人 DNS", "高级", "dns doh 加密 解析 运营商 private dns"),
-        SearchEntry("应用内 DoH", "高级", "doh webview 代理 加密 dns"),
+        SearchEntry("网络与安全", "高级", "network https 证书 web 调试"),
+        SearchEntry("私人 DNS", "特别功能", "dns doh 加密 解析 运营商 private dns"),
+        SearchEntry("应用内 DoH", "特别功能", "doh webview 代理 加密 dns"),
         SearchEntry("MCP 服务", "高级", "mcp ai 自动化 抓包 接口"),
         SearchEntry("导入导出", "高级", "import export"),
         SearchEntry("实验室", "高级", "lab"),
@@ -102,8 +102,13 @@ class SettingsFragment : Fragment() {
         SearchEntry("网页主题色识别", "外观与主页", "识别 网站 theme-color", diyTab = 8),
         SearchEntry("网页应用主题色", "外观与主页", "主题色 网页 scope", diyTab = 8),
         SearchEntry("夜间也生效", "外观与主页", "主题色 夜间 dark", diyTab = 8),
-        SearchEntry("屏幕翻译", "通用", "screen translate 悬浮窗 悬浮球 开启 屏幕 翻译 朗读 循环 系统栏"),
-        SearchEntry("MCP 悬浮窗", "高级", "mcp 浮窗 悬浮窗")
+        SearchEntry("屏幕翻译", "特别功能", "screen translate 悬浮窗 悬浮球 开启 屏幕 翻译 朗读 循环 系统栏"),
+        SearchEntry("MCP 悬浮窗", "高级", "mcp 浮窗 悬浮窗"),
+        // 特别功能聚合页：一条入口，把 7 个进阶能力的关键词都挂上来，搜任一项都能看到它。
+        SearchEntry(
+            "特别功能", "特别功能",
+            "脚本 用户脚本 嗅探 资源嗅探 嗅探站点 MCP 私人 DNS DoH 加密 DNS 扩展 进阶 高级功能"
+        )
     )
 
     /** 诊断接口只在测试包出现，正式包的搜索索引里也不留。 */
@@ -149,6 +154,8 @@ class SettingsFragment : Fragment() {
             card,
             listOf(
                 entryRow(R.string.settings_general, R.string.settings_general_desc, SettingsDetailFragment.VIEW_GENERAL),
+                // 特别功能排第 2：进阶能力集中入口，位置高、易感知。原位置的内容暂不删（叠加观察一版）。
+                entryRow(R.string.settings_special, R.string.settings_special_desc, SettingsDetailFragment.VIEW_SPECIAL),
                 entryRow(R.string.settings_privacy_security, R.string.settings_privacy_security_desc, SettingsDetailFragment.VIEW_PRIVACY),
                 entryRow(R.string.settings_appearance, R.string.settings_appearance_desc, SettingsDetailFragment.VIEW_APPEARANCE),
                 entryRow(R.string.settings_advanced, R.string.settings_advanced_desc, SettingsDetailFragment.VIEW_ADVANCED),
@@ -230,6 +237,7 @@ class SettingsFragment : Fragment() {
 
     private fun pageFor(group: String): String = when (group) {
         "通用" -> SettingsDetailFragment.VIEW_GENERAL
+        "特别功能" -> SettingsDetailFragment.VIEW_SPECIAL
         "隐私与安全" -> SettingsDetailFragment.VIEW_PRIVACY
         "高级" -> SettingsDetailFragment.VIEW_ADVANCED
         "关于" -> SettingsDetailFragment.VIEW_ABOUT
