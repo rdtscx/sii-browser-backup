@@ -51,3 +51,9 @@ local.properties.bak
 BUILD_ENV.md
 .sii_env.example
 维护须知.md
+
+# 同步机制残留（不可删，已忽略）
+.git.broken/
+/config
+/keystore
+/local.properties
