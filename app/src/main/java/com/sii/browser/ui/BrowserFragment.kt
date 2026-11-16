@@ -170,6 +170,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 异常退出恢复提示条，更新弹窗靠它避让，不叠在同一个位置。 */
     private var restorePromptBar: View? = null
+    /** AI 助手浮窗：懒创建，随视图销毁清理。 */
+    private var aiChatPanel: AiChatPanel? = null
     private var restoreAutoDismiss: Runnable? = null
     private var homeForwardAvailable = false
     /** 本次导航由主页发起：返回键先回主页，而不是退网页历史。 */
@@ -6071,6 +6073,49 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         tabManager.current?.title = tab.title
     }
 
+    // ---- AI 助手浮窗 ----
+
+    /** 换了页面就重置 AI 会话：旧页的正文与对话上下文不再适用。 */
+    private fun resetAiSessionIfPageChanged() {
+        val url = tabManager.current?.url.orEmpty()
+        if (url != aiSessionPageUrl) {
+            aiSessionPageUrl = url
+            aiChatPanel?.resetSession()
+        }
+    }
+
+    private var aiSessionPageUrl: String? = null
+
+    private fun showAiChatPanel() {
+        if (aiChatPanel == null) {
+            aiChatPanel = AiChatPanel(
+                requireContext(),
+                viewLifecycleOwner,
+                pageTextProvider = { onResult -> tabManager.currentWebView?.extractPageText(onResult) },
+                pageTitle = { tabManager.current?.title.orEmpty() },
+                openSettings = { openAiSettings() }
+            )
+        }
+        resetAiSessionIfPageChanged()
+        blurAddressInput()
+        val host = view?.findViewById<FrameLayout>(R.id.browser_root) ?: return
+        aiChatPanel?.show(host)
+    }
+
+    private fun openAiSettings() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(
+                R.id.shell_root,
+                SettingsDetailFragment().apply {
+                    arguments = android.os.Bundle().apply {
+                        putString(SettingsDetailFragment.ARG_VIEW, SettingsDetailFragment.VIEW_SPECIAL)
+                    }
+                }
+            )
+            .addToBackStack(null)
+            .commit()
+    }
+
     // ---- 菜单浮层（原生底部 sheet） ----
 
     private fun showMenuSheet() {
@@ -6298,6 +6343,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         MenuEntry("readaloud", getString(R.string.menu_read_aloud), R.drawable.ic_m_speaker, false, { false }, { hasWebPage() }) { toggleReadAloud() },
         MenuEntry("savepage", getString(R.string.menu_save_page), R.drawable.ic_m_save_page, false, { false }, { hasWebPage() }) { savePageOffline() },
         MenuEntry("readlaterlist", getString(R.string.menu_read_later), R.drawable.ic_m_read_later, false, { false }) { openReadLater() },
+        MenuEntry("askai", getString(R.string.menu_ask_ai), R.drawable.ic_m_ai, false, { false }, { hasWebPage() }) { showAiChatPanel() },
         MenuEntry("translatepage", getString(R.string.menu_translate_page), R.drawable.ic_m_translate, false, { false }, { hasWebPage() }, iconText = getString(R.string.translate_mark)) { translatePage() },
         MenuEntry(
             "texttranslate",
@@ -12316,6 +12362,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dismissFillBar()
         siteInfoTipDismiss?.let { view?.findViewById<View>(R.id.site_info_tip)?.removeCallbacks(it) }
         siteInfoTipDismiss = null
+        aiChatPanel?.dismiss()
+        aiChatPanel = null
         view?.removeCallbacks(applyScrollDirection)
         MenuPopup.dismiss()
         // 建议弹层是独立 PopupWindow，必须在这里强制关掉，否则会漂到其他页面。

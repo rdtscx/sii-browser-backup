@@ -136,6 +136,14 @@ object SettingsDefaults {
     const val SITE_INFO_TIP_SHOWN = false
     const val SITE_INFO_TAP_TIP_SHOWN = false
     const val SITE_INFO_HOLD_TIP_SHOWN = false
+
+    /** AI 助手默认关闭；接口与模型预填 DeepSeek 示例，Key 留空。 */
+    const val AI_ENABLED = false
+    const val AI_ENDPOINT = "https://api.deepseek.com/v1"
+    const val AI_API_KEY = ""
+    const val AI_MODEL = "deepseek-chat"
+    const val AI_ONBOARDED = false
+    const val AI_CUSTOM_PRESETS = ""
     const val HOME_LOGO_ICON_SHOW = true
     const val HOME_LOGO_MODE = -1
     /** 密码填充方式：-1 未设置（按旧的自动填充开关推断）。 */
