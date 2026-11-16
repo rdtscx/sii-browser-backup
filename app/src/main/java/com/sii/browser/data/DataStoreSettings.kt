@@ -443,6 +443,36 @@ class DataStoreSettings(private val context: Context) : Settings {
         bool(SettingsKeys.SITE_INFO_HOLD_TIP_SHOWN, SettingsDefaults.SITE_INFO_HOLD_TIP_SHOWN)
     override fun setSiteInfoHoldTipShown(value: Boolean) =
         putBool(SettingsKeys.SITE_INFO_HOLD_TIP_SHOWN, value)
+
+    override fun aiEnabled(): Boolean =
+        bool(SettingsKeys.AI_ENABLED, SettingsDefaults.AI_ENABLED)
+    override fun setAiEnabled(value: Boolean) =
+        putBool(SettingsKeys.AI_ENABLED, value)
+
+    override fun aiEndpoint(): String? =
+        str(SettingsKeys.AI_ENDPOINT, SettingsDefaults.AI_ENDPOINT)
+    override fun setAiEndpoint(value: String?) =
+        putStr(SettingsKeys.AI_ENDPOINT, value)
+
+    override fun aiApiKey(): String? =
+        str(SettingsKeys.AI_API_KEY, SettingsDefaults.AI_API_KEY)
+    override fun setAiApiKey(value: String?) =
+        putStr(SettingsKeys.AI_API_KEY, value)
+
+    override fun aiModel(): String? =
+        str(SettingsKeys.AI_MODEL, SettingsDefaults.AI_MODEL)
+    override fun setAiModel(value: String?) =
+        putStr(SettingsKeys.AI_MODEL, value)
+
+    override fun aiOnboarded(): Boolean =
+        bool(SettingsKeys.AI_ONBOARDED, SettingsDefaults.AI_ONBOARDED)
+    override fun setAiOnboarded(value: Boolean) =
+        putBool(SettingsKeys.AI_ONBOARDED, value)
+
+    override fun aiCustomPresets(): String? =
+        str(SettingsKeys.AI_CUSTOM_PRESETS, SettingsDefaults.AI_CUSTOM_PRESETS)
+    override fun setAiCustomPresets(value: String?) =
+        putStr(SettingsKeys.AI_CUSTOM_PRESETS, value)
     override fun fixedMenuShowLabels(): Boolean = bool(SettingsKeys.FIXED_MENU_SHOW_LABELS, true)
     override fun setFixedMenuShowLabels(value: Boolean) = putBool(SettingsKeys.FIXED_MENU_SHOW_LABELS, value)
 

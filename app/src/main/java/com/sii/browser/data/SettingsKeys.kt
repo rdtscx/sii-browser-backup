@@ -306,6 +306,15 @@ object SettingsKeys {
     const val SITE_INFO_TIP_SHOWN = "site_info_tip_shown"
     const val SITE_INFO_TAP_TIP_SHOWN = "site_info_tap_tip_shown"
     const val SITE_INFO_HOLD_TIP_SHOWN = "site_info_hold_tip_shown"
+
+    /** AI 助手（OpenAI 兼容接口，一组配置）。 */
+    const val AI_ENABLED = "ai_enabled"
+    const val AI_ENDPOINT = "ai_endpoint"
+    const val AI_API_KEY = "ai_api_key"
+    const val AI_MODEL = "ai_model"
+    const val AI_ONBOARDED = "ai_onboarded"
+    /** 自定义预设：JSON 数组 [{label, prompt}]。 */
+    const val AI_CUSTOM_PRESETS = "ai_custom_presets"
     const val MENU_TEXT_SIZE = "menu_text_size"
     const val MENU_ICON_SIZE = "menu_icon_size"
     const val MENU_COLUMNS = "menu_columns"
