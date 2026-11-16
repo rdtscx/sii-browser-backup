@@ -1,7 +1,7 @@
 # Sii 源码许可 1.0
 
 Copyright (c) 2026 wanwuwww
-项目地址：https://github.com/wanwuwww/Sii
+项目地址：https://github.com/wanwuwww/Sii-Browser
 
 本许可适用于本仓库的全部源代码、文档与随附资源（以下称「本作品」）。
 本作品为源码公开的非商业许可，不属于 OSI 定义的开源许可。

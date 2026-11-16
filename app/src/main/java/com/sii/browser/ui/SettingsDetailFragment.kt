@@ -124,6 +124,7 @@ class SettingsDetailFragment : Fragment() {
     /** 页面标题（页头显示）。 */
     private fun titleFor(pageId: String): String = when (pageId) {
         VIEW_GENERAL -> getString(R.string.settings_general)
+        VIEW_SPECIAL -> getString(R.string.settings_special)
         VIEW_ENGINE -> getString(R.string.settings_engine)
         VIEW_DL_SET -> getString(R.string.settings_download)
         VIEW_PRIVACY -> getString(R.string.settings_privacy)
@@ -138,7 +139,6 @@ class SettingsDetailFragment : Fragment() {
         VIEW_ADVANCED -> getString(R.string.settings_advanced)
         VIEW_DESKTOP_SITES -> getString(R.string.settings_desktop_sites)
         VIEW_V2_HOME -> getString(R.string.settings_home_group)
-        VIEW_V2_BROWSE -> getString(R.string.settings_browse)
         VIEW_V2_TRANSLATE -> getString(R.string.settings_translate)
         VIEW_V2_TRANSLATE_BAIDU -> getString(R.string.settings_translate_baidu)
         VIEW_V2_TRANSLATE_CUSTOM -> getString(R.string.settings_translate_custom)
@@ -146,7 +146,6 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_TRANSLATE_LOG -> getString(R.string.settings_translate_log)
         VIEW_V2_TRANSLATE_OFFLINE -> getString(R.string.settings_translate_offline_pack)
         VIEW_V2_READING -> getString(R.string.settings_reading)
-        VIEW_V2_READING_MODE -> getString(R.string.settings_reading_mode)
         VIEW_V2_NIGHT -> getString(R.string.settings_night_group)
         VIEW_V2_THEME_COLOR_GROUP -> getString(R.string.settings_theme_color)
         VIEW_V2_CARD -> getString(R.string.settings_card_group)
@@ -174,6 +173,8 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_CLEAR -> getString(R.string.settings_clear_data)
         VIEW_V2_UA -> getString(R.string.settings_ua_group)
         VIEW_V2_NETWORK -> getString(R.string.settings_network)
+        VIEW_V2_PRIVATE_DNS -> getString(R.string.settings_private_dns)
+        VIEW_V2_DOH -> getString(R.string.settings_doh)
         VIEW_V2_NETLOG -> getString(R.string.settings_netlog)
         VIEW_V2_IMPORT -> getString(R.string.settings_import_export)
         VIEW_V2_LAB -> getString(R.string.settings_lab)
@@ -186,7 +187,9 @@ class SettingsDetailFragment : Fragment() {
 
     private fun build() {
         container.removeAllViews()
-        when (viewId) {            VIEW_GENERAL -> buildGeneral()
+        when (viewId) {
+            VIEW_GENERAL -> buildGeneral()
+            VIEW_SPECIAL -> buildSpecial()
             VIEW_ENGINE -> buildEngine()
             VIEW_DL_SET -> buildDlSet()
             VIEW_PRIVACY -> buildPrivacy()
@@ -201,7 +204,6 @@ class SettingsDetailFragment : Fragment() {
             VIEW_ADVANCED -> buildAdvanced()
             VIEW_DESKTOP_SITES -> buildDesktopSites()
             VIEW_V2_HOME -> buildV2Home()
-            VIEW_V2_BROWSE -> buildV2Browse()
             VIEW_V2_TRANSLATE -> buildV2Translate()
             VIEW_V2_TRANSLATE_BAIDU -> buildV2TranslateBaidu()
             VIEW_V2_TRANSLATE_CUSTOM -> buildV2TranslateCustom()
@@ -209,7 +211,6 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_TRANSLATE_LOG -> buildV2TranslateLog()
             VIEW_V2_TRANSLATE_OFFLINE -> buildV2TranslateOffline()
             VIEW_V2_READING -> buildV2Reading()
-            VIEW_V2_READING_MODE -> buildV2ReadingMode()
             VIEW_V2_NIGHT -> buildV2Night()
             VIEW_V2_THEME_COLOR_GROUP -> buildV2ThemeColorGroup()
             VIEW_V2_CARD -> buildV2Card()
@@ -237,6 +238,8 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_CLEAR -> buildV2Clear()
             VIEW_V2_UA -> buildV2Ua()
             VIEW_V2_NETWORK -> buildV2Network()
+            VIEW_V2_PRIVATE_DNS -> buildV2PrivateDns()
+            VIEW_V2_DOH -> buildV2Doh()
             VIEW_V2_NETLOG -> buildV2Netlog()
             VIEW_V2_IMPORT -> buildV2Import()
             VIEW_V2_LAB -> buildV2Lab()
@@ -342,52 +345,40 @@ class SettingsDetailFragment : Fragment() {
     }
 
     private fun buildGeneral() {
-        sectionTitle(R.string.settings_section_search)
+        // 3 张卡：浏览 / 内容与阅读 / 网站与操作。
+        // 单行卡片不再单独分组（原来的「下载」只有 1 行），下载设置并入内容与阅读。
+        // 用户脚本归「特别功能」，这里不再重复。
+        sectionTitle(R.string.settings_section_browse)
         card(
+            navRow(getString(R.string.settings_engine)) { open(VIEW_ENGINE) },
             navRow(
                 getString(R.string.settings_language),
                 languageLabel(settings.language().orEmpty())
             ) { showLanguageDialog() },
-            navRow(getString(R.string.settings_engine), getString(R.string.settings_engine_desc)) {
-                open(VIEW_ENGINE)
-            }
-        )
-        sectionTitle(R.string.settings_section_default_apps)
-        card(
-            navRow(
-                getString(R.string.settings_default_browser),
-                getString(R.string.settings_default_browser_desc)
-            ) { openDefaultAppsSettings() }
+            navRow(getString(R.string.settings_default_browser)) { openDefaultAppsSettings() }
         )
         sectionTitle(R.string.settings_section_content)
         card(
-            navRow(getString(R.string.settings_translate)) { open(VIEW_V2_TRANSLATE) },
-            navRow(getString(R.string.settings_reading)) { open(VIEW_V2_READING) },
-            navRow(getString(R.string.settings_screen_translate)) { open(VIEW_V2_SCREEN_TRANSLATE) },
+            switchRow(
+                getString(R.string.settings_auto_expand),
+                settings.autoExpand()
+            ) { settings.setAutoExpand(it) },
+            switchRow(
+                getString(R.string.settings_wifi_img),
+                settings.wifiImagesOnly()
+            ) { settings.setWifiImagesOnly(it) },
             switchRow(
                 getString(R.string.settings_clipboard_guard),
                 settings.clipboardGuard(),
                 getString(R.string.settings_clipboard_guard_desc)
-            ) { settings.setClipboardGuard(it) }
+            ) { settings.setClipboardGuard(it) },
+            navRow(getString(R.string.settings_reading)) { open(VIEW_V2_READING) },
+            navRow(getString(R.string.settings_download)) { open(VIEW_V2_DOWNLOAD) }
         )
         sectionTitle(R.string.settings_section_site_script)
         card(
             navRow(getString(R.string.settings_site_default)) { open(VIEW_V2_SITE_DEFAULT) },
             navRow(getString(R.string.settings_site_rules)) { openFragment(SiteRulesFragment()) },
-            navRow(getString(R.string.settings_desktop_sites)) { open(VIEW_DESKTOP_SITES) },
-            navRow(getString(R.string.settings_scripts)) { openFragment(ScriptsFragment()) }
-        )
-        sectionTitle(R.string.settings_section_download)
-        card(
-            navRow(getString(R.string.settings_download)) { open(VIEW_V2_DOWNLOAD) },
-            switchRow(
-                getString(R.string.settings_wifi_img),
-                settings.wifiImagesOnly(),
-                getString(R.string.settings_wifi_img_desc)
-            ) { settings.setWifiImagesOnly(it) }
-        )
-        sectionTitle(R.string.settings_habits)
-        card(
             navRow(getString(R.string.settings_gestures)) { open(VIEW_V2_GESTURE) },
             navRow(getString(R.string.settings_lp_custom)) { open(VIEW_LP_CUSTOM) },
             navRow(getString(R.string.settings_operate)) { open(VIEW_V2_OPERATE) },
@@ -402,16 +393,47 @@ class SettingsDetailFragment : Fragment() {
             switchRow(getString(R.string.settings_keep_on), settings.keepOn()) {
                 settings.setKeepOn(it)
             },
-            switchRow(
-                getString(R.string.settings_sniff),
-                settings.sniffEnabled(),
-                getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) },
-            navRow(getString(R.string.settings_sniff_sites)) {
-                openFragment(SniffSitesFragment())
-            }
         )
         aboutText(R.string.about_general)
+    }
+
+    private fun buildSpecial() {
+        // 进阶能力的唯一入口：这里每一项都是「日常不需要、需要时很强」的能力。
+        // 常用功能（翻译、屏幕翻译、隐私保护、广告拦截）归各自的页面，不在这里重复。
+        sectionTitle(R.string.settings_special_group_ext)
+        card(
+            navRow(getString(R.string.settings_scripts)) { openFragment(ScriptsFragment()) },
+            navRow(getString(R.string.settings_rules)) { openFragment(RulesFragment()) },
+            navRow(getString(R.string.settings_sniff_sites)) { openFragment(SniffSitesFragment()) }
+        )
+        sectionTitle(R.string.settings_special_group_translate)
+        card(
+            navRow(getString(R.string.settings_translate)) { open(VIEW_V2_TRANSLATE) },
+            navRow(getString(R.string.settings_screen_translate)) { open(VIEW_V2_SCREEN_TRANSLATE) }
+        )
+        sectionTitle(R.string.settings_special_group_network)
+        card(
+            // 私人 DNS 与 DoH 都是「改解析、改网络行为」的进阶手段，集中在这里。
+            navRow(getString(R.string.settings_private_dns)) { open(VIEW_V2_PRIVATE_DNS) },
+            navRow(getString(R.string.settings_doh)) { open(VIEW_V2_DOH) }
+        )
+        sectionTitle(R.string.settings_special_group_auto)
+        card(
+            navRow(getString(R.string.settings_mcp)) { open(VIEW_V2_MCP) }
+        )
+        aboutText(R.string.settings_special_about)
+    }
+
+    /** 重置熊猫头提示的「已显示」标记，并立即演示一次完整说明（不依赖网页加载）。 */
+    private fun showSiteInfoTipAgain() {
+        settings.setSiteInfoTipShown(false)
+        settings.setSiteInfoTapTipShown(false)
+        settings.setSiteInfoHoldTipShown(false)
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.site_info_tap_title)
+            .setMessage(R.string.site_info_tap_body)
+            .setPositiveButton(R.string.site_info_tip_got_it, null)
+            .show()
     }
 
     private fun buildV2Translate() {
@@ -795,20 +817,8 @@ class SettingsDetailFragment : Fragment() {
         }
     }
 
+    /** 阅读：主题 / 字号 / 自定义 CSS。原来是「阅读 → 阅读模式」两层，只有一个入口，已合并为一级。 */
     private fun buildV2Reading() {
-        card(
-            switchRow(
-                getString(R.string.settings_auto_expand),
-                settings.autoExpand(),
-                getString(R.string.settings_auto_expand_desc)
-            ) { settings.setAutoExpand(it) },
-            navRow(getString(R.string.settings_reading_mode)) {
-                open(VIEW_V2_READING_MODE)
-            }
-        )
-    }
-
-    private fun buildV2ReadingMode() {
         card(
             choiceRow(
                 getString(R.string.settings_reader_theme),
@@ -831,6 +841,9 @@ class SettingsDetailFragment : Fragment() {
         val dirValue = settings.downloadDir()?.let { getString(R.string.settings_download_dir_set) }
             ?: getString(R.string.settings_download_dir_default)
         val builtin = settings.downloader() == 0
+        // 15 行拆 4 卡：先选引擎 → 再调行为 → 外观与播放 → 保存位置。
+        // 7 项「仅内置下载器可用」集中到「下载行为」组，切到外部下载器时一眼能看出置灰原因。
+        sectionTitle(R.string.settings_section_dl_engine)
         card(
             choiceRow(
                 getString(R.string.settings_downloader),
@@ -851,9 +864,55 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_download_parallel),
                 DOWNLOAD_PARALLEL_NAMES,
                 settings.downloadParallel().coerceIn(1, 4) - 1,
-                getString(R.string.settings_download_parallel_desc),
                 enabled = builtin
-            ) { index -> settings.setDownloadParallel(index + 1) },
+            ) { index -> settings.setDownloadParallel(index + 1) }
+        )
+        sectionTitle(R.string.settings_section_dl_behavior)
+        card(
+            switchRow(
+                getString(R.string.settings_download_confirm),
+                settings.downloadConfirm(),
+                enabled = builtin
+            ) { settings.setDownloadConfirm(it) },
+            switchRow(
+                getString(R.string.settings_download_auto_open),
+                settings.downloadAutoOpen(),
+                enabled = builtin
+            ) { settings.setDownloadAutoOpen(it) },
+            switchRow(
+                getString(R.string.settings_download_retry),
+                settings.downloadRetry(),
+                enabled = builtin
+            ) { settings.setDownloadRetry(it) },
+            switchRow(
+                getString(R.string.settings_download_wifi_only),
+                settings.downloadWifiOnly()
+            ) { settings.setDownloadWifiOnly(it) },
+            switchRow(
+                getString(R.string.settings_download_saf_direct),
+                settings.downloadSafDirect(),
+                getString(R.string.settings_download_saf_direct_desc),
+                enabled = builtin
+            ) { settings.setDownloadSafDirect(it) },
+            switchRow(
+                getString(R.string.settings_download_hls_mp4),
+                settings.hlsToMp4(),
+                enabled = builtin
+            ) { settings.setHlsToMp4(it) },
+            switchRow(
+                getString(R.string.settings_apk_rename),
+                settings.apkRenameToLabel(),
+                enabled = builtin
+            ) { settings.setApkRenameToLabel(it) },
+            // 保存位置也属于下载行为，不单开 1 行卡片。
+            navRow(
+                getString(R.string.settings_download_dir),
+                dirValue,
+                enabled = builtin
+            ) { dirLauncher.launch(null) }
+        )
+        sectionTitle(R.string.settings_section_dl_appearance)
+        card(
             choiceRow(
                 getString(R.string.settings_download_progress_style),
                 arrayOf(
@@ -867,47 +926,6 @@ class SettingsDetailFragment : Fragment() {
                 ),
                 settings.downloadProgressStyle().coerceIn(0, 6)
             ) { settings.setDownloadProgressStyle(it) },
-            switchRow(
-                getString(R.string.settings_apk_rename),
-                settings.apkRenameToLabel(),
-                getString(R.string.settings_apk_rename_desc),
-                enabled = builtin
-            ) { settings.setApkRenameToLabel(it) },
-            switchRow(
-                getString(R.string.settings_download_saf_direct),
-                settings.downloadSafDirect(),
-                getString(R.string.settings_download_saf_direct_desc),
-                enabled = builtin
-            ) { settings.setDownloadSafDirect(it) },
-            switchRow(
-                getString(R.string.settings_download_confirm),
-                settings.downloadConfirm(),
-                enabled = builtin
-            ) { settings.setDownloadConfirm(it) },
-            switchRow(
-                getString(R.string.settings_download_auto_open),
-                settings.downloadAutoOpen(),
-                enabled = builtin
-            ) { settings.setDownloadAutoOpen(it) },
-            switchRow(
-                getString(R.string.settings_download_hls_mp4),
-                settings.hlsToMp4(),
-                enabled = builtin
-            ) { settings.setHlsToMp4(it) },
-            switchRow(
-                getString(R.string.settings_download_retry),
-                settings.downloadRetry(),
-                enabled = builtin
-            ) { settings.setDownloadRetry(it) },
-            switchRow(
-                getString(R.string.settings_download_wifi_only),
-                settings.downloadWifiOnly()
-            ) { settings.setDownloadWifiOnly(it) },
-            navRow(
-                getString(R.string.settings_download_dir),
-                dirValue,
-                enabled = builtin
-            ) { dirLauncher.launch(null) },
             navRow(
                 getString(R.string.settings_video_player),
                 settings.videoPlayer()?.let { videoPlayerLabel(it) }
@@ -1097,31 +1115,6 @@ class SettingsDetailFragment : Fragment() {
         }
     }
 
-    private fun buildV2Browse() {
-        card(
-            navRow(getString(R.string.settings_tabs_start)) { open(VIEW_V2_TABS) },
-            navRow(getString(R.string.settings_address_search)) { open(VIEW_V2_ADDRESS) },
-            navRow(getString(R.string.settings_download), getString(R.string.settings_download_desc)) {
-                open(VIEW_V2_DOWNLOAD)
-            },
-            navRow(getString(R.string.settings_scripts)) { openFragment(ScriptsFragment()) },
-            navRow(getString(R.string.settings_operate)) { open(VIEW_V2_OPERATE) },
-            switchRow(
-                getString(R.string.settings_wifi_img),
-                settings.wifiImagesOnly(),
-                getString(R.string.settings_wifi_img_desc)
-            ) { settings.setWifiImagesOnly(it) },
-            switchRow(
-                getString(R.string.settings_sniff),
-                settings.sniffEnabled(),
-                getString(R.string.settings_sniff_desc)
-            ) { settings.setSniffEnabled(it) },
-            navRow(getString(R.string.settings_sniff_sites)) {
-                openFragment(SniffSitesFragment())
-            }
-        )
-    }
-
     private fun buildV2Tabs() {
         card(
             choiceRow(
@@ -1143,7 +1136,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_search_suggest),
                 settings.searchSuggestion() != 0,
-                getString(R.string.settings_search_suggest_desc)
             ) {
                 settings.setSearchSuggestion(if (it) 1 else 0)
             },
@@ -1178,8 +1170,7 @@ class SettingsDetailFragment : Fragment() {
             ) { index -> settings.setSuggestionCount(SUGGESTION_COUNTS[index]) },
             navRow(
                 getString(R.string.settings_suggest_order),
-                getString(R.string.settings_suggest_order_desc)
-            ) { open(VIEW_V2_SUGGEST_ORDER) }
+                            ) { open(VIEW_V2_SUGGEST_ORDER) }
         )
     }
 
@@ -1254,16 +1245,7 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_exit_confirm),
                 settings.exitConfirm(),
-                getString(R.string.settings_exit_confirm_desc)
             ) { settings.setExitConfirm(it) },
-            switchRow(
-                getString(R.string.settings_gesture_volume),
-                settings.gestureVolumeKey()
-            ) { settings.setGestureVolumeKey(it) },
-            switchRow(
-                getString(R.string.settings_video_gesture),
-                settings.videoGesture()
-            ) { settings.setVideoGesture(it) },
             navRow(getString(R.string.settings_toolbar_hold)) {
                 open(VIEW_V2_OPERATE_HOLD)
             }
@@ -1321,7 +1303,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_night_css),
                 settings.nightCssEnabled(),
-                getString(R.string.settings_night_css_desc)
             ) {
                 settings.setNightCssEnabled(it)
                 if (it) settings.setWebViewDark(false)
@@ -1367,8 +1348,7 @@ class SettingsDetailFragment : Fragment() {
             },
             navRow(
                 getString(R.string.settings_color_define),
-                getString(R.string.settings_color_define_desc)
-            ) { open(VIEW_V2_COLOR_DEFINE) },
+                            ) { open(VIEW_V2_COLOR_DEFINE) },
             navRow(getString(R.string.settings_card_group)) { open(VIEW_V2_CARD) }
         )
     }
@@ -1611,21 +1591,15 @@ class SettingsDetailFragment : Fragment() {
         )
     }
 
-    // ---- 隐私与安全 ----    // ---- 隐私与安全 ----
+    // ---- 隐私与安全 ----
 
     private fun buildPrivacy() {
-        sectionTitle(R.string.settings_section_ads)
+        // 1 张卡：只有 5 项，再分组就是「标题比内容多」。
+        // 顺序：拦截 → 隐私保护 → 密码 → 无痕 → 清除数据（危险项永远在最后）。
         card(
-            navRow(getString(R.string.settings_rules)) { openFragment(RulesFragment()) }
-        )
-        sectionTitle(R.string.settings_section_privacy)
-        card(
-            navRow(getString(R.string.settings_incognito)) { open(VIEW_V2_INCOG) },
             navRow(getString(R.string.settings_privacy_protection)) { open(VIEW_V2_PRIVACY_PROTECTION) },
-            navRow(getString(R.string.settings_password)) { open(VIEW_V2_PASSWORD) }
-        )
-        sectionTitle(R.string.settings_section_data)
-        card(
+            navRow(getString(R.string.settings_password)) { open(VIEW_V2_PASSWORD) },
+            navRow(getString(R.string.settings_incognito)) { open(VIEW_V2_INCOG) },
             navRow(getString(R.string.settings_clear_data)) { open(VIEW_V2_CLEAR) }
         )
         aboutText(R.string.about_privacy)
@@ -1646,30 +1620,10 @@ class SettingsDetailFragment : Fragment() {
                 settings.siteNoImage()
             ) { settings.setSiteNoImage(it) },
             switchRow(
-                getString(R.string.settings_site_block_js),
-                settings.siteBlockJs(),
-                getString(R.string.settings_site_block_js_desc)
-            ) { settings.setSiteBlockJs(it) },
-            switchRow(
                 getString(R.string.settings_site_block_popup),
                 settings.siteBlockPopup(),
                 getString(R.string.settings_site_block_popup_desc)
             ) { settings.setSiteBlockPopup(it) },
-            switchRow(
-                getString(R.string.settings_site_block_db),
-                settings.siteBlockDb(),
-                getString(R.string.settings_site_block_db_desc)
-            ) { settings.setSiteBlockDb(it) },
-            switchRow(
-                getString(R.string.settings_site_block_dom),
-                settings.siteBlockDom(),
-                getString(R.string.settings_site_block_dom_desc)
-            ) { settings.setSiteBlockDom(it) },
-            switchRow(
-                getString(R.string.settings_site_block_file),
-                settings.siteBlockFile(),
-                getString(R.string.settings_site_block_file_desc)
-            ) { settings.setSiteBlockFile(it) },
             switchRow(
                 getString(R.string.settings_block_third_party),
                 settings.thirdPartyCookiesBlocked(),
@@ -1697,18 +1651,7 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_save_data),
                 settings.saveDataEnabled(),
-                getString(R.string.settings_save_data_desc)
             ) { settings.setSaveDataEnabled(it) },
-            switchRow(
-                getString(R.string.settings_safe_browsing),
-                settings.safeBrowsing(),
-                getString(R.string.settings_safe_browsing_desc)
-            ) { settings.setSafeBrowsing(it) },
-            switchRow(
-                getString(R.string.settings_webrtc_protect),
-                settings.webrtcProtect(),
-                getString(R.string.settings_webrtc_protect_desc)
-            ) { settings.setWebrtcProtect(it) },
             navRow(getString(R.string.settings_site_permissions)) {
                 open(VIEW_V2_SITE_PERMISSIONS)
             }
@@ -2094,11 +2037,48 @@ class SettingsDetailFragment : Fragment() {
     // ---- 高级 ----
 
     private fun buildAdvanced() {
+        // 2 张卡（原来 4 组只有 6 行，标题比内容多）。
+        // 私人 DNS 与 DoH 已移到「特别功能」，这里只剩常规项与开发项。
         card(
             navRow(getString(R.string.settings_ua_group)) { open(VIEW_V2_UA) },
             navRow(getString(R.string.settings_network)) { open(VIEW_V2_NETWORK) },
-            navRow(getString(R.string.settings_import_export)) { open(VIEW_V2_IMPORT) },
-            navRow(getString(R.string.settings_mcp)) { open(VIEW_V2_MCP) },
+            navRow(getString(R.string.settings_import_export)) { open(VIEW_V2_IMPORT) }
+        )
+        // 这几项都有「开了就坏」的副作用（全站不执行脚本、登录态丢失等），
+        // 从「全局网站设置」挪到这里，避免在日常开关里误触。
+        sectionTitle(R.string.settings_section_extreme)
+        card(
+            switchRow(
+                getString(R.string.settings_site_block_js),
+                settings.siteBlockJs(),
+                getString(R.string.settings_site_block_js_desc)
+            ) { settings.setSiteBlockJs(it) },
+            switchRow(
+                getString(R.string.settings_site_block_db),
+                settings.siteBlockDb(),
+                getString(R.string.settings_site_block_db_desc)
+            ) { settings.setSiteBlockDb(it) },
+            switchRow(
+                getString(R.string.settings_site_block_dom),
+                settings.siteBlockDom(),
+                getString(R.string.settings_site_block_dom_desc)
+            ) { settings.setSiteBlockDom(it) },
+            switchRow(
+                getString(R.string.settings_site_block_file),
+                settings.siteBlockFile(),
+                getString(R.string.settings_site_block_file_desc)
+            ) { settings.setSiteBlockFile(it) },
+            switchRow(
+                getString(R.string.settings_safe_browsing),
+                settings.safeBrowsing()
+            ) { settings.setSafeBrowsing(it) },
+            switchRow(
+                getString(R.string.settings_webrtc_protect),
+                settings.webrtcProtect()
+            ) { settings.setWebrtcProtect(it) }
+        )
+        sectionTitle(R.string.settings_section_dev)
+        card(
             navRow(getString(R.string.settings_lab)) { open(VIEW_V2_LAB) }
         )
         aboutText(R.string.about_advanced)
@@ -2137,7 +2117,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_ua_simplify),
                 settings.uaSimplified(),
-                getString(R.string.settings_ua_simplify_desc)
             ) { settings.setUaSimplified(it) },
             navRow(
                 getString(R.string.settings_desktop_sites),
@@ -2147,11 +2126,11 @@ class SettingsDetailFragment : Fragment() {
     }
 
     private fun buildV2Network() {
+        // 网络页只留「日常会碰」的开关；私人 DNS 与 DoH 已移到特别功能。
         card(
             switchRow(
                 getString(R.string.settings_https_only),
-                settings.httpsOnly(),
-                getString(R.string.settings_https_only_desc)
+                settings.httpsOnly()
             ) { settings.setHttpsOnly(it) },
             switchRow(
                 getString(R.string.settings_ignore_ssl),
@@ -2160,28 +2139,29 @@ class SettingsDetailFragment : Fragment() {
             ) { settings.setIgnoreSslError(it) },
             switchRow(
                 getString(R.string.settings_web_debug),
-                settings.webDebug(),
-                getString(R.string.settings_web_debug_desc)
+                settings.webDebug()
             ) { settings.setWebDebug(it) },
             switchRow(
                 getString(R.string.settings_js_console_log),
-                settings.jsConsoleLog(),
-                getString(R.string.settings_js_console_log_desc)
+                settings.jsConsoleLog()
             ) { settings.setJsConsoleLog(it) },
             navRow(getString(R.string.settings_netlog)) { open(VIEW_V2_NETLOG) }
         )
+    }
+
+    /** 私人 DNS：引导到系统设置，并给出各家的 DNS-over-TLS 主机名供复制。 */
+    private fun buildV2PrivateDns() {
         sectionTitle(R.string.settings_private_dns)
         card(
-            navRow(
-                getString(R.string.settings_private_dns_open),
-                getString(R.string.settings_private_dns_desc)
-            ) { openPrivateDnsSettings() },
-            navRow(getString(R.string.settings_private_dns_manual_row)) {
-                showPrivateDnsHelp()
-            }
+            navRow(getString(R.string.settings_private_dns_open)) { openPrivateDnsSettings() },
+            navRow(getString(R.string.settings_private_dns_manual_row)) { showPrivateDnsHelp() }
         )
         card(*buildPrivateDnsRows())
         aboutText(R.string.settings_private_dns_note)
+    }
+
+    /** 应用内 DoH：只让 Sii 的网页走加密 DNS，不改系统设置、不需要 VPN。 */
+    private fun buildV2Doh() {
         sectionTitle(R.string.settings_doh)
         card(
             switchRow(
@@ -2447,7 +2427,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_cct_disabled),
                 settings.cctDisabled(),
-                getString(R.string.settings_cct_disabled_desc)
             ) { settings.setCctDisabled(it) }
         )
     }
@@ -2526,7 +2505,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_screen_translate_speak),
                 settings.screenTranslateSpeak(),
-                getString(R.string.settings_screen_translate_speak_desc)
             ) { value ->
                 settings.setScreenTranslateSpeak(value)
                 build()
@@ -2679,7 +2657,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_mcp_floating),
                 settings.mcpFloating(),
-                getString(R.string.settings_mcp_floating_desc)
             ) { value ->
                 settings.setMcpFloating(value)
                 McpService.refreshFloating(requireContext())
@@ -3186,31 +3163,14 @@ class SettingsDetailFragment : Fragment() {
     // ---- 高级 ----
 
     private fun buildAbout() {
-        val rows = mutableListOf<View>()
-        val context = requireContext()
-        rows.add(android.widget.TextView(context).apply {
-            text = context.getString(R.string.about_project_desc)
-            setTextSize(13f)
-            setTextColor(context.getColor(R.color.text_secondary))
-            setLineSpacing(CardList.dp(context, 3).toFloat(), 1.2f)
-            setPadding(
-                CardList.dp(context, 16),
-                CardList.dp(context, 14),
-                CardList.dp(context, 16),
-                CardList.dp(context, 14)
-            )
-        })
+        // 拆 3 卡：版本信息 / 帮助与反馈 / 法律。原来 10 行挤一张卡，
+        // 法律文件是「阅读」而非「设置」，混在一起容易误点。
         val latest = settings.updateLatest()?.split("|")?.takeIf { it.size >= 2 }
-        if (latest != null) {
-            rows.add(
-                navRow(
-                    getString(R.string.update_found_row, latest[0]),
-                    getString(R.string.update_open_release)
-                ) { openUpdateUrl(latest[1]) }
-            )
-        }
-        rows.add(infoRow(getString(R.string.settings_about_version), appVersion()))
-        rows.add(
+
+        sectionTitle(R.string.settings_section_version)
+        val versionRows = mutableListOf<View>()
+        versionRows.add(infoRow(getString(R.string.settings_about_version), appVersion()))
+        versionRows.add(
             navRow(
                 getString(R.string.settings_about_repo),
                 getString(R.string.about_repo_url).removePrefix("https://")
@@ -3221,26 +3181,36 @@ class SettingsDetailFragment : Fragment() {
                 }
             }
         )
-        rows.add(navRow(getString(R.string.settings_check_update)) { checkForUpdate() })
-        rows.add(
+        versionRows.add(navRow(getString(R.string.settings_check_update)) { checkForUpdate() })
+        versionRows.add(
             choiceRow(
                 getString(R.string.settings_update_prompt),
                 arrayOf(
                     getString(R.string.update_prompt_off),
                     getString(R.string.update_prompt_startup)
                 ),
-                settings.updatePrompt().coerceIn(0, 1),
-                getString(R.string.settings_update_prompt_desc)
+                settings.updatePrompt().coerceIn(0, 1)
             ) { value ->
                 settings.setUpdatePrompt(value)
                 build()
             }
         )
-        rows.add(navRow(getString(R.string.settings_crash_log)) { open(VIEW_CRASH_LOG) })
-        rows.add(navRow(getString(R.string.settings_about_license)) { showLicense() })
-        rows.add(navRow(getString(R.string.legal_terms_title)) { openFragment(LegalFragment.newInstance(LegalFragment.TYPE_TERMS)) })
-        rows.add(navRow(getString(R.string.legal_privacy_title)) { openFragment(LegalFragment.newInstance(LegalFragment.TYPE_PRIVACY)) })
-        rows.add(
+        card(*versionRows.toTypedArray())
+
+        // 发现新版本时单独一张卡，避免和版本信息混排后看不出这是「有新版本」。
+        if (latest != null) {
+            card(
+                navRow(
+                    getString(R.string.update_found_row, latest[0]),
+                    getString(R.string.update_open_release)
+                ) { openUpdateUrl(latest[1]) }
+            )
+        }
+
+        sectionTitle(R.string.settings_section_help)
+        card(
+            // 项目说明原来放在卡片顶部整段展示，占掉 3~4 行；改成可点开的说明，需要时才看。
+            navRow(getString(R.string.settings_about_project)) { showProjectDesc() },
             navRow(
                 getString(R.string.about_qq_group),
                 getString(R.string.about_qq_group_desc)
@@ -3249,9 +3219,37 @@ class SettingsDetailFragment : Fragment() {
                     copyQqGroup()
                     true
                 }
+            },
+            navRow(getString(R.string.settings_crash_log)) { open(VIEW_CRASH_LOG) },
+            navRow(getString(R.string.settings_about_license)) { showLicense() }
+        )
+
+        sectionTitle(R.string.settings_section_legal)
+        card(
+            navRow(getString(R.string.legal_terms_title)) {
+                openFragment(LegalFragment.newInstance(LegalFragment.TYPE_TERMS))
+            },
+            navRow(getString(R.string.legal_privacy_title)) {
+                openFragment(LegalFragment.newInstance(LegalFragment.TYPE_PRIVACY))
             }
         )
-        card(*rows.toTypedArray())
+    }
+
+    /** 项目说明：以对话框展示，长度受限时可滚动。 */
+    private fun showProjectDesc() {
+        val text = TextView(requireContext()).apply {
+            setText(R.string.about_project_desc)
+            setTextSize(13f)
+            setTextColor(requireContext().getColor(R.color.text_secondary))
+            setLineSpacing(dpToPx(3).toFloat(), 1.3f)
+            setPadding(dpToPx(20), dpToPx(14), dpToPx(20), dpToPx(4))
+        }
+        val scroll = android.widget.ScrollView(requireContext()).apply { addView(text) }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_about_project)
+            .setView(scroll)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     /** 优先用 QQ 打开群链接，未安装则回到浏览器内打开。 */
@@ -3399,6 +3397,8 @@ class SettingsDetailFragment : Fragment() {
                 "&data=Y3NGxGKyKlgCPVs1Xi-SlaZP4rSZ6HDG75WMzmgzLO-kP4NYEdIzuFFQIAhJ13Y5Sa9iYJVERBoEqE41xBtJZQ&svctype=4&tempid=h5_group_info"
 
         const val VIEW_GENERAL = "general"
+        /** 特别功能：脚本 / 广告拦截 / 翻译 / 屏幕翻译 / 隐私保护 / 资源嗅探 / MCP。 */
+        const val VIEW_SPECIAL = "special"
         const val VIEW_ENGINE = "engine"
         const val VIEW_DL_SET = "dlSet"
         const val VIEW_PRIVACY = "privacy"
@@ -3413,7 +3413,6 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_ADVANCED = "advanced"
         const val VIEW_DESKTOP_SITES = "desktopSites"
         const val VIEW_V2_HOME = "v2Home"
-        const val VIEW_V2_BROWSE = "v2Browse"
         const val VIEW_V2_TRANSLATE = "v2Translate"
         const val VIEW_V2_TRANSLATE_BAIDU = "v2TranslateBaidu"
         const val VIEW_V2_TRANSLATE_CUSTOM = "v2TranslateCustom"
@@ -3421,7 +3420,6 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_TRANSLATE_LOG = "v2TranslateLog"
         const val VIEW_V2_TRANSLATE_OFFLINE = "v2TranslateOffline"
         const val VIEW_V2_READING = "v2Reading"
-        const val VIEW_V2_READING_MODE = "v2ReadingMode"
         const val VIEW_V2_TABS = "v2Tabs"
         const val VIEW_V2_ADDRESS = "v2Address"
         const val VIEW_V2_SUGGEST = "v2Suggest"
@@ -3449,6 +3447,10 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_CLEAR = "v2Clear"
         const val VIEW_V2_UA = "v2Ua"
         const val VIEW_V2_NETWORK = "v2Network"
+        /** 私人 DNS：从网络页拆出，入口在「特别功能」。 */
+        const val VIEW_V2_PRIVATE_DNS = "v2PrivateDns"
+        /** 应用内 DoH：从网络页拆出，入口在「特别功能」。 */
+        const val VIEW_V2_DOH = "v2Doh"
         const val VIEW_V2_NETLOG = "v2Netlog"
         const val VIEW_V2_IMPORT = "v2Import"
         const val VIEW_V2_LAB = "v2Lab"
@@ -3942,14 +3944,12 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_color_night),
                 settings.themePartsNight(),
-                getString(R.string.settings_color_night_desc)
             ) { settings.setThemePartsNight(it) }
         )
         card(
             switchRow(
                 getString(R.string.settings_color_over_detect),
                 settings.themeOverDetect(),
-                getString(R.string.settings_color_over_detect_desc)
             ) {
                 settings.setThemeOverDetect(it)
                 build()
@@ -3963,7 +3963,6 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_theme_color_detect),
                 settings.themeColorEnabled(),
-                getString(R.string.settings_theme_color_detect_desc)
             ) {
                 settings.setThemeColorEnabled(it)
                 build()
@@ -4986,12 +4985,6 @@ class SettingsDetailFragment : Fragment() {
     }
 
 }
-
-
-
-
-
-
 
 
 

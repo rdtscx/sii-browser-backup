@@ -328,7 +328,7 @@
     <string name="ad_pick_hint">Tap the ad element to hide</string>
     <string name="ad_pick_blocked">Page navigation blocked while picking</string>
     <string name="ad_pick_exit">Element picking cancelled</string>
-    <string name="settings_translate">Translation</string>
+    <string name="settings_translate">Page translation</string>
     <string name="settings_translate_baidu">Baidu settings</string>
     <string name="settings_translate_custom">Custom request</string>
     <string name="settings_translate_params">Translation parameters</string>
@@ -338,7 +338,7 @@
     <string name="translate_log_empty">No translation log yet. Translate a page first.</string>
     <string name="translate_log_export">Export translation log</string>
     <string name="translate_log_clear">Clear translation log</string>
-    <string name="settings_reading">Reading and expand</string>
+    <string name="settings_reading">Reading</string>
     <string name="settings_reading_mode">Reading mode</string>
     <string name="settings_reader_size">Reading mode font size</string>
     <string name="settings_reader_size_desc">0 follows the main font size</string>
@@ -443,6 +443,10 @@
     <string name="menu_history">History</string>
     <string name="menu_add_bookmark">Add bookmark</string>
     <string name="bookmark_added">Bookmark added</string>
+    <string name="bookmark_new">New bookmark</string>
+    <string name="bookmark_name">Name</string>
+    <string name="bookmark_url_hint">URL, e.g. example.com</string>
+    <string name="bookmark_url_invalid">Enter a valid URL</string>
     <string name="new_folder">New folder</string>
     <string name="bookmark_sort">Bookmark sort</string>
     <string name="bookmark_sort_order">Default order</string>
@@ -558,7 +562,7 @@
     <string name="settings_site_block_js_desc">No scripts run; most sites will not work</string>
     <string name="section_privacy_tracking">Tracking and security</string>
     <string name="section_privacy_data">Data cleanup</string>
-    <string name="about_privacy">Incognito does not record history; "Clear data on exit" also signs you out of websites.</string>
+    <string name="about_privacy">Ad blocking has moved to "Advanced features". These switches apply to all sites; per-site exceptions live in Site rules. Clearing data also signs you out of websites.</string>
     <string name="about_general">These settings affect the default behavior of all pages.</string>
     <string name="about_download">Downloads are saved to the app directory when no folder is set; a SAF folder can be chosen.</string>
     <string name="about_appearance">Night mode can follow the system or be switched manually from the browser menu.</string>
@@ -684,9 +688,9 @@
     <string name="tab_op_close_right">Close tabs to the right</string>
     <string name="tab_op_duplicate">Duplicate tab</string>
     <string name="tab_label">Tab</string>
-    <string name="settings_general_desc">Search engine, language and scripts</string>
+    <string name="settings_general_desc">Search, language, content and sites</string>
     <string name="settings_privacy_security">Privacy and security</string>
-    <string name="settings_privacy_security_desc">Ad blocking, data cleanup and incognito</string>
+    <string name="settings_privacy_security_desc">Privacy protection, passwords, incognito and clearing data</string>
     <string name="settings_appearance_desc">Theme, fonts, layout, menu and gestures</string>
     <string name="settings_home_group">Home</string>
     <string name="settings_home_group_desc">Home URL, frequent sites and style</string>
@@ -1193,8 +1197,8 @@
     <string name="download_bar_downloading">Downloading: %1$s</string>
     <string name="history_load_more">Load more</string>
     <string name="settings_sniff">Resource sniffing</string>
-    <string name="settings_sniff_sites">Sites with sniffing enabled</string>
-    <string name="sniff_sites_empty">No sites enabled yet. Tap “Resource sniffing” in the page menu to enable it for the current site.</string>
+    <string name="settings_sniff_sites">Sites with sniffing on</string>
+    <string name="sniff_sites_empty">No sites enabled yet. Sniffing is off by default; turn it on per site from the page menu.</string>
     <string name="sniff_sites_remove">Remove</string>
     <string name="sniff_sites_removed">Sniffing removed for this site</string>
     <string name="settings_sniff_desc">Off by default; enable per site from the page menu</string>
@@ -1437,4 +1441,35 @@
     <string name="settings_screen_translate_display_card">Result card</string>
 
     <string name="screen_translate_ready">Screen capture ready; tap the floating ball to translate</string>
+    <string name="settings_section_browse">Browsing</string>
+    <string name="settings_section_protect">Blocking &amp; protection</string>
+    <string name="settings_section_dev">Development</string>
+    <string name="settings_section_dl_engine">Download engine</string>
+    <string name="settings_section_dl_behavior">Download behavior</string>
+    <string name="settings_section_dl_appearance">Appearance &amp; playback</string>
+    <string name="settings_section_dl_location">Save location</string>
+    <string name="settings_section_version">Version</string>
+    <string name="settings_section_help">Help &amp; feedback</string>
+    <string name="settings_section_legal">Legal</string>
+    <string name="settings_about_project">About this project</string>
+    <string name="settings_special">Advanced features</string>
+    <string name="settings_special_desc">Scripts, translation, sniffing, DNS, ad blocking and more</string>
+    <string name="settings_special_group_ext">Extensions &amp; content</string>
+    <string name="settings_special_group_content">Content</string>
+    <string name="settings_special_group_privacy">Privacy</string>
+    <string name="settings_special_group_auto">Automation</string>
+    <string name="settings_special_about">These are advanced Sii features; daily browsing works fine without them.</string>
+    <string name="settings_site_info_tip">Show address-bar icon tip</string>
+    <string name="settings_site_info_tip_reset">Review the feature guide</string>
+    <string name="site_info_tip_bar">Tap the panda to bookmark; long-press for site info and settings</string>
+    <string name="site_info_tip_got_it">Got it</string>
+    <string name="site_info_tap_title">Tap to bookmark</string>
+    <string name="site_info_tap_body">Tap the panda to bookmark or unbookmark this site. Long-press to see site info and settings.</string>
+    <string name="site_info_hold_hint">Tap to bookmark this site</string>
+    <string name="site_info_tip_no_more">Don\'t show again</string>
+    <string name="settings_special_group_network">DNS</string>
+    <string name="settings_special_group_translate">Translation</string>
+    <string name="settings_section_extreme">Extreme blocking</string>
+    <string name="sniff_sites_title">Sites with sniffing on</string>
+    <string name="sniff_sites_enabled_title">Enabled sites</string>
 </resources>

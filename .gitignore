@@ -37,3 +37,23 @@ build/
 *.append
 /Dl.java
 /art/
+
+# 本地备份：签名/密码/反编译笔记，绝对不上传
+_重要备份_勿上传/
+VIA_ARCHITECTURE.md
+local.properties.txt
+*.jks
+*.p12
+local.properties.bak
+
+# 本地文档：含签名密码/环境配置，不上传
+接手说明.md
+BUILD_ENV.md
+.sii_env.example
+维护须知.md
+
+# 同步机制残留（不可删，已忽略）
+.git.broken/
+/config
+/keystore
+/local.properties

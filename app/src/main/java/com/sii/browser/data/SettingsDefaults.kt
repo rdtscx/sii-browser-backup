@@ -132,6 +132,10 @@ object SettingsDefaults {
     const val FIXED_MENU_SHOW_LABELS = true
     /** 菜单长按提示默认显示，用户点掉后不再出现。 */
     const val MENU_LONG_PRESS_HINT = true
+    /** 熊猫头提示默认未显示过（false = 需要提示）。 */
+    const val SITE_INFO_TIP_SHOWN = false
+    const val SITE_INFO_TAP_TIP_SHOWN = false
+    const val SITE_INFO_HOLD_TIP_SHOWN = false
     const val HOME_LOGO_ICON_SHOW = true
     const val HOME_LOGO_MODE = -1
     /** 密码填充方式：-1 未设置（按旧的自动填充开关推断）。 */
