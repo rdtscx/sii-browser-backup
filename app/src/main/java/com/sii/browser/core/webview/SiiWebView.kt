@@ -7,6 +7,7 @@ import android.util.AttributeSet
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebView.HitTestResult
@@ -81,43 +82,61 @@ class SiiWebView @JvmOverloads constructor(
         }
     }
 
-    /** 文本选择菜单附加项（文案 + 回调，参数为选中文本）。 */
-    var selectionMenuExtras: List<Pair<String, (String) -> Unit>> = emptyList()
+    /**
+     * 文本选择菜单项（[SelectionMenu.Item] 列表），回调参数为选中的文本。
+     */
+    var selectionMenuExtras: List<Any> = emptyList()
+
+    /** 自绘划词菜单的宿主（浏览器根布局），用于弹出浮层。 */
+    var selectionMenuHost: View? = null
+
+    /**
+     * 自绘划词菜单：长按选中文字后弹出，所有操作一次铺开。
+     *
+     * 系统原生浮动工具栏宽度有限，多余项会藏进「⋮」需要上下滑动，
+     * 这里改为自绘浮层。
+     */
+    private fun showOwnSelectionMenu() {
+        val extras = selectionMenuExtras
+        if (extras.isEmpty()) return
+        val host = selectionMenuHost ?: return
+        evaluateJavascript(
+            "(function(){try{return String(window.getSelection())}catch(e){return ''}})()"
+        ) { value ->
+            val selected = value?.trim('"')?.trim().orEmpty()
+            if (selected.isEmpty()) return@evaluateJavascript
+            val point = lastTouchPoint ?: return@evaluateJavascript
+            val loc = IntArray(2)
+            host.getLocationInWindow(loc)
+            SelectionMenu.show(
+                host,
+                point.x + loc[0],
+                point.y + loc[1],
+                extras,
+                selected
+            )
+        }
+    }
 
     /** 在系统文本选择菜单后追加自定义项（保留原菜单行为）。 */
     override fun startActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
         if (callback == null || selectionMenuExtras.isEmpty()) {
             return super.startActionMode(callback, type)
         }
-        val extras = selectionMenuExtras
-        var selected = ""
+        // 系统浮动工具栏宽度有限，追加的项会被挤进「⋮」需要滑动才能看全。
+        // 这里改为：系统菜单照常（复制/全选/朗读等），另外弹出自绘浮层列出所有操作。
         val wrapped = object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                evaluateJavascript(
-                    "(function(){try{return String(window.getSelection())}catch(e){return ''}})()"
-                ) { value -> selected = value?.trim('"') ?: "" }
-                return callback.onCreateActionMode(mode, menu)
-            }
-
-            override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-                val result = callback.onPrepareActionMode(mode, menu)
-                menu?.let { m ->
-                    extras.forEachIndexed { index, pair ->
-                        m.add(Menu.NONE, SELECTION_EXTRA_BASE + index, 100 + index, pair.first)
-                    }
-                }
+                val result = callback.onCreateActionMode(mode, menu)
+                showOwnSelectionMenu()
                 return result
             }
 
-            override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-                val extra = extras.getOrNull((item?.itemId ?: -1) - SELECTION_EXTRA_BASE)
-                if (extra != null) {
-                    extra.second(selected)
-                    mode?.finish()
-                    return true
-                }
-                return callback.onActionItemClicked(mode, item)
-            }
+            override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean =
+                callback.onPrepareActionMode(mode, menu)
+
+            override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean =
+                callback.onActionItemClicked(mode, item)
 
             override fun onDestroyActionMode(mode: ActionMode?) = callback.onDestroyActionMode(mode)
         }

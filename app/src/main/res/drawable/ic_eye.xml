@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 眼睛：外轮廓 + 瞳孔，用于「显示/隐藏密码」 -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"
+        android:pathData="M1.8,12 C4.5,7.6 8,5.5 12,5.5 C16,5.5 19.5,7.6 22.2,12 C19.5,16.4 16,18.5 12,18.5 C8,18.5 4.5,16.4 1.8,12 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,9.2 m-2.8,0 a2.8,2.8 0 1,0 5.6,0 a2.8,2.8 0 1,0 -5.6,0" />
+</vector>

@@ -20,6 +20,7 @@
 - Multiple tabs and a tab panel, with thumbnails and recently closed tabs
 - Ad blocking and privacy protection: rule subscriptions, custom rules, per-site switches
 - Page translation: online, offline and bilingual
+- AI assistant: page Q&A and ask-about-selection, with custom service and presets
 - Download manager: multi-connection, resume and HLS
 - Media sniffing and a built-in player
 - User scripts with common GM APIs

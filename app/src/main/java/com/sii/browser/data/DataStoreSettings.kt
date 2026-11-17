@@ -457,7 +457,17 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun aiApiKey(): String? =
         str(SettingsKeys.AI_API_KEY, SettingsDefaults.AI_API_KEY)
     override fun setAiApiKey(value: String?) =
-        putStr(SettingsKeys.AI_API_KEY, value)
+        putStr(SettingsKeys.AI_API_KEY, sanitizeApiKey(value))
+
+    /**
+     * 清洗 API 密钥：只保留可打印 ASCII（0x21..0x7E）。
+     *
+     * 掩码显示用的 `•`（U+2022）等不可见字符混进密钥后，
+     * OkHttp 会在构造 Authorization 头时抛
+     * `IllegalArgumentException: Unexpected char 0x2022`，导致闪退。
+     */
+    private fun sanitizeApiKey(value: String?): String? =
+        value?.filter { it.code in 0x21..0x7E }?.trim()
 
     override fun aiModel(): String? =
         str(SettingsKeys.AI_MODEL, SettingsDefaults.AI_MODEL)
@@ -1577,7 +1587,8 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setQuickEnginePosition(value: Int) = putInt(SettingsKeys.QUICK_ENGINE_POS, value)
 
-    override fun gestureSwipeNav(): Boolean = bool(SettingsKeys.GESTURE_SWIPE, true)
+    // 水平滑动前进/后退：默认关闭，避免误触翻页。
+    override fun gestureSwipeNav(): Boolean = bool(SettingsKeys.GESTURE_SWIPE, false)
 
     override fun setGestureSwipeNav(value: Boolean) = putBool(SettingsKeys.GESTURE_SWIPE, value)
 
@@ -1673,7 +1684,14 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     override fun setCctDisabled(value: Boolean) = putBool(SettingsKeys.CCT_DISABLED, value)
 
-    override fun selectionMenuItems(): String? = str(SettingsKeys.SELECTION_MENU_ITEMS, "search,share,copy")
+    override fun selectionMenuItems(): String? {
+        val raw = str(SettingsKeys.SELECTION_MENU_ITEMS, "search,share,copy,askai")
+        // 老版本存的值里没有「askai」，这里自动补上（1.6.2 新增功能）。
+        // 用户若手动关掉过，保存的值里已显式移除，故只在缺少该键时补。
+        if (raw.isNullOrBlank()) return raw
+        if (raw.contains("askai")) return raw
+        return "$raw,askai"
+    }
 
     override fun setSelectionMenuItems(value: String?) {
         putStr(SettingsKeys.SELECTION_MENU_ITEMS, value)

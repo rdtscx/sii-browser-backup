@@ -39,6 +39,42 @@ object OfflineTranslator {
 
     private val defaultLanguages = listOf(TranslateLanguage.CHINESE, TranslateLanguage.ENGLISH)
 
+    /**
+     * 本机离线翻译是否可用。
+     *
+     * ML Kit 语言包必须经 Google Play 服务下载；设备缺 GMS 时，
+     * ML Kit 内部的下载/检查链路会抛
+     * `IllegalArgumentException: Model name expected to be matching [a-z]{2,3}_[a-z]{2,3}`，
+     * 而且异常抛在主线程 Handler 上（zzai.onComplete 里 getResult()），
+     * 外层 try/catch 与协程都拦不住，只会直接闪退。
+     * 所以在调用任何 ML Kit 接口前先确认 GMS 可用，否则一律不碰。
+     */
+    @Volatile
+    private var gmsChecked = false
+    @Volatile
+    private var gmsAvailable = false
+
+    fun isOfflineAvailable(context: Context): Boolean {
+        if (gmsChecked) return gmsAvailable
+        val available = runCatching {
+            val status = com.google.android.gms.common.GoogleApiAvailability
+                .getInstance()
+                .isGooglePlayServicesAvailable(context.applicationContext)
+            status == com.google.android.gms.common.ConnectionResult.SUCCESS
+        }.getOrDefault(false)
+        gmsAvailable = available
+        gmsChecked = true
+        return available
+    }
+
+    /**
+     * ML Kit translate 17.0.3 只支持「源/目标之一是英文且两者不同」的语言对，
+     * 其余组合在模型名校验 `[a-z]{2,3}_[a-z]{2,3}` 处会抛异常。
+     */
+    fun legalPair(source: String?, target: String?): Boolean =
+        source != null && target != null && source != target &&
+            (source == TranslateLanguage.ENGLISH || target == TranslateLanguage.ENGLISH)
+
     @Volatile
     var downloading = false
         private set
@@ -81,10 +117,16 @@ object OfflineTranslator {
     /** 单个模型是否已下载；必须在协程/IO 中调用。 */
     suspend fun isModelReady(context: Context, code: String): Boolean =
         withContext(kotlinx.coroutines.Dispatchers.IO) {
-            synchronized(readyCache) { readyCache[code] }?.let { return@withContext it }
-            val ready = runCatching { manager.isModelDownloaded(model(code)).awaitResult() }
+            // 无 GMS 时任何 ML Kit 调用都可能主线程崩溃，直接判为不可用。
+            if (!isOfflineAvailable(context)) return@withContext false
+            // 容错：允许调用方传 BCP-47 tag（"zh-CN"）或 ML Kit 码（"zh"），
+            // 统一转成 ML Kit 模型码再查询，避免误判「未下载」。
+            val modelCode = runCatching { TranslateLanguages.mlkit(code) }.getOrNull() ?: code
+            if (!modelCode.matches(Regex("[a-z]{2,3}"))) return@withContext false
+            synchronized(readyCache) { readyCache[modelCode] }?.let { return@withContext it }
+            val ready = runCatching { manager.isModelDownloaded(model(modelCode)).awaitResult() }
                 .getOrDefault(false)
-            synchronized(readyCache) { readyCache[code] = ready }
+            synchronized(readyCache) { readyCache[modelCode] = ready }
             ready
         }
 
@@ -105,6 +147,11 @@ object OfflineTranslator {
             { _, _, _, _, _ -> }
     ): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (downloading) return@withContext false
+        // 无 GMS 时 ML Kit 下载链路会在主线程抛未捕获异常，直接失败。
+        if (!isOfflineAvailable(context)) {
+            TranslationTrace.log(context, "ML Kit unavailable: no GMS")
+            return@withContext false
+        }
         val targets = codes.distinct().filter { !isModelReady(context, it) }
         if (targets.isEmpty()) return@withContext true
         downloading = true
@@ -164,26 +211,40 @@ object OfflineTranslator {
         to: String,
         from: String? = null
     ): Translator.Result {
+        // 无 GMS 时不能碰 ML Kit（会在主线程抛未捕获异常导致闪退）。
+        if (!isOfflineAvailable(context)) {
+            TranslationTrace.log(context, "ML Kit unavailable: no GMS, skip translate")
+            return Translator.Result(null, "offline_unavailable")
+        }
         val target = TranslateLanguages.mlkit(to) ?: targetLanguage(context)
             ?: return Translator.Result(null, "offline_unsupported")
         val source = TranslateLanguages.mlkit(from.orEmpty())
             ?: return Translator.Result(null, "offline_source_unknown")
         if (source == target) return Translator.Result(text)
+        // ML Kit 17.0.3 只支持含英文的语言对，其它组合会在模型名校验处抛异常。
+        if (!legalPair(source, target)) {
+            return Translator.Result(null, "offline_pair_unsupported")
+        }
         val key = "$source-$target"
         val cacheKey = "$key|$text"
         synchronized(cache) { cache[cacheKey] }?.let { return Translator.Result(it) }
         if (!isReady(context, listOf(source, target))) {
             return Translator.Result(null, "offline_model_missing")
         }
-        val client = synchronized(clients) {
-            clients.getOrPut(key) {
-                Translation.getClient(
-                    TranslatorOptions.Builder()
-                        .setSourceLanguage(source)
-                        .setTargetLanguage(target)
-                        .build()
-                )
+        val client = runCatching {
+            synchronized(clients) {
+                clients.getOrPut(key) {
+                    Translation.getClient(
+                        TranslatorOptions.Builder()
+                            .setSourceLanguage(source)
+                            .setTargetLanguage(target)
+                            .build()
+                    )
+                }
             }
+        }.getOrElse {
+            TranslationTrace.log(context, "ML Kit getClient failed: ${it.message}")
+            return Translator.Result(null, it.message ?: "offline_error")
         }
         return runCatching { client.translate(text).awaitResult() }
             .fold(

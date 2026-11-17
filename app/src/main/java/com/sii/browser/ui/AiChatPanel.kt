@@ -51,6 +51,9 @@ class AiChatPanel(
     private var pageText: String? = null
     private var pageTextState = STATE_IDLE
 
+    /** 划词提问时选中的文字，作为上下文而非问题。 */
+    private var selectionText: String? = null
+
     private var panelView: View? = null
     private var chatScroll: ScrollView? = null
     private var chatFlow: LinearLayout? = null
@@ -139,6 +142,77 @@ class AiChatPanel(
     }
 
     val isShowing: Boolean get() = panelView != null
+
+    /**
+     * 用选中的文字提问（划词「问 AI」）。
+     *
+     * 选中文字是「资料」，不是问题本身：作为上下文交给模型，
+     * 用户随后在输入框写下想问什么再发送。
+     */
+    fun askWithSelection(text: String) {
+        val selection = text.trim()
+        if (selection.isEmpty()) return
+        if (!configured()) {
+            Toast.makeText(context, R.string.ai_error_not_configured, Toast.LENGTH_SHORT).show()
+            openSettings()
+            return
+        }
+        // 选中文本即完整上下文，清掉整页正文避免干扰。
+        pageText = null
+        pageTextState = STATE_READY
+        selectionText = selection
+        // 状态行提示已选中的内容。
+        updateStatusLine()
+        // 聚焦输入框，等用户提问。
+        val field = input
+        field?.requestFocus()
+        field?.setSelection(field.text.length)
+        field?.hint = context.getString(R.string.ai_ask_with_selection_hint)
+        val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager
+        imm?.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /**
+     * 用 AI 翻译选中文字（划词「AI 翻译」）。
+     *
+     * 目标语言跟随网页翻译的设置。返回翻译文本；失败返回 null。
+     * 这是独立的一次性请求，不进入会话历史。
+     */
+    fun translateWithAi(text: String, targetLang: String): Pair<String?, String?> {
+        configIssue()?.let { return null to it }
+        val endpoint = settings.aiEndpoint().orEmpty()
+        val key = settings.aiApiKey().orEmpty()
+        val model = settings.aiModel().orEmpty()
+        val prompt = context.getString(R.string.ai_translate_prompt, targetLang)
+        val messages = listOf(
+            AiClient.Message("system", prompt),
+            AiClient.Message("user", text)
+        )
+        var out: String? = null
+        var err: String? = null
+        val latch = java.util.concurrent.CountDownLatch(1)
+        // 同步调用：划词翻译需要立刻拿到结果弹窗。
+        Thread {
+            try {
+                val reply = client.chatStream(endpoint, key, model, messages) { delta ->
+                    out = (out ?: "") + delta
+                }
+                if (reply.isNullOrBlank()) {
+                    err = client.lastError ?: context.getString(R.string.translate_failed)
+                }
+            } catch (e: Exception) {
+                err = e.message ?: context.getString(R.string.translate_failed)
+            } finally {
+                latch.countDown()
+            }
+        }.start()
+        if (!latch.await(90, java.util.concurrent.TimeUnit.SECONDS)) {
+            runCatching { client.cancel() }
+            return null to context.getString(R.string.ai_translate_timeout)
+        }
+        return out to err
+    }
 
     /**
      * 自定义预设：内置三个 + 用户自定义（设置里存 JSON，[ {label, prompt} ]）。
@@ -317,11 +391,11 @@ class AiChatPanel(
     /** 已配置但还没问过：一句话欢迎，填充空对话区。 */
     private fun buildWelcome(): View = TextView(context).apply {
         text = context.getString(R.string.ai_welcome)
-        setTextSize(13f)
+        setTextSize(12.5f)
         setTextColor(context.getColor(R.color.text_secondary))
         gravity = Gravity.CENTER
-        setLineSpacing(0f, 1.6f)
-        setPadding(dp(20), dp(48), dp(20), dp(20))
+        setLineSpacing(0f, 1.5f)
+        setPadding(dp(20), dp(14), dp(20), dp(8))
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -366,7 +440,24 @@ class AiChatPanel(
 
     // ---- 状态与数据 ----
 
-    private fun configured(): Boolean = settings.aiEnabled() && !settings.aiApiKey().isNullOrBlank()
+    private fun configured(): Boolean = configIssue() == null
+
+    /**
+     * 配置缺失原因：null 表示配置完整。
+     *
+     * 把「未开启 / 没填密钥 / 没选模型」分开报，避免统一提示「AI 未配置」
+     * 让用户不知道该改哪一项。
+     */
+    fun configIssue(): String? {
+        if (!settings.aiEnabled()) return context.getString(R.string.ai_error_disabled)
+        if (settings.aiApiKey().isNullOrBlank()) return context.getString(R.string.ai_error_no_key)
+        if (settings.aiEndpoint().orEmpty().isBlank() ||
+            settings.aiModel().orEmpty().isBlank()
+        ) {
+            return context.getString(R.string.ai_error_no_model)
+        }
+        return null
+    }
 
     private fun refreshHeader() {
         pageTitleView?.text = (settings.aiModel() ?: context.getString(R.string.ai_no_model))
@@ -375,6 +466,11 @@ class AiChatPanel(
 
     private fun updateStatusLine() {
         val view = statusView ?: return
+        val selection = selectionText
+        if (!selection.isNullOrBlank()) {
+            view.text = context.getString(R.string.ai_status_selection, selection.length)
+            return
+        }
         when (pageTextState) {
             STATE_IDLE -> view.text = context.getString(R.string.ai_status_loading)
             STATE_LOADING -> view.text = context.getString(R.string.ai_status_loading)
@@ -424,27 +520,47 @@ class AiChatPanel(
 
         appendBubble(question, isUser = true)
 
-        // 组装消息：system + 页正文（首轮）+ 最近历史 + 本次提问
-        val messages = mutableListOf(AiClient.Message("system", systemPrompt()))
+        // 组装消息：system + 页正文（首轮）+ 选中文字（划词提问）+ 最近历史 + 本次提问
+        val messages = mutableListOf<AiClient.Message>(AiClient.Message("system", systemPrompt()))
         if (!pageText.isNullOrBlank()) {
             messages.add(AiClient.Message("system", "【当前网页正文】\n${clampPageText(pageText!!)}"))
         }
+        val selection = selectionText
+        if (!selection.isNullOrBlank()) {
+            messages.add(AiClient.Message("system", "【用户选中的内容】\n${clampPageText(selection)}"))
+        }
         history.forEach { messages.add(it) }
         messages.add(AiClient.Message("user", question))
+        // 选中文字用过一次即失效，后续提问回到整页正文模式。
+        selectionText = null
+        input?.hint = context.getString(R.string.ai_input_hint)
+        updateStatusLine()
 
         setBusy(true)
+        // 先建一个空的 AI 气泡，边收边填。
+        val bubble = appendStreamingBubble()
+        val buffer = StringBuilder()
         lifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
             val reply = withContext(Dispatchers.IO) {
-                client.chat(endpoint, key, model, messages)
+                client.chatStream(endpoint, key, model, messages) { delta ->
+                    // 增量在 IO 线程到达，交给主线程刷新。
+                    lifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                        if (!isShowing) return@launch
+                        buffer.append(delta)
+                        bubble.updateText(buffer.toString())
+                    }
+                }
             }
             setBusy(false)
             if (!isShowing) return@launch
-            if (reply != null) {
+            if (reply != null && reply.isNotBlank()) {
                 history.add(AiClient.Message("user", question))
                 history.add(AiClient.Message("assistant", reply))
                 while (history.size > HISTORY_KEEP) history.removeAt(0)
-                appendBubble(reply, isUser = false)
+                bubble.finish(reply)
             } else {
+                // 没拿到内容：删掉空气泡，改为显示错误。
+                bubble.discard()
                 client.lastError?.let { appendBubble(it, isUser = false, isError = true) }
             }
         }
@@ -522,6 +638,67 @@ class AiChatPanel(
         }
         flow.addView(bubble)
         chatScroll?.post { chatScroll?.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    /**
+     * 创建一个用于流式显示的 AI 气泡。
+     *
+     * 流式期间用纯文本追加（Markdown 每次全量重渲染会闪），
+     * 结束后 [StreamingBubble.finish] 再切成 Markdown 渲染。
+     */
+    private fun appendStreamingBubble(): StreamingBubble {
+        val flow = chatFlow ?: return StreamingBubble(null)
+        val context = context
+        val view = TextView(context).apply {
+            setTextSize(13.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setLineSpacing(0f, 1.4f)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setBackgroundResource(R.drawable.bg_card)
+            // 占位提示，避免等待时看起来像卡住。
+            text = context.getString(R.string.ai_thinking)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
+        flow.addView(view)
+        chatScroll?.post { chatScroll?.fullScroll(ScrollView.FOCUS_DOWN) }
+        return StreamingBubble(view)
+    }
+
+    /** 流式气泡句柄：更新增量文本、结束时切 Markdown、失败时移除。 */
+    private inner class StreamingBubble(private val view: TextView?) {
+        private var finished = false
+
+        /** 追加增量文本（纯文本显示）。 */
+        fun updateText(text: String) {
+            val v = view ?: return
+            if (finished) return
+            v.setTextColor(context.getColor(R.color.text_primary))
+            v.text = text
+            chatScroll?.post { chatScroll?.fullScroll(ScrollView.FOCUS_DOWN) }
+        }
+
+        /** 结束：切换为 Markdown 渲染并挂上长按操作。 */
+        fun finish(full: String) {
+            val v = view ?: return
+            if (finished) return
+            finished = true
+            v.text = com.sii.browser.core.ai.AiMarkdown.render(full, ThemeAccent.color(context))
+            v.setTextIsSelectable(true)
+            v.setOnLongClickListener {
+                showReplyActions(full)
+                true
+            }
+        }
+
+        /** 失败：移除空气泡。 */
+        fun discard() {
+            val v = view ?: return
+            finished = true
+            (v.parent as? ViewGroup)?.removeView(v)
+        }
     }
 
     /** AI 回复长按：复制 / 分享。 */

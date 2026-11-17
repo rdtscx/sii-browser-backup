@@ -39,6 +39,16 @@ class AiClient {
     var lastError: String? = null
         private set
 
+    /** 只保留可打印 ASCII：掩码用的 `•` 等字符会让 OkHttp 构造请求头时抛异常。 */
+    private fun sanitizeKey(raw: String): String = raw.filter { it.code in 0x21..0x7E }.trim()
+
+    /** 设置 Authorization 头；清洗后为空则不设置（本地免鉴权服务）。 */
+    private fun Request.Builder.safeAuth(apiKey: String): Request.Builder {
+        val key = sanitizeKey(apiKey)
+        if (key.isNotEmpty()) header("Authorization", "Bearer $key")
+        return this
+    }
+
     /**
      * 发送对话并取回回复文本。
      *
@@ -65,7 +75,7 @@ class AiClient {
         val builder = Request.Builder()
             .url(url)
             .post(body.toString().toRequestBody("application/json".toMediaType()))
-        if (apiKey.isNotBlank()) builder.header("Authorization", "Bearer $apiKey")
+        builder.safeAuth(apiKey)
 
         val call = client.newCall(builder.build())
         activeCall = call
@@ -89,6 +99,10 @@ class AiClient {
             lastError = if (e is java.net.SocketTimeoutException) "响应超时，请稍后重试"
             else "网络错误：${e.message?.take(80) ?: "连接失败"}"
             return null
+        } catch (e: Exception) {
+            // 任何解析/网络异常都不许崩，统一转成可读提示。
+            lastError = "请求出错：${e.message?.take(80) ?: e.javaClass.simpleName}"
+            return null
         } finally {
             activeCall = null
         }
@@ -104,6 +118,104 @@ class AiClient {
     val busy: Boolean get() = activeCall != null
 
     /**
+     * 流式对话：边生成边回调增量文本。
+     *
+     * 服务端返回 SSE（text/event-stream）时逐行读 data: {...}，取
+     * choices[0].delta.content 增量回调；若服务端不支持流式（返回普通 JSON），
+     * 自动回落到一次性解析，结果与 [chat] 一致。
+     *
+     * @param onDelta 增量文本回调（每次一小段）
+     * @return 完整回复文本；失败返回 null，原因见 [lastError]
+     */
+    @Synchronized
+    fun chatStream(
+        endpoint: String,
+        apiKey: String,
+        model: String,
+        messages: List<Message>,
+        onDelta: (String) -> Unit
+    ): String? {
+        lastError = null
+        val url = normalizeEndpoint(endpoint) ?: run {
+            lastError = "接口地址无效"
+            return null
+        }
+        val body = JSONObject().apply {
+            put("model", model)
+            put("temperature", 0.5)
+            put("stream", true)
+            put("messages", JSONArray().apply {
+                messages.forEach { put(JSONObject().put("role", it.role).put("content", it.content)) }
+            })
+        }
+        val builder = Request.Builder()
+            .url(url)
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+        builder.safeAuth(apiKey)
+        val call = client.newCall(builder.build())
+        activeCall = call
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) {
+                    lastError = describeHttpError(response.code, response.body?.string().orEmpty())
+                    return null
+                }
+                val contentType = response.header("Content-Type").orEmpty()
+                val source = response.body?.source()
+                if (source == null) {
+                    lastError = "返回内容无法解析"
+                    return null
+                }
+                // 逐行读，边到边显示。
+                val sb = StringBuilder()
+                var sawDelta = false
+                while (true) {
+                    val line = source.readUtf8Line() ?: break
+                    val trimmed = line.trim()
+                    if (!trimmed.startsWith("data:")) continue
+                    val payload = trimmed.removePrefix("data:").trim()
+                    if (payload.isEmpty() || payload == "[DONE]") continue
+                    val delta = parseDelta(payload)
+                    if (!delta.isNullOrEmpty()) {
+                        sawDelta = true
+                        sb.append(delta)
+                        onDelta(delta)
+                    }
+                }
+                if (sawDelta) return sb.toString()
+                // 没有增量：服务端可能未开启流式，按普通 JSON 解析。
+                if (contentType.contains("event-stream")) {
+                    lastError = "返回内容无法解析"
+                    return null
+                }
+                return null
+            }
+        } catch (e: java.io.IOException) {
+            if (call.isCanceled()) {
+                lastError = null
+                return null
+            }
+            lastError = if (e is java.net.SocketTimeoutException) "响应超时，请稍后重试"
+            else "网络错误：${e.message?.take(80) ?: "连接失败"}"
+            return null
+        } catch (e: Exception) {
+            // 任何解析/网络异常都不许崩，统一转成可读提示。
+            lastError = "请求出错：${e.message?.take(80) ?: e.javaClass.simpleName}"
+            return null
+        } finally {
+            activeCall = null
+        }
+    }
+
+    /** 从一条 SSE data 负载里取增量文本。 */
+    private fun parseDelta(payload: String): String? = runCatching {
+        val json = JSONObject(payload)
+        val choices = json.optJSONArray("choices")
+        if (choices == null || choices.length() == 0) return@runCatching null
+        choices.optJSONObject(0)?.optJSONObject("delta")?.optString("content")
+    }.getOrNull()
+
+    /**
      * 拉取服务商可用模型列表（GET /models，OpenAI 兼容标准端点）。
      *
      * @return 模型 ID 列表（按字母排序）；失败返回 null，原因见 [lastError]
@@ -116,7 +228,7 @@ class AiClient {
             return null
         }
         val builder = Request.Builder().url("$url/models")
-        if (apiKey.isNotBlank()) builder.header("Authorization", "Bearer $apiKey")
+        builder.safeAuth(apiKey)
 
         val call = client.newCall(builder.build())
         activeCall = call
@@ -140,16 +252,20 @@ class AiClient {
                 return models
             }
         } catch (e: java.io.IOException) {
+            if (call.isCanceled()) {
+                lastError = null
+                return null
+            }
             lastError = if (e is java.net.SocketTimeoutException) "响应超时，请稍后重试"
             else "网络错误：${e.message?.take(80) ?: "连接失败"}"
+            return null
+        } catch (e: Exception) {
+            lastError = "拉取失败：${e.message?.take(80) ?: e.javaClass.simpleName}"
             return null
         } finally {
             activeCall = null
         }
     }
-
-    // ---- 内部 ----
-
     /** 规范化接口地址：剥掉多余的 /chat/completions 尾巴与末尾斜杠。 */
     private fun normalizeEndpoint(raw: String): String? {
         var url = raw.trim()
@@ -176,10 +292,11 @@ class AiClient {
     /** HTTP 状态码 → 中文短句；能取到服务端 message 时附加。 */
     private fun describeHttpError(code: Int, body: String): String {
         val detail = runCatching {
-            JSONObject(body).getJSONObject("error").getString("message").take(120)
-        }.getOrNull()
+            JSONObject(body).optJSONObject("error")?.optString("message")?.take(120)
+        }.getOrNull()?.takeIf { it.isNotBlank() }
         val base = when (code) {
             401 -> "密钥无效或未授权"
+            403 -> "没有权限访问该接口"
             404 -> "接口地址或模型名不对（地址应到 /v1 为止）"
             429 -> "请求太频繁，稍后再试"
             in 500..599 -> "服务商暂时不可用（$code）"

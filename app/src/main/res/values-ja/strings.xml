@@ -216,11 +216,15 @@
     <string name="sel_menu_share">共有</string>
     <string name="sel_menu_copy">コピー</string>
     <string name="sel_menu_translate">翻訳</string>
+    <string name="sel_menu_ask_ai">AI に聞く</string>
+    <string name="sel_translate_web">ページ翻訳</string>
+    <string name="sel_translate_ai">AI 翻訳</string>
     <string name="translate_loading">翻訳中…</string>
     <string name="translate_failed">翻訳に失敗しました。API または通信を確認してください</string>
-    <string name="translate_failed_offline_pack">オフライン言語パックが未ダウンロードです。設定 → 翻訳 → オフライン言語パック からダウンロードしてください</string>
+    <string name="translate_failed_offline_pack">オフライン言語パックが未ダウンロードです</string>
     <string name="translate_offline_pack_needed_title">オフライン言語パックがありません</string>
     <string name="translate_offline_pack_go">ダウンロードへ</string>
+    <string name="translate_go_settings">設定を開く</string>
     <string name="translate_source_unknown">ページの言語を判別できません。もう一度お試しください</string>
     <string name="translate_source_unsupported">この原文言語には対応していません。オフラインは現在中国語と英語のみ対応です</string>
     <string name="translate_same_language">ページの言語と翻訳先が同じため、翻訳の必要はありません</string>
@@ -704,9 +708,9 @@
     <string name="settings_about">このアプリについて</string>
     <string name="settings_about_desc">プロジェクトの説明、バージョン、ライセンス</string>
     <string name="settings_about_version">バージョン</string>
-    <string name="about_project_desc">Kotlin で書かれた Android ブラウザ（個人プロジェクト）：広告ブロック、プライバシー保護、ページ翻訳、MCP サービス、通信キャプチャ。ネイティブ XML + View の UI で、ユーザー情報は収集しません。</string>
+    <string name="about_project_desc">Kotlin で書かれた Android ブラウザ（個人プロジェクト）：広告ブロック、プライバシー保護、ページ翻訳、AI アシスタント、MCP サービス、通信キャプチャ。ネイティブ XML + View の UI で、ユーザー情報は収集しません。</string>
     <string name="settings_about_license">サードパーティライセンス</string>
-    <string name="settings_about_repo">プロジェクトリポジトリ</string>
+    <string name="settings_about_repo">Star をお願い ⭐</string>
     <string name="settings_about_repo_copied">リポジトリの URL をコピーしました</string>
     <string name="about_repo_url" translatable="false">https://github.com/wanwuwww/Sii-Browser</string>
     <string name="settings_license_text">Sii が使用しているオープンソースプロジェクト：\\n\\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\\nAndroidX DataStore Preferences（Apache-2.0）\\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\\nAndroidX Browser（Apache-2.0）\\nAndroidX DocumentFile（Apache-2.0）\\nAndroidX Biometric（Apache-2.0）\\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\\nZXing Core（Apache-2.0）\\nOkHttp、Okio（Apache-2.0）\nGoogle ML Kit Translate / Language ID / Text Recognition（Google ML Kit Terms of Service）\\n\\n完全な一覧と著作権表示はリポジトリの THIRD_PARTY_LICENSES.md を参照してください。依存関係を追加したら、この一覧とこのページも更新してください。\\n\\n本プロジェクトは非商用ライセンスです：商用利用禁止、表示義務あり、派生作品も同じ条件に従う必要があります。詳細は LICENSE を参照してください。</string>
@@ -1242,6 +1246,10 @@
     <string name="settings_address_style">アドレスバーのスタイル</string>
     <string name="settings_translate_cloud">クラウド翻訳</string>
     <string name="settings_translate_cloud_desc">オンライン API を使用します。テキストはプロバイダーに送信されます</string>
+    <string name="settings_translate_mode">翻訳方式</string>
+    <string name="settings_translate_mode_desc">クラウド翻訳はテキストを事業者に送信します。オフライン翻訳はローカル言語パックを使い、ネットなしで動作します。</string>
+    <string name="translate_offline_unavailable">この端末には Google Play サービスがないため、オフライン翻訳は利用できません。クラウド翻訳をお試しください。</string>
+    <string name="translate_offline_pair_unsupported">オフライン翻訳は英語を含む言語ペアのみ対応しています。</string>
     <string name="settings_translate_offline">オフライン翻訳</string>
     <string name="settings_translate_offline_desc">ローカル言語パックを使用します。手動でダウンロードすればオフラインで使えます</string>
     <string name="settings_translate_offline_pack">オフライン言語パック</string>
@@ -1475,6 +1483,10 @@
     <string name="ai_chip_keypoints">要点</string>
     <string name="ai_chip_translate">中国語訳</string>
     <string name="ai_input_hint">このページについて質問…</string>
+    <string name="ai_thinking">考え中…</string>
+    <string name="ai_translate_prompt">次の内容を %1$s に翻訳してください。訳文のみ出力し、説明はしないでください。</string>
+    <string name="ai_ask_with_selection_hint">選択した内容について質問…</string>
+    <string name="ai_status_selection">%1$d 文字を選択中（質問の参考になります）</string>
     <string name="ai_send">送信</string>
     <string name="ai_stop">停止</string>
     <string name="ai_no_model">モデル未設定</string>
@@ -1486,6 +1498,12 @@
     <string name="ai_prompt_keypoints">この記事の要点を重要度順に挙げてください。</string>
     <string name="ai_prompt_translate">この記事を中国語に翻訳し、元の段落構成を保ってください。</string>
     <string name="ai_error_not_configured">先に設定で AI アシスタントを構成してください</string>
+    <string name="ai_error_disabled">AI アシスタントがオフです。設定で有効にしてください</string>
+    <string name="ai_error_no_key">先に設定で API キーを入力してください</string>
+    <string name="ai_error_no_model">先に設定でモデルを選択してください</string>
+    <string name="ai_translate_timeout">翻訳がタイムアウトしました。後で再試行してください</string>
+    <string name="settings_ai_key_desc">OpenAI 互換 API への接続に使用します。端末内にのみ保存されます。</string>
+    <string name="settings_ai_key_cleaned">キーに不可視文字が含まれていたため、自動で除去しました</string>
     <string name="ai_not_configured_hint">設定で有効にしてキーを入力してください</string>
     <string name="ai_onboard_title">AI アシスタント</string>
     <string name="ai_onboard_body">現在のページについて回答します。先に設定でエンドポイント・キー・モデル名を入力してください。有効にすると、ページ本文が設定したプロバイダーに送信されます。</string>
@@ -1501,6 +1519,8 @@
     <string name="settings_ai_key">API キー</string>
     <string name="settings_ai_key_empty">未設定</string>
     <string name="settings_ai_key_hint">sk-…（端末内にのみ保存）</string>
+    <string name="settings_ai_key_show">キーを表示</string>
+    <string name="settings_ai_key_hide">キーを隠す</string>
     <string name="settings_ai_key_clear">クリア</string>
     <string name="settings_ai_model">モデル名</string>
     <string name="settings_ai_model_loading">モデル一覧を取得中…</string>
@@ -1519,4 +1539,15 @@
     <string name="settings_ai_presets_edit_title">プリセットを編集</string>
     <string name="settings_ai_presets_label_hint">ボタン名（省略可）</string>
     <string name="settings_ai_presets_prompt_hint">AI に送るプロンプト</string>
+    <string name="about_support">🧋 ミルクティーをおごる</string>
+    <string name="about_support_desc">Sii は一人で開発・保守していて、広告も解析もありません。少しでも快適に使えているなら、ミルクティー一杯分をコードから送っていただけると嬉しいです。</string>
+    <string name="about_support_alipay">Alipay</string>
+    <string name="about_support_wechat">WeChat Pay</string>
+    <string name="about_support_note">金額は自由です。機能の解放はありません</string>
+    <string name="about_support_close">閉じる</string>
+    <string name="about_support_row_desc">Sii が役に立ったら</string>
+    <string name="about_support_save">ギャラリーに保存</string>
+    <string name="about_support_share">共有</string>
+    <string name="about_support_saved">ギャラリーに保存しました</string>
+    <string name="about_support_op_failed">失敗しました。もう一度お試しください</string>
 </resources>

@@ -216,11 +216,15 @@
     <string name="sel_menu_share">分享</string>
     <string name="sel_menu_copy">複製</string>
     <string name="sel_menu_translate">翻譯</string>
+    <string name="sel_menu_ask_ai">問 AI</string>
+    <string name="sel_translate_web">頁面翻譯</string>
+    <string name="sel_translate_ai">AI 翻譯</string>
     <string name="translate_loading">正在翻譯…</string>
     <string name="translate_failed">翻譯失敗，請檢查介面或網路</string>
-    <string name="translate_failed_offline_pack">離線語言包未下載，請到 設定 → 翻譯 → 離線語言包 下載</string>
+    <string name="translate_failed_offline_pack">離線語言包未下載，需要先下載對應語言</string>
     <string name="translate_offline_pack_needed_title">缺少離線語言包</string>
     <string name="translate_offline_pack_go">去下載</string>
+    <string name="translate_go_settings">去設定</string>
     <string name="translate_source_unknown">無法識別頁面語言，請重試</string>
     <string name="translate_source_unsupported">暫不支持該源語言，目前離線僅支持中英文</string>
     <string name="translate_same_language">頁面語言與目標語言相同，無需翻譯</string>
@@ -704,9 +708,9 @@
     <string name="settings_about">關於</string>
     <string name="settings_about_desc">專案說明、版本與許可</string>
     <string name="settings_about_version">版本</string>
-    <string name="about_project_desc">用 Kotlin 寫的 Android 瀏覽器（個人專案）：廣告攔截、隱私保護、網頁翻譯、MCP 服務與網路抓包。原生 XML + View 介面，不收集使用者資訊。</string>
+    <string name="about_project_desc">用 Kotlin 寫的 Android 瀏覽器（個人專案）：廣告攔截、隱私保護、網頁翻譯、AI 助手、MCP 服務與網路抓包。原生 XML + View 介面，不收集使用者資訊。</string>
     <string name="settings_about_license">第三方許可</string>
-    <string name="settings_about_repo">專案倉庫</string>
+    <string name="settings_about_repo">給個 Star ⭐</string>
     <string name="settings_about_repo_copied">倉庫地址已複製</string>
     <string name="about_repo_url" translatable="false">https://github.com/wanwuwww/Sii-Browser</string>
     <string name="settings_license_text">Sii 使用的開源專案：\n\nKotlin Standard Library、Kotlin Coroutines（Apache-2.0）\nAndroidX Core、AppCompat、Fragment、Lifecycle、Activity（Apache-2.0）\nAndroidX DataStore Preferences（Apache-2.0）\nAndroidX Room Runtime / KTX / Compiler（Apache-2.0）\nAndroidX Browser（Apache-2.0）\nAndroidX DocumentFile（Apache-2.0）\nAndroidX Biometric（Apache-2.0）\nAndroidX CameraX Core / Camera2 / Lifecycle / View（Apache-2.0）\nAndroidX Media3（ExoPlayer / HLS / UI）（Apache-2.0）\nZXing Core（Apache-2.0）\nOkHttp、Okio（Apache-2.0）\nGoogle ML Kit Translate / Language ID / Text Recognition（Google ML Kit Terms of Service）\n\n完整清單與版權宣告見倉庫 THIRD_PARTY_LICENSES.md。新增依賴時需同步更新該清單和此頁面。\n\n專案採用非商業許可：禁止商用，需署名，衍生作品需遵守相同約束，詳見 LICENSE。</string>
@@ -1242,6 +1246,10 @@
     <string name="settings_address_style">網址列樣式</string>
     <string name="settings_translate_cloud">雲翻譯</string>
     <string name="settings_translate_cloud_desc">使用線上介面，文字會傳送到服務商</string>
+    <string name="settings_translate_mode">翻譯方式</string>
+    <string name="settings_translate_mode_desc">雲端翻譯使用線上介面，文字會傳送至服務商；離線翻譯使用本機語言包，斷網可用。</string>
+    <string name="translate_offline_unavailable">本機未安裝 Google 服務，離線翻譯不可用；可改用雲端翻譯</string>
+    <string name="translate_offline_pair_unsupported">離線翻譯僅支援與英文互譯，目前語言組合不支援</string>
     <string name="settings_translate_offline">離線翻譯</string>
     <string name="settings_translate_offline_desc">使用本地語言包，手動下載後斷網可用</string>
     <string name="settings_translate_offline_pack">離線語言包</string>
@@ -1477,6 +1485,10 @@
     <string name="ai_chip_keypoints">要點</string>
     <string name="ai_chip_translate">譯中文</string>
     <string name="ai_input_hint">基於當前頁面提問…</string>
+    <string name="ai_thinking">思考中…</string>
+    <string name="ai_translate_prompt">請把下面內容翻譯成 %1$s，只輸出譯文，不要解釋。</string>
+    <string name="ai_ask_with_selection_hint">針對選中內容提問…</string>
+    <string name="ai_status_selection">已選取 %1$d 字，作為提問依據</string>
     <string name="ai_send">傳送</string>
     <string name="ai_stop">停止</string>
     <string name="ai_no_model">未設定模型</string>
@@ -1488,6 +1500,12 @@
     <string name="ai_prompt_keypoints">請列出這篇文章的關鍵要點，按重要性排序。</string>
     <string name="ai_prompt_translate">請把這篇文章翻譯成中文，保留原有段落結構。</string>
     <string name="ai_error_not_configured">請先在設定中設定 AI 助手</string>
+    <string name="ai_error_disabled">AI 助手已關閉，請在設定中開啟</string>
+    <string name="ai_error_no_key">請先在設定中填寫 API 金鑰</string>
+    <string name="ai_error_no_model">請先在設定中選擇模型</string>
+    <string name="ai_translate_timeout">翻譯逾時，請稍後重試</string>
+    <string name="settings_ai_key_desc">用於存取 OpenAI 相容介面，僅儲存在本機，不會上傳。</string>
+    <string name="settings_ai_key_cleaned">金鑰含不可見字元，已自動清理</string>
     <string name="ai_not_configured_hint">請先在設定中啟用並填入金鑰</string>
     <string name="ai_onboard_title">AI 助手</string>
     <string name="ai_onboard_body">基於目前網頁回答問題。需要先在設定裡填入介面位址、金鑰與模型名稱。開啟後，網頁正文會傳送到你設定的服務商。</string>
@@ -1503,6 +1521,8 @@
     <string name="settings_ai_key">API 金鑰</string>
     <string name="settings_ai_key_empty">未設定</string>
     <string name="settings_ai_key_hint">sk-…（僅儲存在本機）</string>
+    <string name="settings_ai_key_show">顯示密鑰</string>
+    <string name="settings_ai_key_hide">隱藏密鑰</string>
     <string name="settings_ai_key_clear">清除</string>
     <string name="settings_ai_model">模型名稱</string>
     <string name="settings_ai_model_loading">正在拉取模型清單…</string>
@@ -1521,4 +1541,15 @@
     <string name="settings_ai_presets_edit_title">編輯預設</string>
     <string name="settings_ai_presets_label_hint">按鈕名稱（可留空）</string>
     <string name="settings_ai_presets_prompt_hint">傳送給 AI 的提示詞</string>
+    <string name="about_support">🧋 請我喝杯奶茶</string>
+    <string name="about_support_desc">Sii 由一個人獨立開發維護，沒有廣告，也不做資料統計。如果它讓上網這件事順手了一點，可以掃碼請我喝杯奶茶。</string>
+    <string name="about_support_alipay">支付寶</string>
+    <string name="about_support_wechat">微信支付</string>
+    <string name="about_support_note">金額隨意，不影響任何功能</string>
+    <string name="about_support_close">關閉</string>
+    <string name="about_support_row_desc">如果 Sii 幫到了你</string>
+    <string name="about_support_save">儲存到相簿</string>
+    <string name="about_support_share">分享</string>
+    <string name="about_support_saved">已儲存到相簿</string>
+    <string name="about_support_op_failed">操作失敗，請重試</string>
 </resources>
