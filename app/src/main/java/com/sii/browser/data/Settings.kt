@@ -247,6 +247,30 @@ interface AppearanceSettings {
     /** 长按熊猫头的菜单提示是否已展示过。 */
     fun siteInfoHoldTipShown(): Boolean
     fun setSiteInfoHoldTipShown(value: Boolean)
+
+    /** AI 助手总开关（默认关，开启时由 UI 弹隐私说明）。 */
+    fun aiEnabled(): Boolean
+    fun setAiEnabled(value: Boolean)
+
+    /** OpenAI 兼容接口地址（到 /v1 为止，不含 /chat/completions）。 */
+    fun aiEndpoint(): String?
+    fun setAiEndpoint(value: String?)
+
+    /** API 密钥（设备本地存储，UI 掩码显示）。 */
+    fun aiApiKey(): String?
+    fun setAiApiKey(value: String?)
+
+    /** 模型名称。 */
+    fun aiModel(): String?
+    fun setAiModel(value: String?)
+
+    /** 是否已看过 AI 隐私说明（开启开关时弹一次）。 */
+    fun aiOnboarded(): Boolean
+    fun setAiOnboarded(value: Boolean)
+
+    /** 自定义预设 JSON（[{label,prompt}]），空串 = 未自定义。 */
+    fun aiCustomPresets(): String?
+    fun setAiCustomPresets(value: String?)
     fun fixedMenuShowLabels(): Boolean
     fun setFixedMenuShowLabels(value: Boolean)
 

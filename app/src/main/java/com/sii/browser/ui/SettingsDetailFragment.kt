@@ -22,6 +22,7 @@ import com.sii.browser.data.Settings
 import com.sii.browser.di.AppServices
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 设置页（二级/三级通用，按 [ARG_VIEW] 页面 id 渲染）。
@@ -411,6 +412,46 @@ class SettingsDetailFragment : Fragment() {
             navRow(getString(R.string.settings_translate)) { open(VIEW_V2_TRANSLATE) },
             navRow(getString(R.string.settings_screen_translate)) { open(VIEW_V2_SCREEN_TRANSLATE) }
         )
+        sectionTitle(R.string.settings_special_group_ai)
+        card(
+            switchRow(
+                getString(R.string.settings_ai_enabled),
+                settings.aiEnabled(),
+                getString(R.string.settings_ai_enabled_desc)
+            ) { value ->
+                if (value && !settings.aiOnboarded()) {
+                    AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.settings_ai_enabled)
+                        .setMessage(R.string.settings_ai_privacy_note)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            settings.setAiOnboarded(true)
+                        }
+                        .setNegativeButton(android.R.string.cancel) { _, _ ->
+                            settings.setAiEnabled(false)
+                        }
+                        .setOnCancelListener { settings.setAiEnabled(false) }
+                        .show()
+                }
+                settings.setAiEnabled(value)
+                build()
+            },
+            textRow(
+                getString(R.string.settings_ai_endpoint),
+                settings.aiEndpoint().orEmpty()
+            ) { settings.setAiEndpoint(it.trim()) },
+            navRow(
+                getString(R.string.settings_ai_key),
+                maskAiKey(settings.aiApiKey().orEmpty())
+            ) { showAiKeyDialog() },
+            navRow(
+                getString(R.string.settings_ai_model),
+                settings.aiModel().orEmpty().ifBlank { getString(R.string.settings_ai_key_empty) }
+            ) { showAiModelDialog() },
+            navRow(
+                getString(R.string.settings_ai_presets),
+                presetCountText()
+            ) { showAiPresetsDialog() }
+        )
         sectionTitle(R.string.settings_special_group_network)
         card(
             // 私人 DNS 与 DoH 都是「改解析、改网络行为」的进阶手段，集中在这里。
@@ -422,6 +463,222 @@ class SettingsDetailFragment : Fragment() {
             navRow(getString(R.string.settings_mcp)) { open(VIEW_V2_MCP) }
         )
         aboutText(R.string.settings_special_about)
+    }
+
+    /** 自定义预设条数文案。 */
+    private fun presetCountText(): String {
+        val count = runCatching {
+            org.json.JSONArray(settings.aiCustomPresets().orEmpty()).length()
+        }.getOrDefault(0)
+        return if (count == 0) getString(R.string.settings_ai_presets_none)
+        else getString(R.string.settings_ai_presets_count, count)
+    }
+
+    /** 自定义预设管理：列表每条可删，底部「添加」弹两段输入。 */
+    private fun showAiPresetsDialog() {
+        val presets = runCatching {
+            val arr = org.json.JSONArray(settings.aiCustomPresets().orEmpty())
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                o.optString("label") to o.optString("prompt")
+            }
+        }.getOrDefault(emptyList()).toMutableList()
+
+        fun renderInternal() {
+            renderPresetList(presets) {
+                settings.setAiCustomPresets(presetsToJson(presets))
+            }
+        }
+
+        renderInternal()
+    }
+
+    /** presets 列表 → JSON 字符串。 */
+    private fun presetsToJson(presets: List<Pair<String, String>>): String {
+        val arr = org.json.JSONArray()
+        presets.forEach { (label, prompt) ->
+            arr.put(org.json.JSONObject().put("label", label).put("prompt", prompt))
+        }
+        return arr.toString()
+    }
+
+    /** 预设列表主对话框：每条可删/编辑，「添加」新建。onChanged 在每次增删改后回调持久化。 */
+    private fun renderPresetList(
+        presets: MutableList<Pair<String, String>>,
+        onChanged: () -> Unit
+    ) {
+        fun save() {
+            onChanged()
+        }
+        fun editAt(index: Int) {
+            val old = presets[index]
+            showAiPresetEditDialog(old) { label, prompt ->
+                presets[index] = label to prompt
+                save()
+                renderPresetList(presets, onChanged)
+            }
+        }
+        val rows = mutableListOf<String>()
+        presets.forEach { (label, prompt) ->
+            rows.add(label.ifBlank { prompt.take(8) } + "：" + prompt.take(20) +
+                if (prompt.length > 20) "…" else "")
+        }
+        val items = rows.toTypedArray()
+        val builder = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_ai_presets)
+            .setPositiveButton(R.string.settings_ai_presets_add) { _, _ ->
+                showAiPresetEditDialog(null) { label, prompt ->
+                    presets.add(label to prompt)
+                    save()
+                    renderPresetList(presets, onChanged)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+        if (items.isEmpty()) {
+            builder.setMessage(R.string.settings_ai_presets_empty)
+        } else {
+            builder.setItems(items) { _, which ->
+                AlertDialog.Builder(requireContext())
+                    .setMessage(presets[which].second.take(200))
+                    .setPositiveButton(R.string.delete) { _, _ ->
+                        presets.removeAt(which)
+                        save()
+                        renderPresetList(presets, onChanged)
+                    }
+                    .setNeutralButton(R.string.settings_ai_presets_edit) { _, _ ->
+                        editAt(which)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+        builder.show()
+    }
+
+    /** 编辑单条预设：label 可空（自动取 prompt 前 6 字）。 */
+    private fun showAiPresetEditDialog(
+        initial: Pair<String, String>?,
+        onSave: (String, String) -> Unit
+    ) {
+        val labelInput = EditText(requireContext()).apply {
+            hint = getString(R.string.settings_ai_presets_label_hint)
+            setText(initial?.first.orEmpty())
+            setSingleLine(true)
+        }
+        val promptInput = EditText(requireContext()).apply {
+            hint = getString(R.string.settings_ai_presets_prompt_hint)
+            setText(initial?.second.orEmpty())
+            minLines = 2
+        }
+        val box = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(20), dpToPx(8), dpToPx(20), 0)
+            addView(labelInput)
+            addView(promptInput)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_ai_presets_edit_title)
+            .setView(box)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val prompt = promptInput.text.toString().trim()
+                if (prompt.isBlank()) return@setPositiveButton
+                onSave(labelInput.text.toString().trim(), prompt)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** AI Key 掩码：前 6 后 4，其余省略；不足 12 位全部打码。 */
+    private fun maskAiKey(key: String): String = when {
+        key.isBlank() -> getString(R.string.settings_ai_key_empty)
+        key.length <= 12 -> "•".repeat(key.length)
+        else -> key.take(6) + "…" + key.takeLast(4)
+    }
+
+    /**
+     * 模型选择：优先从服务商拉取 /models 列表单选；
+     * 拉取失败（无网/地址错/服务商不支持）回落到手动输入。
+     */
+    private fun showAiModelDialog() {
+        val endpoint = settings.aiEndpoint().orEmpty()
+        val key = settings.aiApiKey().orEmpty()
+        Toast.makeText(requireContext(), R.string.settings_ai_model_loading, Toast.LENGTH_SHORT).show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val models = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.sii.browser.core.ai.AiClient().listModels(endpoint, key)
+            }
+            if (!isAdded) return@launch
+            if (models.isNullOrEmpty()) {
+                // 拉取失败：提示原因，回落手动输入
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.settings_ai_model_fetch_failed, aiClient.lastError ?: ""),
+                    Toast.LENGTH_LONG
+                ).show()
+                showAiModelManualDialog()
+            } else {
+                val current = settings.aiModel().orEmpty()
+                val labels = models.map {
+                    if (it == current) "● $it" else it
+                }.toTypedArray()
+                AlertDialog.Builder(requireContext())
+                    .setTitle(
+                        getString(R.string.settings_ai_model_pick_title, models.size)
+                    )
+                    .setItems(labels) { _, which ->
+                        settings.setAiModel(models[which])
+                        build()
+                    }
+                    .setNeutralButton(R.string.settings_ai_model_manual) { _, _ ->
+                        showAiModelManualDialog()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    /** 手动输入模型名（拉取失败时的回落路径）。 */
+    private fun showAiModelManualDialog() {
+        val input = EditText(requireContext()).apply {
+            setText(settings.aiModel().orEmpty())
+            hint = getString(R.string.settings_ai_model_hint)
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_ai_model)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                settings.setAiModel(input.text.toString().trim())
+                build()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private val aiClient = com.sii.browser.core.ai.AiClient()
+
+    /** 录入 AI Key：输入框掩码显示，保存前去掉首尾空白。 */
+    private fun showAiKeyDialog() {
+        val input = EditText(requireContext()).apply {
+            setText(settings.aiApiKey().orEmpty())
+            hint = getString(R.string.settings_ai_key_hint)
+            setSingleLine(true)
+            transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.settings_ai_key)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                settings.setAiApiKey(input.text.toString().trim())
+                build()
+            }
+            .setNeutralButton(R.string.settings_ai_key_clear) { _, _ ->
+                settings.setAiApiKey("")
+                build()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** 重置熊猫头提示的「已显示」标记，并立即演示一次完整说明（不依赖网页加载）。 */
@@ -4985,10 +5242,6 @@ class SettingsDetailFragment : Fragment() {
     }
 
 }
-
-
-
-
 
 
 
