@@ -478,10 +478,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     showWeb()
                 }
                 updateAddressBarForCurrent()
-                AppServices.pendingOpenUrl?.let { url ->
-                    AppServices.pendingOpenUrl = null
-                    loadUrlFor(url)
-                }
+                consumePendingOpenUrl()
                 return@launch
             }
             val restoreForRecreate = ShellActivity.consumeRestoreTabsAfterRecreate()
@@ -528,10 +525,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             } else {
                 restoreSavedTabs(saved)
             }
-            AppServices.pendingOpenUrl?.let { url ->
-                AppServices.pendingOpenUrl = null
-                loadUrlFor(url)
-            }
+            consumePendingOpenUrl()
         }
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -1530,17 +1524,33 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         view?.post { relayoutHintBars() }
     }
 
-    /** 底部下载提示条：显示文案，确认按钮跳下载页并消失。 */
+    /** 消费列表页传入的待打开 URL：书签走新标签页，其余（历史/稍后读）替换当前页。 */
+    private fun consumePendingOpenUrl() {
+        val url = AppServices.pendingOpenUrl ?: return
+        val newTab = AppServices.pendingOpenUrlNewTab
+        AppServices.pendingOpenUrl = null
+        AppServices.pendingOpenUrlNewTab = false
+        if (newTab) openNewTab(url) else loadUrlFor(url)
+    }
+
+    /** 底部下载提示条：已显示时只更新文案，不重播入场动画（否则进度刷新会导致闪烁）。 */
     private fun showDownloadBar(text: String) {
         val bar = view?.findViewById<View>(R.id.download_bar) ?: return
-        view?.findViewById<TextView>(R.id.download_bar_text)?.text = text
+        val label = view?.findViewById<TextView>(R.id.download_bar_text)
+        if (bar.visibility == View.VISIBLE) {
+            label?.text = text
+            return
+        }
+        label?.text = text
         bar.visibility = View.VISIBLE
         showHintBarEnter(bar)
         scheduleHintRelayout()
     }
 
     private fun hideDownloadBar() {
-        view?.findViewById<View>(R.id.download_bar)?.visibility = View.GONE
+        val bar = view?.findViewById<View>(R.id.download_bar) ?: return
+        if (bar.visibility != View.VISIBLE) return
+        bar.visibility = View.GONE
         scheduleHintRelayout()
     }
 
@@ -1552,6 +1562,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 订阅下载任务：有活动任务时在工具栏上方显示提示条，点击确认跳下载页。 */
+    private var lastDownloadBarKey: String? = null
+
     private fun observeDownloadBar() {
         viewLifecycleOwner.lifecycleScope.launch {
             AppServices.downloadRepository.allTasks().collect { tasks ->
@@ -1559,10 +1571,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     it.state == com.sii.browser.data.db.DownloadState.DOWNLOADING ||
                         it.state == com.sii.browser.data.db.DownloadState.PENDING
                 }
-                if (active != null && !isAddedToDownloadPage && !downloadBarDismissed) {
-                    showDownloadBar(
-                        getString(R.string.download_bar_downloading, active.name)
-                    )
+                // 任务进度会高频 emit：按「任务名 + 显隐条件」做键去重，避免每字节都刷 UI。
+                val key = if (active == null || isAddedToDownloadPage || downloadBarDismissed) {
+                    null
+                } else {
+                    active.name
+                }
+                if (key == lastDownloadBarKey) return@collect
+                lastDownloadBarKey = key
+                if (key != null) {
+                    showDownloadBar(getString(R.string.download_bar_downloading, key))
                 } else {
                     hideDownloadBar()
                 }
@@ -3438,31 +3456,134 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     /** 文本选择菜单附加项（按设置启用）。 */
-    private fun buildSelectionExtras(): List<Pair<String, (String) -> Unit>> {
+    private fun buildSelectionExtras(): List<Any> {
         val enabled = AppServices.settings.selectionMenuItems().orEmpty()
             .split(",").filter { it.isNotEmpty() }.toSet()
-        val list = mutableListOf<Pair<String, (String) -> Unit>>()
+        val list = mutableListOf<Any>()
         if ("search" in enabled) {
-            list.add(getString(R.string.sel_menu_search) to { text ->
-                if (text.isNotBlank()) loadUrlFor(resolveInput(text))
-            })
+            list.add(
+                com.sii.browser.core.webview.SelectionMenu.Item(
+                    getString(R.string.sel_menu_search), R.drawable.ic_m_find
+                ) { text ->
+                    if (text.isNotBlank()) loadUrlFor(resolveInput(text))
+                }
+            )
         }
         if ("share" in enabled) {
-            list.add(getString(R.string.sel_menu_share) to { text -> shareText(text) })
+            list.add(
+                com.sii.browser.core.webview.SelectionMenu.Item(
+                    getString(R.string.sel_menu_share), R.drawable.ic_m_share
+                ) { text -> shareText(text) }
+            )
         }
         if ("copy" in enabled) {
-            list.add(getString(R.string.sel_menu_copy) to { text -> copyToClipboard(text) })
+            list.add(
+                com.sii.browser.core.webview.SelectionMenu.Item(
+                    getString(R.string.sel_menu_copy), R.drawable.ic_m_copy
+                ) { text -> copyToClipboard(text) }
+            )
         }
-        list.add(getString(R.string.sel_menu_translate) to { text ->
-            if (text.isNotBlank()) translateSelection(text)
-        })
+        if ("askai" in enabled) {
+            list.add(
+                com.sii.browser.core.webview.SelectionMenu.Item(
+                    getString(R.string.sel_menu_ask_ai), R.drawable.ic_m_ai
+                ) { text ->
+                    if (text.isNotBlank()) askAiWithSelection(text)
+                }
+            )
+        }
+        // 翻译直接平铺成两项，具体行为完全跟随「网页翻译」设置。
+        list.add(
+            com.sii.browser.core.webview.SelectionMenu.Item(
+                getString(R.string.sel_translate_web), R.drawable.ic_m_translate
+            ) { text -> translateSelection(text) }
+        )
+        list.add(
+            com.sii.browser.core.webview.SelectionMenu.Item(
+                getString(R.string.sel_translate_ai), R.drawable.ic_m_ai
+            ) { text -> translateSelectionWithAi(text) }
+        )
         return list
     }
 
-    /** 划词翻译：弹窗显示结果，可复制。 */
+    /** 划词提问：把选中文字直接交给 AI 助手。 */
+    private fun askAiWithSelection(text: String) {
+        if (text.isBlank()) return
+        showAiChatPanel()
+        aiChatPanel?.askWithSelection(text)
+    }
+
+    /** 划词 AI 翻译：目标语言跟随网页翻译设置，结果用弹窗显示。 */
+    private fun translateSelectionWithAi(text: String) {
+        if (text.isBlank()) return
+        val target = effectiveTranslateTarget(currentPageHost())
+        // 复用已有实例；没打开过浮窗时临时建一个（不显示面板），
+        // 否则会误报「AI 未配置」——那和用户配置无关。
+        val panel = aiChatPanel ?: run {
+            val created = AiChatPanel(
+                requireContext(),
+                viewLifecycleOwner,
+                pageTextProvider = { onResult ->
+                    tabManager.currentWebView?.extractPageText(onResult)
+                },
+                pageTitle = { tabManager.current?.title.orEmpty() },
+                openSettings = { openAiSettings() }
+            )
+            aiChatPanel = created
+            created
+        }
+        panel.configIssue()?.let { issue ->
+            Toast.makeText(requireContext(), issue, Toast.LENGTH_LONG).show()
+            return
+        }
+        val dialog = android.app.AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.sel_translate_ai))
+            .setMessage(getString(R.string.translate_loading))
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val pair = withContext(Dispatchers.IO) {
+                runCatching { panel.translateWithAi(text, target) }
+                    .getOrElse {
+                        null to (it.message ?: getString(R.string.translate_failed))
+                    }
+            }
+            if (!isAdded) {
+                runCatching { dialog.dismiss() }
+                return@launch
+            }
+            val result = pair.first
+            val error = pair.second
+            if (!result.isNullOrBlank()) {
+                dialog.setMessage(result)
+                dialog.setButton(
+                    android.content.DialogInterface.BUTTON_POSITIVE,
+                    getString(R.string.sel_menu_copy)
+                ) { _, _ -> copyToClipboard(result) }
+            } else {
+                dialog.setMessage(error ?: getString(R.string.translate_failed))
+            }
+        }
+    }
+
+    /** 划词翻译：弹窗显示结果，可复制。整段兜底，任何异常都转成可见提示，不闪退。 */
     private fun translateSelection(text: String) {
+        if (text.isBlank()) return
         if (AppServices.settings.translateMode() == 0) {
             Toast.makeText(requireContext(), R.string.translate_disabled, Toast.LENGTH_SHORT).show()
+            return
+        }
+        // 离线模式需要 ML Kit 语言包，而语言包只能经 Google Play 服务下载。
+        // 设备缺 GMS 时 ML Kit 会在主线程抛未捕获异常（直接闪退），
+        // 所以这里提前拦下，不让调用发生。
+        if (AppServices.settings.translateMode() == 2 &&
+            !com.sii.browser.core.webview.OfflineTranslator
+                .isOfflineAvailable(requireContext())
+        ) {
+            Toast.makeText(
+                requireContext(), R.string.translate_offline_unavailable, Toast.LENGTH_LONG
+            ).show()
             return
         }
         val dialog = android.app.AlertDialog.Builder(requireContext())
@@ -3472,27 +3593,93 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .create()
         dialog.show()
         viewLifecycleOwner.lifecycleScope.launch {
-            val offline = AppServices.settings.translateMode() == 2
-            val from = if (offline) {
-                com.sii.browser.core.webview.LanguageId.identify(requireContext(), text)
-            } else null
-            if (offline && from.isNullOrBlank()) {
-                dialog.setMessage(getString(R.string.translate_source_unknown))
+            var translated: String? = null
+            var error: String? = null
+            var needsPack = false
+            var offlineBlocked = false
+            try {
+                val offline = AppServices.settings.translateMode() == 2
+                val from = if (offline) {
+                    com.sii.browser.core.webview.LanguageId.identify(requireContext(), text)
+                } else null
+                if (offline && from.isNullOrBlank()) {
+                    error = getString(R.string.translate_source_unknown)
+                } else {
+                    val to = effectiveTranslateTarget(currentPageHost())
+                    // 离线模式缺语言包时提前给出下载入口，避免毫无反应。
+                    if (offline && !offlinePackReady(to)) {
+                        error = getString(R.string.translate_failed_offline_pack)
+                        needsPack = true
+                    } else {
+                        val r = com.sii.browser.core.webview.Translator.translate(
+                            requireContext(), text, to, from
+                        )
+                        translated = r.text
+                        error = offlineErrorMessage(r.error)
+                        // 翻译层报缺语言包时也要给「去下载」入口，
+                        // 否则用户只看到提示、无路可走。
+                        if (r.error == "offline_model_missing") needsPack = true
+                        if (r.error == "offline_unavailable") offlineBlocked = true
+                    }
+                }
+            } catch (e: Exception) {
+                // 任何意外都转成可见提示，绝不让异常冒到主线程协程外。
+                error = e.message ?: getString(R.string.translate_failed)
+            }
+            if (!isAdded) {
+                runCatching { dialog.dismiss() }
                 return@launch
             }
-            val to = effectiveTranslateTarget(currentPageHost())
-            val result = com.sii.browser.core.webview.Translator.translate(
-                requireContext(), text, to, from
-            )
-            if (!isAdded) return@launch
-            dialog.setMessage(result.text ?: getString(R.string.translate_failed))
-            if (!result.text.isNullOrBlank()) {
+            val out = translated
+            if (!out.isNullOrBlank()) {
+                dialog.setMessage(out)
                 dialog.setButton(
                     android.content.DialogInterface.BUTTON_POSITIVE,
                     getString(R.string.sel_menu_copy)
-                ) { _, _ -> copyToClipboard(result.text) }
+                ) { _, _ -> copyToClipboard(out) }
+            } else {
+                dialog.setMessage(error ?: getString(R.string.translate_failed))
+                when {
+                    // 缺语言包：「去下载」直达离线语言包设置。
+                    needsPack -> dialog.setButton(
+                        android.content.DialogInterface.BUTTON_POSITIVE,
+                        getString(R.string.translate_offline_pack_go)
+                    ) { _, _ -> openTranslateOfflineSettings() }
+                    // 本机无 GMS：给「去设置」让用户改成云翻译。
+                    offlineBlocked -> dialog.setButton(
+                        android.content.DialogInterface.BUTTON_POSITIVE,
+                        getString(R.string.translate_go_settings)
+                    ) { _, _ -> openTranslateSettings() }
+                }
             }
         }
+    }
+
+    /** 离线语言包是否已就绪（需在协程内调用）。 */
+    private suspend fun offlinePackReady(targetTag: String): Boolean =
+        runCatching {
+            // isReady 要的是 ML Kit 模型码（"zh"/"en"），不是 BCP-47 tag（"zh-CN"）。
+            // 传错会导致永远返回 false，已下载也被判为未下载。
+            val code = com.sii.browser.core.webview.TranslateLanguages
+                .mlkit(targetTag) ?: return@runCatching false
+            com.sii.browser.core.webview.OfflineTranslator
+                .isReady(requireContext(), listOf(code))
+        }.getOrDefault(false)
+
+    /**
+     * 把翻译层的错误码转成用户看得懂的提示。
+     *
+     * 错误码是内部约定（offline_unavailable 等），直接显示会让用户困惑。
+     */
+    private fun offlineErrorMessage(code: String?): String? = when (code) {
+        null, "" -> null
+        "offline_unavailable" -> getString(R.string.translate_offline_unavailable)
+        "offline_pair_unsupported" -> getString(R.string.translate_offline_pair_unsupported)
+        "offline_model_missing" -> getString(R.string.translate_failed_offline_pack)
+        "offline_source_unknown" -> getString(R.string.translate_source_unknown)
+        "offline_unsupported" -> getString(R.string.translate_offline_pair_unsupported)
+        "translation_disabled" -> getString(R.string.translate_disabled)
+        else -> code
     }
 
     /** 站点翻译按钮策略：0 跟随全局 / 1 总是显示 / 2 不显示。 */
@@ -4058,6 +4245,21 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             .commit()
     }
 
+    /** 设置 → 网页翻译（翻译方式页，可改成云翻译）。 */
+    private fun openTranslateSettings() {
+        NavAnim.apply(parentFragmentManager.beginTransaction())
+            .replace(R.id.shell_root, SettingsDetailFragment().apply {
+                arguments = Bundle().apply {
+                    putString(
+                        SettingsDetailFragment.ARG_VIEW,
+                        SettingsDetailFragment.VIEW_V2_TRANSLATE
+                    )
+                }
+            })
+            .addToBackStack(null)
+            .commit()
+    }
+
     private fun showTranslateStatus(
         text: String,
         autoHide: Boolean = false,
@@ -4481,16 +4683,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
     }
 
-    private fun closeCurrentTab() {
-        val index = tabManager.currentIndex
-        if (index !in 0 until tabManager.size) return
-        closeTabAndHint(index)
-        if (tabManager.size == 0) {
-            openNewTab(AppServices.settings.homeUrl())
-        }
-        renderTabs()
-    }
-
     /** 所有用户主动关闭标签的入口共用提示。 */
     private fun closeTabAndHint(index: Int) {
         if (index !in 0 until tabManager.size) return
@@ -4512,6 +4704,15 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             deleteThumbnail(closingThumbUrl)
         }
         showCloseTabHint()
+        // 关到 0 个标签：立即补一个主页标签并切到主页面板，
+        // 否则会停在空白页且标签数显示为 0。
+        if (tabManager.size == 0) {
+            tabManager.newTab(ABOUT_HOME)
+            tabManager.currentWebView?.loadUrl("about:blank")
+            showHome(createTab = false)
+            renderTabs()
+            return
+        }
         if (wasCurrent) applyTranslateTabState(tabManager.currentWebView)
         devToolsPanel?.onWebViewChanged()
     }
@@ -5865,7 +6066,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 )
                 setOnClickListener {
                     closeTabAndHint(index)
-                    if (tabManager.size == 0) hideTabsPanel() else renderTabCards()
+                    // 关到 0 个标签时 closeTabAndHint 已补主页标签，此时收起面板看主页。
+                    if (tabManager.size <= 1) hideTabsPanel() else renderTabCards()
                 }
             })
         }
@@ -8085,6 +8287,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun tintToolbarContent(target: View, color: Int) {
+        // 自带底色的元素跳过染色：标签数字叠在角标圆底上，统一涂前景会看不清。
+        if (target.id == R.id.tab_count) return
         when (target) {
             is TextView -> target.setTextColor(color)
             is ImageView -> target.imageTintList =
@@ -8162,13 +8366,23 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         return base or 0xFF000000.toInt()
     }
 
-    /** 主题色背景上的前景色：按 WCAG 对比度在深/浅两级取对比更高者。 */
+    /**
+     * 在给定底色上选一个可读的前景色。
+     *
+     * 优先取对比度更高的白/黑；两者都达不到 WCAG AA（4.5）时，
+     * 按底色亮度强制取纯白或纯黑，避免中灰底色选出"两边都不够"的中间色。
+     */
     private fun contrastOn(color: Int): Int {
         val light = 0xFFF2F3F5.toInt()
         val dark = 0xFF16181B.toInt()
-        return if (androidx.core.graphics.ColorUtils.calculateContrast(light, color) >=
-            androidx.core.graphics.ColorUtils.calculateContrast(dark, color)
-        ) light else dark
+        val lightContrast = androidx.core.graphics.ColorUtils.calculateContrast(light, color)
+        val darkContrast = androidx.core.graphics.ColorUtils.calculateContrast(dark, color)
+        if (lightContrast < 4.5 && darkContrast < 4.5) {
+            // 中间亮度：用亮度决定，>=0.5 取黑字，否则取白字。
+            val luminance = androidx.core.graphics.ColorUtils.calculateLuminance(color)
+            return if (luminance >= 0.5) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        }
+        return if (lightContrast >= darkContrast) light else dark
     }
 
     private fun withAlpha(color: Int, alpha: Float): Int {
@@ -8778,6 +8992,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 }
             }
             selectionMenuExtras = buildSelectionExtras()
+            // 自绘划词菜单需要根布局作宿主。
+            val root: android.widget.FrameLayout? = view?.findViewById(R.id.browser_root)
+            selectionMenuHost = root
         }
     }
 
@@ -9478,8 +9695,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         ): Boolean {
             filePathCallback?.onReceiveValue(null)
             filePathCallback = valueCallback
+            val intent = buildFileChooserIntent(params)
+                ?: return run {
+                    filePathCallback = null
+                    false
+                }
             return try {
-                fileChooserLauncher.launch(params.createIntent())
+                fileChooserLauncher.launch(intent)
                 true
             } catch (e: Exception) {
                 filePathCallback = null
@@ -10683,10 +10905,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         applyHomeChrome(homeContainer?.visibility == View.VISIBLE)
         applySiteThemeColor(currentThemeColor())
         view?.post { refreshTranslateFabForSite() }
-        AppServices.pendingOpenUrl?.let { url ->
-            AppServices.pendingOpenUrl = null
-            loadUrlFor(url)
-        }
+        consumePendingOpenUrl()
         AppServices.applyPageZoom = {
             tabManager.tabs.forEach { tab ->
                 tab.webView.settings.textZoom = effectiveTextZoom()
@@ -10854,13 +11073,50 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var fullscreenContainer: android.widget.FrameLayout? = null
     private var filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
 
+    /**
+     * 构造文件选择 Intent。
+     *
+     * 不直接用 FileChooserParams.createIntent()：它对 MIME 过滤与多选的表达不完整，
+     * 部分站点（如带 JS 校验的表单）会选到文件却收不到内容。这里自建 Intent，
+     * 显式带上类型、可接受类型与多选标记。
+     */
+    private fun buildFileChooserIntent(
+        params: android.webkit.WebChromeClient.FileChooserParams
+    ): android.content.Intent? {
+        val intent = params.createIntent()
+        // createIntent() 已带上类型；这里补上多选标记与可打开分类。
+        if (intent.categories?.contains(android.content.Intent.CATEGORY_OPENABLE) != true) {
+            intent.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+        }
+        if (params.mode == android.webkit.WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+            intent.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        if (intent.type.isNullOrBlank()) intent.type = "*/*"
+        return intent
+    }
+
+    /**
+     * 文件选择回调：优先用 clipData（多选），否则退回 data。
+     *
+     * parseResult 只认 data 单选路径，遇到允许多选的表单会拿到空结果，
+     * 导致「选择文件」后网页收不到任何文件。
+     */
+    private fun fileChooserResult(resultCode: Int, data: android.content.Intent?): Array<android.net.Uri>? {
+        if (resultCode != android.app.Activity.RESULT_OK) return null
+        val clip = data?.clipData
+        if (clip != null && clip.itemCount > 0) {
+            return Array(clip.itemCount) { i -> clip.getItemAt(i).uri }
+        }
+        return data?.data?.let { arrayOf(it) }
+    }
+
     private val fileChooserLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val callback = filePathCallback
         filePathCallback = null
         callback?.onReceiveValue(
-            android.webkit.WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+            fileChooserResult(result.resultCode, result.data)
         )
     }
 
@@ -11618,7 +11874,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             dp(44),
             android.view.Gravity.CENTER_VERTICAL
         )
+        // 左右留白对称：左侧熊猫头前的 8dp 由 address padding 提供，
+        // 右侧工具行末尾补同样的 8dp，避免"熊猫头离左边更远"。
         address.setPadding(dp(8), 0, dp(6), 0)
+        toolRow.setPadding(0, 0, dp(8), 0)
         address.background = null
         address.elevation = 0f
         address.clipToOutline = false

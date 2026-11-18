@@ -96,6 +96,13 @@ object AppServices {
     /** 列表页点击后待浏览器消费的 URL；不依赖某个 Fragment 实例。 */
     var pendingOpenUrl: String? = null
 
+    /**
+     * [pendingOpenUrl] 是否要新建标签页打开。
+     *
+     * 书签点击置 true（不打断当前页面）；历史记录、稍后读保持 false（替换当前页）。
+     */
+    var pendingOpenUrlNewTab: Boolean = false
+
     /** 最近一次标签快照：设置页 recreate 前可同步落库，避免按旧快照恢复。 */
     var lastTabsSnapshot: List<Pair<String, String>>? = null
 

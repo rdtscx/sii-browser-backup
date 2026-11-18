@@ -46,7 +46,11 @@ object Translator {
                 "${from ?: "auto"}|$to|$text"
             cacheGet(cacheKey)?.let { return@withContext it }
             val result = if (mode == 2) {
-                OfflineTranslator.translate(context, text, to, from)
+                // 离线翻译涉及 ML Kit 模型状态，异常面比网络路径更宽，必须整体兜底，
+                // 否则异常会冒到 UI 协程里直接闪退。
+                runCatching {
+                    OfflineTranslator.translate(context, text, to, from)
+                }.getOrElse { Translator.Result(null, it.message ?: "offline_error") }
             } else {
                 runCatching {
                     when (provider) {

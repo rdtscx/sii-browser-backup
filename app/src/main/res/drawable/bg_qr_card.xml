@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 二维码卡片底：必须始终是纯白。
+     二维码识别依赖「深色模块 + 浅色静区」的对比，跟随主题变暗会导致深色模式下扫不出来，
+     所以这里写死 #FFFFFF，不引用主题色。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <stroke
+        android:width="1dp"
+        android:color="#14000000" />
+    <corners android:radius="12dp" />
+</shape>

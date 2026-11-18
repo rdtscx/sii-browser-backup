@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 划词浮层背板：四角圆角 + 卡片色，独立于底部 sheet 的 bg_modern_sheet。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/card" />
+    <corners android:radius="14dp" />
+</shape>

@@ -604,15 +604,17 @@ class SettingsDetailFragment : Fragment() {
         val key = settings.aiApiKey().orEmpty()
         Toast.makeText(requireContext(), R.string.settings_ai_model_loading, Toast.LENGTH_SHORT).show()
         viewLifecycleOwner.lifecycleScope.launch {
+            // 必须复用同一个实例，否则 lastError 取不到真实原因。
             val models = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                com.sii.browser.core.ai.AiClient().listModels(endpoint, key)
+                aiClient.listModels(endpoint, key)
             }
             if (!isAdded) return@launch
+            val error = aiClient.lastError
             if (models.isNullOrEmpty()) {
                 // 拉取失败：提示原因，回落手动输入
                 Toast.makeText(
                     requireContext(),
-                    getString(R.string.settings_ai_model_fetch_failed, aiClient.lastError ?: ""),
+                    getString(R.string.settings_ai_model_fetch_failed, error ?: ""),
                     Toast.LENGTH_LONG
                 ).show()
                 showAiModelManualDialog()
@@ -658,27 +660,415 @@ class SettingsDetailFragment : Fragment() {
 
     private val aiClient = com.sii.browser.core.ai.AiClient()
 
-    /** 录入 AI Key：输入框掩码显示，保存前去掉首尾空白。 */
+    /**
+     * 录入 AI Key：卡片式布局，密钥区是圆角描边容器 + 右侧独立眼睛按钮。
+     *
+     * 不用 AlertDialog 自带标题/按钮，全部自绘，避免系统按钮区与输入框样式割裂。
+     */
     private fun showAiKeyDialog() {
-        val input = EditText(requireContext()).apply {
+        val context = requireContext()
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        val input = EditText(context).apply {
             setText(settings.aiApiKey().orEmpty())
             hint = getString(R.string.settings_ai_key_hint)
             setSingleLine(true)
+            // 自绘容器已有描边，不要系统下划线（下划线会横穿眼睛图标）。
+            background = null
+            setTextSize(15f)
+            setTextColor(context.getColor(R.color.text_primary))
+            setHintTextColor(context.getColor(R.color.text_secondary))
+            setPadding(dp(12), dp(11), dp(4), dp(11))
             transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
         }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.settings_ai_key)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                settings.setAiApiKey(input.text.toString().trim())
-                build()
+
+        val eye = android.widget.ImageView(context).apply {
+            setImageResource(R.drawable.ic_eye)
+            imageTintList = android.content.res.ColorStateList.valueOf(
+                context.getColor(R.color.text_secondary)
+            )
+            val pad = dp(10)
+            setPadding(pad, pad, pad, pad)
+            isClickable = true
+            isFocusable = true
+            contentDescription = getString(R.string.settings_ai_key_show)
+            background = runCatching {
+                context.theme.obtainStyledAttributes(
+                    intArrayOf(android.R.attr.selectableItemBackgroundBorderless)
+                ).let { ta ->
+                    val id = ta.getResourceId(0, 0)
+                    ta.recycle()
+                    if (id != 0) androidx.core.content.ContextCompat.getDrawable(context, id) else null
+                }
+            }.getOrNull()
+            setOnClickListener {
+                val masked = input.transformationMethod != null
+                input.transformationMethod = if (masked) null else
+                    android.text.method.PasswordTransformationMethod.getInstance()
+                contentDescription = getString(
+                    if (masked) R.string.settings_ai_key_hide else R.string.settings_ai_key_show
+                )
+                input.setSelection(input.text.length)
             }
-            .setNeutralButton(R.string.settings_ai_key_clear) { _, _ ->
+        }
+
+        // 输入区：横向排列，EditText 占满，眼睛按钮固定尺寸居中。
+        val fieldBox = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_input_field)
+            setPadding(dp(2), dp(1), dp(4), dp(1))
+            addView(
+                input,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(
+                eye,
+                LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                }
+            )
+        }
+
+        val title = TextView(context).apply {
+            text = getString(R.string.settings_ai_key)
+            setTextSize(17f)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(context.getColor(R.color.text_primary))
+        }
+        val desc = TextView(context).apply {
+            text = getString(R.string.settings_ai_key_desc)
+            setTextSize(12.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setLineSpacing(0f, 1.3f)
+        }
+
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(20), dp(22), dp(6))
+            addView(title)
+            addView(desc, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) })
+            addView(fieldBox, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(14) })
+        }
+
+        val dialog = AlertDialog.Builder(context).setView(content).create()
+        dialog.setOnShowListener {
+            val bar = dialog.window?.decorView?.findViewById<View>(android.R.id.button1)?.parent
+            (bar as? View)?.visibility = View.GONE
+        }
+        // 底部按钮行自绘：左侧「清除」弱化，右侧「保存」主色。
+        val clearBtn = TextView(context).apply {
+            text = getString(R.string.settings_ai_key_clear)
+            setTextSize(14f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setOnClickListener {
                 settings.setAiApiKey("")
+                dialog.dismiss()
                 build()
             }
-            .setNegativeButton(android.R.string.cancel, null)
+        }
+        val saveBtn = TextView(context).apply {
+            text = getString(android.R.string.ok)
+            setTextSize(14f)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(context.getColor(R.color.accent))
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setOnClickListener {
+                val raw = input.text.toString()
+                val cleaned = raw.filter { it.code in 0x21..0x7E }.trim()
+                settings.setAiApiKey(cleaned)
+                if (cleaned != raw.trim()) {
+                    // 粘贴时常带入不可见字符，这里明确告知已清理，避免用户以为密钥丢了。
+                    Toast.makeText(
+                        context, R.string.settings_ai_key_cleaned, Toast.LENGTH_LONG
+                    ).show()
+                }
+                dialog.dismiss()
+                build()
+            }
+        }
+        val btnRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.END
+            setPadding(dp(10), dp(2), dp(10), dp(12))
+            addView(clearBtn)
+            addView(saveBtn)
+        }
+        content.addView(btnRow)
+
+        dialog.show()
+    }
+
+    /** 支持入口：标题用强调色 + 15sp，副标题双行，比普通 navRow 更醒目。 */
+    private fun supportRow(): View {
+        val context = requireContext()
+        return CardList.row(context).apply {
+            val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            column.addView(TextView(context).apply {
+                text = getString(R.string.about_support)
+                setTextSize(15f)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(context.getColor(R.color.accent))
+            })
+            column.addView(TextView(context).apply {
+                text = getString(R.string.about_support_row_desc)
+                setTextSize(12.5f)
+                setTextColor(context.getColor(R.color.text_secondary))
+                setPadding(0, dpToPx(2), 0, 0)
+            })
+            addView(column, weightParams())
+            addView(valueView("›"))
+            setOnClickListener { showSupportDialog() }
+        }
+    }
+
+    /**
+     * 支持入口：一次只显示一张收款码，顶部两段切换（默认支付宝）。
+     *
+     * 并排两张会把码压到 ~130dp，用户截屏后不好扫；一次一张可以放到屏宽 52%（190~240dp），
+     * 截屏或长按保存都更稳。
+     *
+     * 刻意不用 AlertDialog 的标题/按钮区，与密钥弹窗保持同一套视觉（隐藏系统按钮，底部自绘）。
+     * 二维码底必须是纯白（bg_qr_card 写死白色），深色主题下也一样，否则扫不出来。
+     */
+    private fun showSupportDialog() {
+        val context = requireContext()
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+
+        val title = TextView(context).apply {
+            text = getString(R.string.about_support)
+            setTextSize(17f)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(context.getColor(R.color.text_primary))
+        }
+        val desc = TextView(context).apply {
+            text = getString(R.string.about_support_desc)
+            setTextSize(12.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setLineSpacing(0f, 1.35f)
+        }
+
+        // 单张显示，尺寸可以放开。上下限都与屏幕宽度相关，小屏不溢出、大屏不虚胖。
+        val screenWidth = resources.displayMetrics.widthPixels
+        val qrSize = (screenWidth * 0.52f).toInt().coerceIn(dp(190), dp(240))
+
+        val image = android.widget.ImageView(context).apply {
+            setImageResource(R.drawable.ic_qr_alipay)
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            contentDescription = getString(R.string.about_support_alipay)
+        }
+        // 白底容器：图片自身已带 24px 静区，这里再补一点内边距让卡片有呼吸。
+        val imageBox = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            background = androidx.core.content.ContextCompat
+                .getDrawable(context, R.drawable.bg_qr_card)
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            addView(image, LinearLayout.LayoutParams(qrSize, qrSize))
+        }
+
+        // ---- 分段切换 ----
+        val segAlipay = TextView(context).apply {
+            text = getString(R.string.about_support_alipay)
+            setTextSize(13f)
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(16), dp(9), dp(16), dp(9))
+        }
+        val segWechat = TextView(context).apply {
+            text = getString(R.string.about_support_wechat)
+            setTextSize(13f)
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(16), dp(9), dp(16), dp(9))
+        }
+
+        // 0 = 支付宝，1 = 微信。切换只换图片与字体颜色，不重建弹窗，避免闪一下。
+        fun applySegment(index: Int) {
+            val accent = context.getColor(R.color.accent)
+            val secondary = context.getColor(R.color.text_secondary)
+            segAlipay.background = androidx.core.content.ContextCompat.getDrawable(
+                context, if (index == 0) R.drawable.bg_segment_on else R.drawable.bg_segment_off
+            )
+            segWechat.background = androidx.core.content.ContextCompat.getDrawable(
+                context, if (index == 1) R.drawable.bg_segment_on else R.drawable.bg_segment_off
+            )
+            segAlipay.setTextColor(if (index == 0) accent else secondary)
+            segWechat.setTextColor(if (index == 1) accent else secondary)
+            segAlipay.setTypeface(null, if (index == 0) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            segWechat.setTypeface(null, if (index == 1) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            image.setImageResource(if (index == 0) R.drawable.ic_qr_alipay else R.drawable.ic_qr_wechat)
+            image.contentDescription = getString(
+                if (index == 0) R.string.about_support_alipay else R.string.about_support_wechat
+            )
+        }
+        segAlipay.setOnClickListener { applySegment(0) }
+        segWechat.setOnClickListener { applySegment(1) }
+        applySegment(0)
+
+        val segRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(segAlipay, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { rightMargin = dp(8) })
+            addView(segWechat, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        val segWrap = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            addView(segRow)
+        }
+
+        val note = TextView(context).apply {
+            text = getString(R.string.about_support_note)
+            setTextSize(11.5f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            gravity = android.view.Gravity.CENTER
+        }
+
+        // 长按出菜单：保存到相册 / 分享图片。避免用户只能截屏再进相册识别。
+        image.isClickable = true
+        image.setOnLongClickListener {
+            showQrActions(image.drawable)
+            true
+        }
+
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(20), dp(22), dp(6))
+            addView(title)
+            addView(desc, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) })
+            addView(segWrap, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(16) })
+            addView(imageBox, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(12)
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+            })
+            addView(note, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12) })
+        }
+
+        val dialog = AlertDialog.Builder(context).setView(content).create()
+        dialog.setOnShowListener {
+            val bar = dialog.window?.decorView?.findViewById<View>(android.R.id.button1)?.parent
+            (bar as? View)?.visibility = View.GONE
+        }
+        val closeBtn = TextView(context).apply {
+            text = getString(R.string.about_support_close)
+            setTextSize(14f)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(context.getColor(R.color.accent))
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setOnClickListener { dialog.dismiss() }
+        }
+        val btnRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.END
+            setPadding(dp(10), dp(2), dp(10), dp(12))
+            addView(closeBtn)
+        }
+        content.addView(btnRow)
+        dialog.show()
+    }
+
+    /** 长按二维码后的操作：保存到相册 / 分享。 */
+    private fun showQrActions(drawable: android.graphics.drawable.Drawable?) {
+        val items = arrayOf(
+            getString(R.string.about_support_save),
+            getString(R.string.about_support_share)
+        )
+        AlertDialog.Builder(requireContext())
+            .setItems(items) { _, which ->
+                val bitmap = runCatching { drawableToBitmap(drawable) }.getOrNull()
+                if (bitmap == null) {
+                    Toast.makeText(
+                        requireContext(), R.string.about_support_op_failed, Toast.LENGTH_SHORT
+                    ).show()
+                    return@setItems
+                }
+                if (which == 0) {
+                    val ok = DataUriTools.saveBitmap(
+                        requireContext(), bitmap, "Sii_收款码_${System.currentTimeMillis()}.png"
+                    )
+                    Toast.makeText(
+                        requireContext(),
+                        if (ok) R.string.about_support_saved else R.string.about_support_op_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    shareBitmap(bitmap)
+                }
+            }
             .show()
+    }
+
+    private fun drawableToBitmap(drawable: android.graphics.drawable.Drawable?): android.graphics.Bitmap? {
+        if (drawable == null) return null
+        if (drawable is android.graphics.drawable.BitmapDrawable) {
+            drawable.bitmap?.let { return it }
+        }
+        // Vector / 其它类型兜底：按原始固有尺寸绘制一次。
+        val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: dpToPx(300)
+        val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: dpToPx(300)
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            w, h, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, w, h)
+        drawable.draw(canvas)
+        return bitmap
+    }
+
+    private fun shareBitmap(bitmap: android.graphics.Bitmap) {
+        val context = requireContext()
+        val file = DataUriTools.saveTempBitmap(context, bitmap)
+        if (file == null) {
+            Toast.makeText(context, R.string.about_support_op_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uri = runCatching {
+            androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+        }.getOrNull()
+        if (uri == null) {
+            Toast.makeText(context, R.string.about_support_op_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val ok = runCatching {
+            startActivity(android.content.Intent.createChooser(intent, getString(R.string.about_support_share)))
+            true
+        }.getOrDefault(false)
+        if (!ok) {
+            Toast.makeText(context, R.string.about_support_op_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     /** 重置熊猫头提示的「已显示」标记，并立即演示一次完整说明（不依赖网页加载）。 */
@@ -695,48 +1085,67 @@ class SettingsDetailFragment : Fragment() {
 
     private fun buildV2Translate() {
         val mode = settings.translateMode().coerceIn(0, 2)
+        val offlineOk = com.sii.browser.core.webview.OfflineTranslator
+            .isOfflineAvailable(requireContext())
+        val cloud = mode == 1
+        val offline = mode == 2
+        // 顺序：选方式 → 配服务 → 调行为 → 调试。
+        // 只有当前生效的那一组配置可用，避免用户改了半天发现改的是没启用的那套。
         card(
-            switchRow(
-                getString(R.string.settings_translate_cloud),
-                mode == 1,
-                getString(R.string.settings_translate_cloud_desc)
-            ) {
-                settings.setTranslateMode(if (it) 1 else 0)
-                build()
-            },
-            switchRow(
-                getString(R.string.settings_translate_offline),
-                mode == 2,
-                getString(R.string.settings_translate_offline_desc)
-            ) {
-                settings.setTranslateMode(if (it) 2 else 0)
-                build()
-            },
-            navRow(getString(R.string.settings_translate_offline_pack)) {
-                open(VIEW_V2_TRANSLATE_OFFLINE)
-            },
             choiceRow(
-                getString(R.string.settings_translate_service),
-                TRANSLATE_PROVIDER_NAMES,
-                settings.translateProvider().coerceIn(0, 4),
-                enabled = mode == 1
+                getString(R.string.settings_translate_mode),
+                TRANSLATE_MODES,
+                when (mode) {
+                    1 -> 1
+                    2 -> 2
+                    else -> 0
+                }
             ) {
-                settings.setTranslateProvider(it)
+                settings.setTranslateMode(it)
                 build()
             },
-            textRow(
-                getString(R.string.settings_translate_endpoint),
-                settings.translateEndpoint(),
-                enabled = mode == 1 && (settings.translateProvider() == 1 || settings.translateProvider() == 3)
-            ) { settings.setTranslateEndpoint(it) },
-            navRow(
-                getString(R.string.settings_translate_baidu),
-                enabled = mode == 1 && settings.translateProvider() == 4
-            ) { open(VIEW_V2_TRANSLATE_BAIDU) },
-            navRow(
-                getString(R.string.settings_translate_custom),
-                enabled = mode == 1 && settings.translateProvider() == 3
-            ) { open(VIEW_V2_TRANSLATE_CUSTOM) },
+            descRow(
+                getString(R.string.settings_translate_mode_desc)
+            )
+        )
+        if (cloud) {
+            card(
+                choiceRow(
+                    getString(R.string.settings_translate_service),
+                    TRANSLATE_PROVIDER_NAMES,
+                    settings.translateProvider().coerceIn(0, 4)
+                ) {
+                    settings.setTranslateProvider(it)
+                    build()
+                },
+                textRow(
+                    getString(R.string.settings_translate_endpoint),
+                    settings.translateEndpoint(),
+                    enabled = settings.translateProvider() == 1 ||
+                        settings.translateProvider() == 3
+                ) { settings.setTranslateEndpoint(it) },
+                navRow(
+                    getString(R.string.settings_translate_baidu),
+                    enabled = settings.translateProvider() == 4
+                ) { open(VIEW_V2_TRANSLATE_BAIDU) },
+                navRow(
+                    getString(R.string.settings_translate_custom),
+                    enabled = settings.translateProvider() == 3
+                ) { open(VIEW_V2_TRANSLATE_CUSTOM) }
+            )
+        } else if (offline) {
+            card(
+                navRow(
+                    getString(R.string.settings_translate_offline_pack),
+                    enabled = offlineOk
+                ) { open(VIEW_V2_TRANSLATE_OFFLINE) },
+                descRow(
+                    if (offlineOk) getString(R.string.settings_translate_offline_desc)
+                    else getString(R.string.translate_offline_unavailable)
+                )
+            )
+        }
+        card(
             navRow(
                 getString(R.string.settings_translate_target),
                 translateTargetLabel()
@@ -750,7 +1159,9 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.settings_translate_dual),
                 settings.translateDual(),
                 getString(R.string.settings_translate_dual_desc)
-            ) { settings.setTranslateDual(it) },
+            ) { settings.setTranslateDual(it) }
+        )
+        card(
             navRow(getString(R.string.settings_translate_params)) {
                 open(VIEW_V2_TRANSLATE_PARAMS)
             },
@@ -758,6 +1169,18 @@ class SettingsDetailFragment : Fragment() {
                 open(VIEW_V2_TRANSLATE_LOG)
             }
         )
+    }
+
+    /** 纯说明行（无点击、右侧无箭头）。 */
+    private fun descRow(text: String): View {
+        val context = requireContext()
+        return TextView(context).apply {
+            this.text = text
+            setTextSize(12f)
+            setTextColor(context.getColor(R.color.text_secondary))
+            setLineSpacing(0f, 1.5f)
+            setPadding(dpToPx(16), dpToPx(4), dpToPx(16), dpToPx(12))
+        }
     }
 
     private fun buildV2TranslateBaidu() {
@@ -3212,8 +3635,8 @@ class SettingsDetailFragment : Fragment() {
         container.addView(CardList.sectionTitle(context, getString(R.string.settings_selection_menu)))
         val enabled = settings.selectionMenuItems().orEmpty()
             .split(",").filter { it.isNotEmpty() }.toMutableSet()
-        val rows = SELECTION_ITEMS.map { (id, label) ->
-            switchRow(label, id in enabled) { visible ->
+        val rows = SELECTION_ITEMS.map { (id, labelRes) ->
+            switchRow(getString(labelRes), id in enabled) { visible ->
                 if (visible) enabled.add(id) else enabled.remove(id)
                 settings.setSelectionMenuItems(enabled.joinToString(","))
             }
@@ -3430,7 +3853,8 @@ class SettingsDetailFragment : Fragment() {
         versionRows.add(
             navRow(
                 getString(R.string.settings_about_repo),
-                getString(R.string.about_repo_url).removePrefix("https://")
+                // 副标题直接显示项目地址（去掉协议头省宽），URL 只在 about_repo_url 维护一份。
+                getString(R.string.about_repo_url).removePrefix("https://").removeSuffix("/")
             ) { openRepository() }.apply {
                 setOnLongClickListener {
                     copyRepositoryUrl()
@@ -3466,6 +3890,9 @@ class SettingsDetailFragment : Fragment() {
 
         sectionTitle(R.string.settings_section_help)
         card(
+            // 支持入口放第一位：用户要求「更明显」，放在卡片末尾容易被划过去。
+            // 标题带 emoji，纯文字列表里这一行会跳出来，不破风格。
+            supportRow(),
             // 项目说明原来放在卡片顶部整段展示，占掉 3~4 行；改成可点开的说明，需要时才看。
             navRow(getString(R.string.settings_about_project)) { showProjectDesc() },
             navRow(
@@ -3726,6 +4153,8 @@ class SettingsDetailFragment : Fragment() {
         private val DOUBLE_TAP_NAMES = arrayOf("无", "回到顶部", "刷新", "打开主页")
         internal val TRANSLATE_PROVIDER_NAMES =
             arrayOf("MyMemory（免费）", "LibreTranslate（免费）", "Google（非官方）", "自定义", "百度翻译")
+        /** 翻译方式：0 关闭 / 1 云翻译 / 2 离线翻译（与 translateMode 取值一致）。 */
+        internal val TRANSLATE_MODES = arrayOf("关闭", "云翻译", "离线翻译")
         private val DOH_PROVIDER_NAMES = arrayOf("阿里 DNS", "腾讯 DNS", "Cloudflare", "Google")
         private val DOH_PROVIDER_TAGS = arrayOf("ali", "tencent", "cloudflare", "google")
         private val TRANSLATE_CUSTOM_METHOD_NAMES = arrayOf("GET", "POST")
@@ -3810,9 +4239,10 @@ class SettingsDetailFragment : Fragment() {
 
         /** 文本选择菜单附加项。 */
         private val SELECTION_ITEMS = listOf(
-            "search" to "搜索",
-            "share" to "分享",
-            "copy" to "复制"
+            "search" to R.string.sel_menu_search,
+            "share" to R.string.sel_menu_share,
+            "copy" to R.string.sel_menu_copy,
+            "askai" to R.string.sel_menu_ask_ai
         )
 
         /** 底部工具栏按钮（id 与布局一致）。 */
@@ -5242,29 +5672,3 @@ class SettingsDetailFragment : Fragment() {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

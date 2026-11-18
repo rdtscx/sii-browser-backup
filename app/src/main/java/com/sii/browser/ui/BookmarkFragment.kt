@@ -701,7 +701,9 @@ class BookmarkFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repository.markOpened(item)
         }
+        // 书签用新标签页打开，不打断当前页面。
         AppServices.pendingOpenUrl = item.url
+        AppServices.pendingOpenUrlNewTab = true
         // 书签可能位于多级文件夹中，必须退回浏览器根页面，而不是只退一级文件夹。
         parentFragmentManager.popBackStack(
             null,
