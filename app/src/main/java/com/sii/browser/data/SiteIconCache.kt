@@ -57,6 +57,22 @@ object SiteIconCache {
         }
     }
 
+    /**
+     * 磁盘缓存按「最多 [MAX_FILES] 个、超出按最后修改时间淘汰最旧」控制。
+     *
+     * 磁盘文件原先只增不减，重度使用可能累积到几十 MB；这里做一次低成本的 LRU 收敛。
+     * 只删文件、不动内存缓存，正在显示的图标不受影响。
+     */
+    private fun pruneDisk(context: Context) {
+        runCatching {
+            val files = fileFor(context, "").parentFile?.listFiles() ?: return@runCatching
+            if (files.size <= MAX_FILES) return@runCatching
+            files.sortedBy { it.lastModified() }
+                .take(files.size - MAX_FILES)
+                .forEach { f -> runCatching { f.delete() } }
+        }
+    }
+
     private fun fetch(context: Context, host: String): Bitmap? {
         if (!host.matches(Regex("[a-zA-Z0-9.-]+"))) return null
         val request = Request.Builder()
@@ -72,6 +88,8 @@ object SiteIconCache {
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
             memory.put(host, bitmap)
             runCatching { fileFor(context, host).writeBytes(bytes) }
+            // 每次新增一个图标就顺手检查一次上限，成本极低（一次 listFiles）。
+            pruneDisk(context)
             return bitmap
         }
     }
@@ -82,4 +100,7 @@ object SiteIconCache {
     }
 
     private const val MAX_BYTES = 512 * 1024
+
+    /** 磁盘图标文件数量上限；超出按最后修改时间淘汰最旧。 */
+    private const val MAX_FILES = 500
 }

@@ -602,6 +602,23 @@
         android:textSize="11sp"
         android:visibility="gone" />
 
+    <!-- 拦截提示（与翻译提示同款外观，出现在工具栏正上方，1 秒后自动消失） -->
+    <TextView
+        android:id="@+id/block_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="72dp"
+        android:background="@drawable/bg_hint_bar"
+        android:clickable="false"
+        android:elevation="8dp"
+        android:focusable="false"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="7dp"
+        android:textColor="@color/text_primary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+
     <!-- 新版底部悬浮底栏（经典模式隐藏）：地址胶囊 + 图标工具行 -->
     <LinearLayout
         android:id="@+id/modern_chrome"

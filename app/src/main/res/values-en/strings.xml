@@ -584,7 +584,7 @@
     <string name="privacy_custom">Custom</string>
     <string name="privacy_stats">Blocked</string>
     <string name="privacy_stats_empty">No blocked requests yet</string>
-    <string name="privacy_compat">Compatibility mode (Standard)</string>
+    <string name="privacy_compat">Site compatibility mode</string>
     <string name="privacy_compat_desc">Allows captcha, third-party sign-in, payment and support hosts; ad rules still apply.</string>
     <string name="privacy_breakage_hint">After blocking trackers, some sites may fail at sign-in, captcha, comments or playback. Long-press the panda icon to pause privacy blocking for this site, or allow blocked hosts below.</string>
     <string name="privacy_tracking">Trackers</string>
@@ -759,6 +759,7 @@
     <string name="site_rule_clip">Clipboard</string>
     <string name="site_rule_openapp">Open external apps</string>
     <string name="site_rule_redirect">Page redirects</string>
+    <string name="redirect_prompt_message">%1$s is redirecting to %2$s. Allow it?</string>
     <string name="site_permission_generic">Site permission</string>
     <string name="permission_request_title">Site permission request</string>
     <string name="permission_request_message">%1$s requests: %2$s</string>
@@ -863,6 +864,14 @@
     <string name="ssl_error_message">%1$s\n%2$s</string>
     <string name="ssl_continue">Continue</string>
     <string name="ssl_ignore_warning">Ignore SSL certificate errors is enabled. Continuing may expose accounts, cookies, or page content. Continue anyway?</string>
+    <string name="adblock_badge">Show blocking badge</string>
+    <string name="adblock_badge_desc">Blocking badge</string>
+    <string name="mini_dock_drag_hint">You can drag this pill anywhere you like — press and hold, then move it</string>
+    <string name="adblock_badge_detail">%1$d ads and %2$d privacy requests blocked on this page</string>
+    <string name="adblock_badge_summary">Show a shield with the block count of this page at the bottom right; tap to open the toolbar</string>
+    <string name="privacy_icon_desc">Privacy protection is on</string>
+    <string name="privacy_tracking_migrated">Tracker blocking is now off by default; you can turn it back on here</string>
+    <string name="ssl_continue_once">No more certificate warnings for %1$s this session</string>
     <string name="ssl_view_cert">View certificate</string>
     <string name="site_info_title">Page info</string>
     <string name="site_menu_cookies">View cookies</string>
@@ -1072,7 +1081,6 @@
     <string name="netlog_clear">Clear log</string>
     <string name="netlog_blocked">Blocked</string>
     <string name="netlog_allowed">Allowed</string>
-    <string name="settings_site_permissions">Permissions</string>
     <string name="settings_permission_geo">Location</string>
     <string name="settings_permission_cam">Camera</string>
     <string name="settings_permission_mic">Microphone</string>
@@ -1201,7 +1209,7 @@
     <string name="download_bar_downloading">Downloading: %1$s</string>
     <string name="history_load_more">Load more</string>
     <string name="settings_sniff">Resource sniffing</string>
-    <string name="settings_sniff_sites">Sites with sniffing on</string>
+    <string name="settings_sniff_sites">Resource sniffing</string>
     <string name="sniff_sites_empty">No sites enabled yet. Sniffing is off by default; turn it on per site from the page menu.</string>
     <string name="sniff_sites_remove">Remove</string>
     <string name="sniff_sites_removed">Sniffing removed for this site</string>
@@ -1515,7 +1523,6 @@
     <string name="ai_reply_copy">Copy</string>
     <string name="ai_reply_share">Share</string>
     <string name="ai_reply_copied">Copied</string>
-    <string name="settings_special_group_ai">AI assistant</string>
     <string name="settings_ai_enabled">Enable AI assistant</string>
     <string name="settings_ai_enabled_desc">Adds an "AI assistant" item to the page menu</string>
     <string name="settings_ai_privacy_note">When used, the page text is sent to the provider you configured (DeepSeek by default). Content is not relayed through any third party. The endpoint can be changed under Advanced features → AI assistant.</string>
@@ -1554,4 +1561,24 @@ You can enter the model name manually.</string>
     <string name="about_support_share">Share</string>
     <string name="about_support_saved">Saved to gallery</string>
     <string name="about_support_op_failed">Failed, please try again</string>
+    <string name="block_hint">Block hint</string>
+    <string name="block_hint_summary">Show a brief notice above the toolbar when requests are blocked, auto-hides after 1.5s</string>
+    <string name="block_hint_ads">Blocked %1$d ads</string>
+    <string name="block_hint_privacy">Blocked %1$d privacy requests</string>
+    <string name="block_hint_both">Blocked %1$d sources (%2$d ads · %3$d privacy)</string>
+    <string name="translate_offline_unavailable_desc">Offline translation downloads language packs via Google Play services. Open Google services and retry, or switch to cloud translation.</string>
+    <string name="translate_switch_cloud">Use cloud translation</string>
+    <string name="translate_open_gms">Open Google services</string>
+    <string name="translate_mode_switched">Switched to cloud translation</string>
+    <string name="privacy_hint">Privacy hint</string>
+    <string name="privacy_hint_summary">Show per-category notices when trackers or miners are blocked on this page</string>
+    <string name="privacy_hint_tracking">Trackers %1$d</string>
+    <string name="privacy_hint_social">Social %1$d</string>
+    <string name="privacy_hint_miners">Miners %1$d</string>
+    <string name="privacy_hint_fingerprint">Fingerprinting %1$d</string>
+    <string name="privacy_hint_content">Content %1$d</string>
+    <string name="privacy_hint_prefix">Privacy: </string>
+    <string name="settings_ai_title">AI Assistant</string>
+    <string name="settings_ai_off">Off</string>
+    <string name="settings_ai_about">The AI assistant answers questions about the current page. Customize the endpoint, model and presets.</string>
 </resources>

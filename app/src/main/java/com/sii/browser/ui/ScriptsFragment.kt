@@ -71,7 +71,7 @@ class ScriptsFragment : Fragment() {
 
         listContainer = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(20))
+            setPadding(dp(20), dp(10), dp(20), dp(20))
         }
         addView(
             CardList.scroll(requireContext(), listContainer),

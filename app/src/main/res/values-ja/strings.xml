@@ -584,7 +584,7 @@
     <string name="privacy_custom">カスタム</string>
     <string name="privacy_stats">ブロック統計</string>
     <string name="privacy_stats_empty">ブロックの記録はありません</string>
-    <string name="privacy_compat">互換モード（標準）</string>
+    <string name="privacy_compat">サイト互換モード</string>
     <string name="privacy_compat_desc">認証、第三者ログイン、支払い、サポートのドメインを許可します（広告ルールは有効）。</string>
     <string name="privacy_breakage_hint">トラッカーをブロックすると、一部サイトでログイン・認証・コメント・再生が失敗することがあります。アドレスバーのパンダを長押しして「このサイトでプライバシー保護を一時停止」するか、下のブロックされたホストを許可してください。</string>
     <string name="privacy_tracking">トラッカー</string>
@@ -760,6 +760,7 @@
     <string name="site_rule_clip">クリップボード</string>
     <string name="site_rule_openapp">外部アプリを開く</string>
     <string name="site_rule_redirect">ページのリダイレクト</string>
+    <string name="redirect_prompt_message">%1$s から %2$s へリダイレクトします。許可しますか？</string>
     <string name="site_permission_generic">サイトの権限</string>
     <string name="permission_request_title">サイトの権限リクエスト</string>
     <string name="permission_request_message">%1$s が使用を求めています：%2$s</string>
@@ -864,6 +865,14 @@
     <string name="ssl_error_message">%1$s\\n%2$s</string>
     <string name="ssl_continue">アクセスを続ける</string>
     <string name="ssl_ignore_warning">「SSL 証明書エラーを無視」がオンです。続けるとアカウント、Cookie、ページ内容が漏えいする可能性があります。続行しますか？</string>
+    <string name="adblock_badge">ブロック通知を表示</string>
+    <string name="adblock_badge_desc">ブロック通知</string>
+    <string name="mini_dock_drag_hint">このピルはドラッグで移動できます。長押しして好きな位置へ</string>
+    <string name="adblock_badge_detail">このページで広告 %1$d 件、プライバシー要求 %2$d 件をブロック</string>
+    <string name="adblock_badge_summary">画面右下にシールドとブロック数を表示し、タップでツールバーを開きます</string>
+    <string name="privacy_icon_desc">プライバシー保護はオンです</string>
+    <string name="privacy_tracking_migrated">トラッカー遮断は新版の既定でオフになりました。ここで再びオンにできます</string>
+    <string name="ssl_continue_once">今回の起動中は %1$s の証明書警告を表示しません</string>
     <string name="ssl_view_cert">証明書を表示</string>
     <string name="site_info_title">ページ情報</string>
     <string name="site_menu_cookies">Cookies を表示</string>
@@ -1073,7 +1082,6 @@
     <string name="netlog_clear">ログを消去</string>
     <string name="netlog_blocked">ブロック済み</string>
     <string name="netlog_allowed">許可</string>
-    <string name="settings_site_permissions">権限</string>
     <string name="settings_permission_geo">位置情報</string>
     <string name="settings_permission_cam">カメラ</string>
     <string name="settings_permission_mic">マイク</string>
@@ -1202,7 +1210,7 @@
     <string name="download_bar_downloading">ファイルをダウンロード中：%1$s</string>
     <string name="history_load_more">さらに読み込む</string>
     <string name="settings_sniff">メディア検出</string>
-    <string name="settings_sniff_sites">スニッフ有効サイト</string>
+    <string name="settings_sniff_sites">リソーススニッフィング</string>
     <string name="sniff_sites_empty">スニッフを有効にしたサイトはまだありません。既定ではすべて無効です。ページのメニューからサイト単位で有効にできます。</string>
     <string name="sniff_sites_remove">削除</string>
     <string name="sniff_sites_removed">このサイトの検出を解除しました</string>
@@ -1511,7 +1519,6 @@
     <string name="ai_reply_copy">コピー</string>
     <string name="ai_reply_share">共有</string>
     <string name="ai_reply_copied">コピーしました</string>
-    <string name="settings_special_group_ai">AI アシスタント</string>
     <string name="settings_ai_enabled">AI アシスタントを有効にする</string>
     <string name="settings_ai_enabled_desc">ページメニューに「AI アシスタント」を追加します</string>
     <string name="settings_ai_privacy_note">使用時、ページ本文が設定したプロバイダー（既定では DeepSeek）に送信されます。内容が第三者を経由することはありません。エンドポイントは「特別な機能 → AI アシスタント」で変更できます。</string>
@@ -1550,4 +1557,24 @@
     <string name="about_support_share">共有</string>
     <string name="about_support_saved">ギャラリーに保存しました</string>
     <string name="about_support_op_failed">失敗しました。もう一度お試しください</string>
+    <string name="block_hint">ブロック通知</string>
+    <string name="block_hint_summary">ブロックがあったときツールバーの上に短く表示し、1.5 秒で自動的に消えます</string>
+    <string name="block_hint_ads">広告 %1$d 件をブロック</string>
+    <string name="block_hint_privacy">プライバシー要求 %1$d 件をブロック</string>
+    <string name="block_hint_both">%1$d 件の送信元をブロック（広告 %2$d・プライバシー %3$d）</string>
+    <string name="translate_offline_unavailable_desc">オフライン翻訳は Google Play 開発者サービス経由で言語パックをダウンロードします。サービスを開いて再試行するか、クラウド翻訳に切り替えてください。</string>
+    <string name="translate_switch_cloud">クラウド翻訳に切替</string>
+    <string name="translate_open_gms">Googleサービスを開く</string>
+    <string name="translate_mode_switched">クラウド翻訳に切り替えました</string>
+    <string name="privacy_hint">プライバシー通知</string>
+    <string name="privacy_hint_summary">トラッカーやマイニングをブロックしたとき、種類ごとに件数を表示します</string>
+    <string name="privacy_hint_tracking">トラッカー %1$d</string>
+    <string name="privacy_hint_social">ソーシャル %1$d</string>
+    <string name="privacy_hint_miners">マイニング %1$d</string>
+    <string name="privacy_hint_fingerprint">フィンガープリント %1$d</string>
+    <string name="privacy_hint_content">コンテンツ %1$d</string>
+    <string name="privacy_hint_prefix">プライバシー: </string>
+    <string name="settings_ai_title">AIアシスタント</string>
+    <string name="settings_ai_off">無効</string>
+    <string name="settings_ai_about">AIアシスタントは現在のページの内容について回答します。エンドポイント・モデル・プリセットをカスタマイズできます。</string>
 </resources>

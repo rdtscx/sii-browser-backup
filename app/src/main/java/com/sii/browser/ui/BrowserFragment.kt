@@ -48,6 +48,7 @@ import com.sii.browser.core.webview.WebViewCallback
 import com.sii.browser.core.webview.WebViewClientBridge
 import com.sii.browser.data.PrivacyLevels
 import com.sii.browser.data.SiteConfig
+import com.sii.browser.data.SiteIconCache
 import com.sii.browser.data.WebPageBehavior
 import com.sii.browser.di.AppServices
 import com.sii.browser.download.DownloadJsBridge
@@ -120,6 +121,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (isCurrentPageLoading()) {
             dockProgressClip?.setRunning(true)
             classicProgress?.setRunning(true)
+            miniDock?.setProgressRunning(true)
         }
     }
     private var dockStallPending = false
@@ -137,7 +139,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var homePanel: HomePanel? = null
     private var latestFavorites: List<com.sii.browser.data.db.FavoriteItem> = emptyList()
     /** 正在抓取的 .user.js 地址，避免重复弹窗。 */
-    private var allowRedirectOnce: String? = null
     private val installingScripts = mutableSetOf<String>()
     private val scriptPromptedUrls = mutableSetOf<String>()
     private val scriptInstallClient by lazy {
@@ -162,6 +163,25 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 打开 App 悬浮条：待跳转 intent 与回退地址。 */
     private var openAppPrompt: View? = null
     private var openAppPending: Pair<android.content.Intent, String?>? = null
+    /** 底部动作条的通用动作（与「拉起外部软件」共用同一个浮条）。 */
+    private var bottomPromptAction: (() -> Unit)? = null
+    /** 本次跳转链已放行：链上后续跳转不再重复追问（链结束即复位）。 */
+    private var redirectAllowedChain = false
+    /** 已放行的跳转目标地址：onPageStarted 只在真的进到这个地址时才复位链标记。 */
+    private var redirectAllowedUrl: String? = null
+    /** 本次导航由用户主动发起（点链接/地址栏/书签）：不参与重定向拦截。 */
+    private var userInitiatedNavigation = false
+    /** 网页用 target=_blank / window.open 开新标签时的来源 host，供新标签首次导航判定。 */
+    private var pendingOpenerHost: String? = null
+    /**
+     * 本次跳转链里各 host 对（发起方>目标方）最近一次询问的时间。
+     *
+     * 一次跨站跳转常常裂成好几个主框架导航（location.href → 服务端 302 → 落地页），
+     * 每个都会走进 handleRedirectDecision()。没有这个记录时，同一件事会被连着问
+     * 好几次——用户看到的就是询问条反复弹出。窗口内不重复问，超过窗口重新问，
+     * 避免用户忽略之后再点同一广告却被静默拦住、毫无反馈。
+     */
+    private val redirectAskedChain = mutableMapOf<String, Long>()
     private var homeContainer: FrameLayout? = null
     private var tabsOverlay: View? = null
     private var tabsList: LinearLayout? = null
@@ -214,6 +234,40 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var pendingRender: PendingRender? = null
     private var ttsBar: View? = null
     private var toolbarHidden = false
+    /**
+     * 本次运行内已确认「继续访问」的证书错误域名。
+     * 同一个域名只问一次；不落盘，关掉 App 后失效。
+     */
+    private val sslAllowedHosts = mutableSetOf<String>()
+
+    /** 每个标签最近一次主文档导航的 URL：证书错误回调据此区分主文档与子资源。 */
+    private val mainFrameUrls = java.util.WeakHashMap<SiiWebView, String>()
+
+    /** 网页页的迷你底栏（盾牌 + 拦截数），点开展开完整悬浮底栏。 */
+    private var miniDock: MiniDock? = null
+
+    /** 底栏↔胶囊形变的兜底收尾；动画被 cancel 时靠它落地。 */
+    private var dockMorphGuard: Runnable? = null
+
+    /** 上一次胶囊收起时刻，用于 300ms 冷却。 */
+    private var lastDockHideAt = 0L
+
+    /** 拦截提示浮条：与翻译提示位置相同，出现时互相顶替。 */
+    private var blockHint: android.widget.TextView? = null
+    private var blockHintFade: Runnable? = null
+    /** 首次弹出的延迟任务；期间又有新拦截会被取消，由下一次调用接管。 */
+    private var blockHintStart: Runnable? = null
+
+    /** 迷你胶囊当前展示的是哪个站的图标，避免每帧重复设图。 */
+    private var miniIconHost: String? = null
+    /** 正在抓取图标的域名，防止重复请求。 */
+    private val miniIconPending = HashSet<String>()
+
+    /** 经典界面的拦截数气泡：贴在地址栏右侧，和迷你胶囊共用同一份本页计数。 */
+
+    /** 完整底栏是否因「收成迷你」而隐藏；与滚动自动隐藏的 toolbarHidden 分开记。 */
+    private var dockMinimized = false
+
     /** 快捷引擎栏随页面滚动收起/出现的状态。 */
     private var quickEngineHidden = false
     private var quickEngineAnimator: ValueAnimator? = null
@@ -284,6 +338,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         addressInput = view.findViewById(R.id.address_input)
         siteInfoButton = view.findViewById(R.id.site_info_button)
         translateStatus = view.findViewById(R.id.translate_status)
+        blockHint = view.findViewById(R.id.block_hint)
         translateStatus?.setOnClickListener { onTranslateStatusClick() }
         translateTool = view.findViewById(R.id.translate_tool)
         translateTool?.setOnClickListener {
@@ -334,6 +389,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         view.findViewById<View>(R.id.modern_quick_host)?.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
             if (bottom - top != oldBottom - oldTop) syncDockProgressInset()
         }
+        setupMiniDock(view)
         webViewContainer = view.findViewById(R.id.webview_container)
         homeContainer = view.findViewById(R.id.home_container)
         tabsOverlay = view.findViewById(R.id.tabs_overlay)
@@ -347,6 +403,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         sniffPrompt?.findViewById<View>(R.id.sniff_prompt_ignore)?.setOnClickListener { ignoreSiteSniff() }
         openAppPrompt = view.findViewById(R.id.open_app_prompt)
         openAppPrompt?.findViewById<View>(R.id.open_app_prompt_allow)?.setOnClickListener {
+            // 底部浮条是共用的：优先执行通用动作（页面重定向），否则走外部应用跳转。
+            val shared = bottomPromptAction
+            if (shared != null) {
+                hideOpenAppPrompt()
+                shared()
+                return@setOnClickListener
+            }
             val pending = openAppPending ?: return@setOnClickListener
             hideOpenAppPrompt()
             startExternal(pending.first, pending.second)
@@ -692,11 +755,23 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 取消尚未提交的跳转，回到发起导航时的页面（不移动历史）。 */
     private fun cancelPendingNavigation(): Boolean {
         val webView = tabManager.currentWebView ?: return false
+        // 从主页发起、但页面还没提交就按了返回：语义是「回主页」，不是「留在上一页」。
+        // 之前一律按已提交历史收尾，会把用户丢回上一个网站（A）；而 A 里的译文又会让
+        // 翻译浮条重新挂上「自动翻译中」，形成「回到 A 且浮条不消失」。
+        val fromHome = navFromHome
         webView.stopLoading()
         pageLoadFinished[webView] = true
         finishProgressBar()
         setRefreshLoading(false)
         hidePageLoadingCover(fade = false)
+        if (fromHome) {
+            // 主页是根：把这次没进去的导航整条作废，别让 A 变成「上一页」。
+            navFromHome = false
+            homeOverlayActive = false
+            homeForwardAvailable = false
+            backToHomeWithoutHistory()
+            return true
+        }
         val committed = runCatching {
             val list = webView.copyBackForwardList()
             list.getItemAtIndex(list.currentIndex)?.url
@@ -1491,9 +1566,13 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val root = view ?: return
         val modern = AppServices.settings.uiStyle() == 1
         val lift = if (modern) {
-            val dockHeight = root.findViewById<View>(R.id.modern_chrome)?.height
-                ?.takeIf { it > 0 } ?: dp(56)
-            dockHeight + dp(14)
+            if (dockMinimized) {
+                miniDock?.liftPx() ?: (dp(40) + dp(12))
+            } else {
+                val dockHeight = root.findViewById<View>(R.id.modern_chrome)?.height
+                    ?.takeIf { it > 0 } ?: dp(56)
+                dockHeight + dp(14)
+            }
         } else 0
         // 各条经典模式的基准底距，与 applyFloatingBarLift 的 classic 值一致。
         val baseOf = mapOf(
@@ -3066,15 +3145,29 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val fullscreen = pageFullscreenStates[current] == true
         val viewer = AppServices.settings.hideChromeOnImageView() &&
             imageViewerStates[current] == true
-        dock.visibility = if (fullscreen || viewer) View.GONE else View.VISIBLE
+        val hide = fullscreen || viewer
+        // 全屏/看大图时迷你胶囊也必须一起收起，否则正文上还留着一个盾牌。
+        if (hide) {
+            miniDock?.hideMini(false)
+            dock.visibility = View.GONE
+        } else if (dockMinimized) {
+            dock.visibility = View.GONE
+            miniDock?.showMini(false)
+        } else {
+            dock.visibility = View.VISIBLE
+        }
+        // 退出全屏/看大图后按新状态补一次判定（如切站后应回到迷你态）。
+        if (!hide) view?.post { refreshMiniBadge() }
     }
 
     /** 网页全屏时收起浏览器控件，退出时恢复。 */
     private fun setBrowserChromeVisible(visible: Boolean) {
         val root = view ?: return
         val modern = AppServices.settings.uiStyle() == 1
+        if (!visible) miniDock?.hideMini(false)
+        else if (dockMinimized) miniDock?.showMini(false)
         root.findViewById<View>(R.id.modern_chrome)?.visibility =
-            if (modern && visible) View.VISIBLE else View.GONE
+            if (modern && visible && !dockMinimized) View.VISIBLE else View.GONE
         root.findViewById<View>(R.id.address_bar)?.visibility =
             if (visible) View.VISIBLE else View.GONE
         root.findViewById<View>(R.id.bottom_bar)?.visibility =
@@ -3292,6 +3385,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace("\"", "&quot;")
         val target = esc(url)
         val desc = esc(description.orEmpty())
+        // 隐私拦截是「网站打不开」的常见原因：直接在错误页给放行入口，
+        // 比把说明埋在设置页里管用（用户撞墙时不会去翻设置）。
+        val host = runCatching { android.net.Uri.parse(url).host?.lowercase() }.getOrNull().orEmpty()
+        val canPausePrivacy = host.isNotEmpty() &&
+            AppServices.settings.privacyLevel() > 0 && !sitePrivacyPaused(host)
         return "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">" +
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">" +
             "<title>无法打开该网页</title><style>" +
@@ -3302,11 +3400,18 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "border-radius:10px;padding:8px 10px;margin:0 0 12px;text-align:left}" +
             ".retry{display:inline-block;margin-top:20px;padding:11px 26px;background:#2f7cf6;color:#fff;" +
             "border-radius:10px;text-decoration:none;font-size:14px}" +
+            ".retry.alt{background:#ececf0;color:#2f7cf6;font-size:13px;padding:9px 20px;margin-top:10px}" +
+            ".hint{margin-top:22px;font-size:12.5px;color:#8a8f99}" +
             "</style></head><body>" +
             "<div class=\"title\">无法打开该网页</div>" +
             "<div class=\"code\">$target</div>" +
             (if (desc.isEmpty()) "" else "<div class=\"code\">$desc</div>") +
             "<a class=\"retry\" href=\"$target\">重试</a>" +
+            (if (canPausePrivacy) {
+                "<div class=\"hint\">若开启了隐私保护，本站可能被拦截规则误伤</div>" +
+                    "<a class=\"retry alt\" href=\"" + PAUSE_PRIVACY_URL + host + "\">" +
+                    "本站暂停隐私拦截并重试</a>"
+            } else "") +
             "</body></html>"
     }
 
@@ -3581,9 +3686,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             !com.sii.browser.core.webview.OfflineTranslator
                 .isOfflineAvailable(requireContext())
         ) {
-            Toast.makeText(
-                requireContext(), R.string.translate_offline_unavailable, Toast.LENGTH_LONG
-            ).show()
+            promptOfflineUnavailable()
             return
         }
         val dialog = android.app.AlertDialog.Builder(requireContext())
@@ -3710,7 +3813,16 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (!isAdded) return
         val wv = tabManager.currentWebView ?: return
         val url = tabManager.current?.url ?: return
-        if (!url.startsWith("http")) return
+        // 非网页（主页 about:home、新标签等）：翻译入口没有意义，必须把按钮收掉。
+        // 之前直接 return，导致从英文站退回主页后「文A」按钮残留不消失。
+        if (!url.startsWith("http")) {
+            if (translateFabState != 0) {
+                translateFabState = 0
+                updateTranslateFab()
+                saveTranslateTabState(wv)
+            }
+            return
+        }
         val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.lowercase()
         if (siteTranslateButtonMode(host) == 2) {
             translateTool?.visibility = View.GONE
@@ -3798,6 +3910,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
         // 离线模式且语言包未下载：不跑收集与翻译，直接引导去下载。
         if (AppServices.settings.translateMode() == 2) {
+            // 无 GMS 时提前给出「打开谷歌服务 / 切换云翻译」两条路，不让 ML Kit 调用发生
+            //（缺 GMS 时它会在主线程抛未捕获异常直接闪退）。
+            if (!com.sii.browser.core.webview.OfflineTranslator
+                    .isOfflineAvailable(requireContext())
+            ) {
+                promptOfflineUnavailable()
+                return
+            }
             viewLifecycleOwner.lifecycleScope.launch {
                 if (!isAdded) return@launch
                 if (offlinePackReady()) startPageTranslate() else showOfflinePackNeeded()
@@ -3867,8 +3987,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             autoTranslatePaused = false
             autoEmptyRounds = 0
             translatedTotal = 0
+            // 一开始就带总数，避免先闪一下无数字的「翻译中」再跳成「翻译中 3/48」。
+            // done 从 0 起，200ms 后由 onProgress 接管继续走数。
             showTranslateStatus(
-                getString(R.string.translate_in_progress),
+                getString(R.string.translate_progress, 0, texts.length()),
                 initialAlpha = 1f
             )
             translateShowOriginal = false
@@ -4218,6 +4340,37 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }.getOrDefault(false)
 
     /** 离线语言包缺失：提示并提供直达下载页的入口。 */
+    /**
+     * 离线翻译不可用（无 GMS）时给用户两条路：
+     * 打开谷歌服务（去 Play 服务应用信息页，可打开/更新），或直接切到云翻译并继续。
+     *
+     * [afterSwitch] 在用户选择「切换云翻译」后执行，调用方用它继续刚才被打断的翻译。
+     */
+    private fun promptOfflineUnavailable(afterSwitch: (() -> Unit)? = null) {
+        if (!isAdded) return
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.translate_offline_unavailable)
+            .setMessage(R.string.translate_offline_unavailable_desc)
+            .setPositiveButton(R.string.translate_switch_cloud) { _, _ ->
+                AppServices.settings.setTranslateMode(1)
+                Toast.makeText(
+                    requireContext(), R.string.translate_mode_switched, Toast.LENGTH_SHORT
+                ).show()
+                afterSwitch?.invoke()
+            }
+            .setNegativeButton(R.string.translate_open_gms) { _, _ ->
+                runCatching {
+                    startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:com.google.android.gms")
+                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+            .show()
+    }
+
     private fun showOfflinePackNeeded() {
         if (!isAdded) return
         android.app.AlertDialog.Builder(requireContext())
@@ -4356,6 +4509,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (wv == null || wv !== tabManager.currentWebView) return
         if (AppServices.settings.translateMode() == 0) return
         if (homeContainer?.visibility == View.VISIBLE) return
+        // 主页覆盖在网页之上时，界面语义是「主页」，不该恢复翻译入口。
+        // 判定只用 homeOverlayActive：navFromHome 从主页进站后会持续为 true，
+        // 用它当守卫会把「回到已翻译页面恢复原/译按钮」一并挡掉。
+        if (homeOverlayActive) return
         if (translateFabState == 2 || translateFabState == 3) return
         wv.evaluateJavascript(
             "(function(){var t=window.__siiTranslate;" +
@@ -4401,6 +4558,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 翻译按钮：可翻译时显示「文A」，已翻译时显示「原 / 译」并点击切换。 */
     private fun updateTranslateFab() {
+        syncMiniTranslateState()
         val tool = translateTool ?: return
         if (AppServices.settings.translateMode() == 0) {
             cancelTranslateFabAutoHide()
@@ -4507,9 +4665,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val root = view ?: return
         val modern = AppServices.settings.uiStyle() == 1
         val lift = if (modern) {
-            val dockHeight = root.findViewById<View>(R.id.modern_chrome)?.height
-                ?.takeIf { it > 0 } ?: dp(56)
-            dockHeight + dp(14)
+            // 收起成迷你胶囊后底栏高度为 0，浮动条得按小胶囊的高度抬，否则会压到盾牌上。
+            if (dockMinimized) {
+                miniDock?.liftPx() ?: (dp(40) + dp(12))
+            } else {
+                val dockHeight = root.findViewById<View>(R.id.modern_chrome)?.height
+                    ?.takeIf { it > 0 } ?: dp(56)
+                dockHeight + dp(14)
+            }
         } else 0
         fun setBottom(id: Int, classic: Int) {
             val target = root.findViewById<View>(id) ?: return
@@ -4525,6 +4688,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         setBottom(R.id.sniff_prompt, 10)
         setBottom(R.id.open_app_prompt, 10)
         setBottom(R.id.translate_status, 72)
+        // 拦截提示紧贴当前工具栏上沿：新版三种形态（完整底栏 / 小胶囊）都按 lift 抬，
+        // 经典模式 lift 为 0，落到距底 72dp 的默认位置。
+        setBottom(R.id.block_hint, 72)
         applyFloatingBarStyle(modern)
         relayoutHintBars()
     }
@@ -4534,17 +4700,35 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val root = view ?: return
         val context = requireContext()
         val dark = modern && AppServices.settings.isNightMode()
-        val barBg = if (dark) R.drawable.bg_float_dark else R.drawable.bg_hint_bar
         val textColor = if (dark) android.graphics.Color.WHITE
         else context.getColor(R.color.text_primary)
         val secondary = if (dark) 0x99FFFFFF.toInt()
         else context.getColor(R.color.text_secondary)
-        root.findViewById<View>(R.id.find_bar)?.setBackgroundResource(barBg)
-        root.findViewById<View>(R.id.tts_bar)?.setBackgroundResource(barBg)
-        root.findViewById<View>(R.id.download_bar)?.setBackgroundResource(barBg)
-        root.findViewById<View>(R.id.sniff_prompt)?.setBackgroundResource(barBg)
-        root.findViewById<View>(R.id.open_app_prompt)?.setBackgroundResource(barBg)
-        root.findViewById<View>(R.id.translate_status)?.setBackgroundResource(barBg)
+        // 浮条统一跟随「界面 DIY → 主题 → 玻璃强度」。
+        val strength = AppServices.settings.glassStrength()
+        val radius = dp(16).toFloat()
+        fun glassBg(): android.graphics.drawable.Drawable =
+            GlassStyle.surface(
+                context, dark, radius, strength,
+                minAlpha = 200,
+                highlight = if (dark) 0.10f else 0.06f,
+                shade = 0.03f
+            )
+        listOf(
+            R.id.find_bar, R.id.tts_bar, R.id.download_bar,
+            R.id.sniff_prompt, R.id.open_app_prompt, R.id.block_hint
+        ).forEach { id -> root.findViewById<View>(id)?.background = glassBg() }
+        // 翻译浮条单独算暗色：它原先靠 @color/card 的资源夜间值变深，在经典底栏模式下
+        // 夜间也是深底；若沿用上面的 `dark = modern && isNightMode()`，经典模式夜间会
+        // 算出白色玻璃，而文字色是夜间浅色，直接看不见。这里只按 isNightMode() 判。
+        val statusDark = AppServices.settings.isNightMode()
+        root.findViewById<View>(R.id.translate_status)?.background =
+            GlassStyle.surface(
+                context, statusDark, radius, strength,
+                minAlpha = 200,
+                highlight = if (statusDark) 0.10f else 0.06f,
+                shade = 0.03f
+            )
         root.findViewById<android.widget.EditText>(R.id.find_input)?.apply {
             setTextColor(textColor)
             setHintTextColor(secondary)
@@ -4552,10 +4736,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         listOf(
             R.id.find_count, R.id.find_prev, R.id.find_next, R.id.find_close,
             R.id.tts_status, R.id.tts_stop, R.id.download_bar_text,
-            R.id.sniff_prompt_title, R.id.sniff_prompt_download, R.id.translate_status
-        ).forEach { id ->
-            root.findViewById<TextView>(id)?.setTextColor(textColor)
-        }
+            R.id.sniff_prompt_title, R.id.sniff_prompt_download, R.id.block_hint
+        ).forEach { id -> root.findViewById<TextView>(id)?.setTextColor(textColor) }
         root.findViewById<ImageView>(R.id.sniff_prompt_close)?.imageTintList =
             android.content.res.ColorStateList.valueOf(secondary)
     }
@@ -4618,7 +4800,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 )
                 if (idle) {
                     idle = false
-                    showTranslateStatus(getString(R.string.translate_in_progress), initialAlpha = 1f)
+                    // 补翻阶段同样带数字（这轮扫到几条就是总数），不传 onProgress，
+                    // 避免几条文本的数字快速跳动像闪烁。
+                    showTranslateStatus(
+                        getString(R.string.translate_progress, 0, texts.length()),
+                        initialAlpha = 1f
+                    )
                 }
                 val (results, _) = translateBatch(texts, pollTarget, activeTranslateSource)
                 if (!isAdded) return@launch
@@ -4714,6 +4901,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return
         }
         if (wasCurrent) applyTranslateTabState(tabManager.currentWebView)
+        // 关标签后若剩下的是「当前标签」而主页面板仍处于可见态（例如关标签前刚退回主页），
+        // 必须把 WebView 重新显示出来，否则会出现「地址栏有网址、画面空白」。
+        if (wasCurrent && homeContainer?.visibility == View.VISIBLE) {
+            showWeb()
+        }
         devToolsPanel?.onWebViewChanged()
     }
 
@@ -4770,6 +4962,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     /** 统一加载入口：about:home 显示主页，其余走 WebView（无当前标签时先创建）。 */
     private fun loadUrlFor(rawUrl: String) {
         com.sii.browser.core.mcp.DiagLog.record("load", rawUrl)
+        // 走这个入口的都是用户明确要去某处（地址栏、书签、搜索、主页常用站点）：
+        // 打标记让重定向拦截放行本次。窗口只留 600ms —— 足够覆盖首次导航提交，
+        // 又不会把「进站后站点自己发起的落地跳转」一并放过（那才该按配置询问）。
+        userInitiatedNavigation = true
+        redirectAllowedChain = false
+        // 用户主动开新页：上一轮的「已问过」记录作废，新页面里的跨站跳转要重新问。
+        redirectAskedChain.clear()
+        view?.postDelayed({ userInitiatedNavigation = false }, 600L)
         keepToolbarVisibleWhileLoading()
         homePanel?.dismissSuggestions()
         blurAddressInput()
@@ -5222,6 +5422,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         hidePageLoadingCover()
         hideSniffPrompt()
         hideOpenAppPrompt()
+        // 拦截提示属于「网页里的状态」，主页不是网页：不回主页它会一直留在屏幕上。
+        hideBlockHint()
         val wasWebVisible = homeContainer?.visibility != View.VISIBLE
         if (tabManager.current == null && createTab) {
             tabManager.newTab(ABOUT_HOME)
@@ -5266,6 +5468,24 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         pageFullscreenStates.remove(tabManager.currentWebView)
         imageViewerStates.remove(tabManager.currentWebView)
         applyPageFullscreenChrome()
+        // 底栏形态要等主页容器真正可见后再判定，否则会误判成「仍在网页」。
+        syncMiniDockState(animated = false)
+        // 退回主页时收起翻译入口。主页不是网页，翻译按钮（含已翻译时的「原/译」）都没有意义。
+        // 之前只在 onResume 里刷新，而「网页 → 主页」是同 Fragment 内切换、不触发 onResume，
+        // 所以从已翻译的网站退回主页后按钮会残留。
+        if (translateFabState != 0) {
+            translateFabState = 0
+            translateShowOriginal = false
+            autoTranslatePaused = false
+            updateTranslateFab()
+            saveTranslateTabState(tabManager.currentWebView)
+        }
+        // 主页不是网页：轮询必须停。它在主页期间仍会对不可见的页面空扫，空扫 3 轮后
+        // 会弹一次「网页翻译完成」，变成主页上莫名冒出一条浮条。
+        translatePolling?.cancel()
+        translatePolling = null
+        autoEmptyRounds = 0
+        hideTranslateStatus()
         if (AppServices.settings.uiStyle() != 1) renderTabs()
         // 同步启动，避免先画出一帧完整内容再重置透明导致的闪一下。
         if (wasWebVisible) homePanel?.playIntro()
@@ -5282,6 +5502,8 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         exitArmed = false
         homePanel?.exitSearchInput()
         homeContainer?.visibility = View.GONE
+        // 主页容器先隐藏，迷你胶囊的判定才拿得到「当前是网页」。
+        syncMiniDockState(animated = true)
         attachCurrentWebView()
         tabManager.currentWebView?.visibility = View.VISIBLE
         // 从主页发起导航时进度条被“主页不显示”挡住，切到网页后补上当前进度。
@@ -7544,10 +7766,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         hideKeyboard()
         hideSuggestions()
         // 滚动收起的底栏保持收起：触摸网页也会走到这里，复位会把底栏弹出来。
-        if (AppServices.settings.uiStyle() == 1 && !toolbarHidden) {
+        // 小胶囊模式同理：这里复位会把正在淡出的完整底栏拉回来、并打断动画，
+        // 结果就是「收了但只变半透明」。所以只在完整底栏可见时才复位。
+        if (AppServices.settings.uiStyle() == 1 && !toolbarHidden && !dockMinimized) {
             // 取消编辑时键盘还在收起，底栏先复位；等键盘完全收起再校正一次。
             val dock = view?.findViewById<View>(R.id.modern_chrome)
-            if (dock != null) {
+            if (dock != null && dock.visibility == View.VISIBLE) {
                 dock.animate().cancel()
                 dock.translationY = 0f
                 view?.postDelayed({ if (isAdded) applyDockImeOffset() }, 260L)
@@ -7566,6 +7790,33 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private fun dpToPx(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
+    /**
+     * 当前页面若是某个搜索引擎的结果页，就给对应芯片上淡主题色，其余恢复默认。
+     * 只在芯片行可见时调用（结果页），普通网页无需处理。
+     */
+    private fun syncActiveEngineChip() {
+        val bar = view?.findViewById<LinearLayout>(R.id.search_toolbar) ?: return
+        if (bar.childCount == 0) return
+        val url = tabManager.current?.url ?: return
+        val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return
+        val host = uri.host?.lowercase() ?: return
+        val path = uri.path.orEmpty()
+        val params = uri.queryParameterNames
+        val accent = ThemeAccent.color(requireContext())
+        val normal = requireContext().getColor(R.color.text_primary)
+        for (i in 0 until bar.childCount) {
+            val chip = bar.getChildAt(i) as? TextView ?: continue
+            val template = chip.tag as? String ?: continue
+            val active = matchesSearchEngine(
+                com.sii.browser.data.SearchEngines.normalize(template), host, path, params
+            )
+            chip.setBackgroundResource(
+                if (active) R.drawable.bg_engine_chip_active else R.drawable.bg_engine_chip
+            )
+            chip.setTextColor(if (active) accent else normal)
+        }
+    }
+
     /** 快捷引擎栏：一排可横向滚动的引擎按钮，点击用该引擎搜索当前输入。 */
     private fun setupSearchToolbar() {
         val scroll = view?.findViewById<HorizontalScrollView>(R.id.search_toolbar_scroll) ?: return
@@ -7576,7 +7827,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             return
         }
         configuredSearchEngines().forEach { (name, url) ->
-            bar.addView(TextView(requireContext()).apply {
+            val chip = TextView(requireContext()).apply {
                     text = name
                     setTextSize(13f)
                     setTextColor(requireContext().getColor(R.color.text_primary))
@@ -7598,7 +7849,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                         )
                     }
                 }
-            })
+            }
+            // 记下对应的搜索模板，供「当前引擎」高亮比对。
+            chip.tag = url
+            bar.addView(chip)
         }
         applyQuickEnginePosition()
     }
@@ -7764,13 +8018,25 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         return SiteConfig.enabled(config) && SiteConfig.tri(config, "incog") == 1
     }
 
-    /** 无痕时左侧固定图标换成无痕图标，点击行为不变。 */
+    /** 无痕/隐私保护时左侧固定图标换成对应图标，点击行为不变。 */
     private fun updateSiteInfoIcon() {
         scheduleBookmarkCheck()
+        refreshMiniSiteIcon()
         val button = siteInfoButton as? android.widget.ImageButton ?: return
         val tab = tabManager.current
         val incognito = currentIncognito()
+        // 隐私保护开着且本站未被暂停时，图标让位给盾牌：安全告警仍然优先。
+        val privacyOn = AppServices.settings.privacyLevel() > 0 &&
+            !sitePrivacyPaused(currentPageHost().orEmpty())
         when {
+            privacyOn && tab?.security != SiteSecurity.THREAT &&
+                tab?.security != SiteSecurity.CERT_ERROR -> {
+                button.setImageResource(R.drawable.ic_m_privacy_lock)
+                button.imageTintList = android.content.res.ColorStateList.valueOf(
+                    ThemeAccent.color(requireContext())
+                )
+                button.contentDescription = getString(R.string.privacy_icon_desc)
+            }
             incognito -> {
                 button.setImageResource(R.drawable.ic_m_incog)
                 button.imageTintList = android.content.res.ColorStateList.valueOf(
@@ -7811,6 +8077,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
         }
     }
+
 
     /** 点击地址栏熊猫头：切换当前站点收藏。 */
     private fun toggleBookmarkForCurrent() {
@@ -7962,7 +8229,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             "pv"
         ) == 2
 
-    private fun toggleSitePrivacyPause(host: String) {
+    private fun toggleSitePrivacyPause(host: String, reload: Boolean = true) {
         val repo = AppServices.siteConfigRepository
         val json = runCatching {
             org.json.JSONObject(repo.cachedConfig(host) ?: "{}")
@@ -7974,7 +8241,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         // 先更新内存缓存与引擎，主线程立即生效；入库放到 IO。
         repo.cachePut(host, raw)
         AppServices.refreshAdBlockWhitelist()
-        tabManager.currentWebView?.reload()
+        updateSiteInfoIcon()
+        refreshMiniBadge()
+        if (reload) tabManager.currentWebView?.reload()
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { repo.put(host, raw) }
         }
@@ -8171,6 +8440,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             scroll.layoutParams = scroll.layoutParams.apply { height = quickEngineFullHeight }
         }
         scroll.visibility = if (visible) View.VISIBLE else View.GONE
+        if (visible) syncActiveEngineChip()
         // 立即同步一次（芯片行显隐已定），布局完成后再补一次（高度才可靠）。
         syncDockProgressInset()
         view?.post { syncDockProgressInset() }
@@ -8517,6 +8787,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 // 加载中标记：0% 时也要有「正在加载」的反馈（极淡底线）。
                 dockProgressClip?.setActive(true)
                 classicProgress?.setActive(true)
+                // 胶囊环形进度同步进入 active：小胶囊模式下这是唯一可见的进度反馈。
+                miniDock?.setProgressActive(true)
+                miniDock?.setProgress(progressBar?.progress ?: 0)
+                // 新的一页开始：收起上一页残留的提示。
+                if (!continuing) hideBlockHint()
                 syncDockProgress()
                 // 加载一开始就排上停滞计时：DNS/连接阶段可能长时间没有任何进度回调，
                 // 光等 onProgressChanged 会一直等不到，用户就只能盯着不动的色块。
@@ -8532,6 +8807,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             setRefreshLoading(false)
             restorePendingScroll(wv)
             scheduleHintRelayout()
+            // 兜底：收尾链路可能因为重定向让 progressToken 作废而整段跳过，
+            // 这里在页面确实结束后再确认一次胶囊环没有残留。
+            miniDock?.setProgressRunning(false)
         }
     }
 
@@ -8668,6 +8946,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 classic?.setAlpha(255)
                 classic?.setProgress(0)
                 classic?.setActive(false)
+                // 胶囊环形进度必须一起复位：它挂在独立视图上，不会跟着底栏淡出，
+                // 漏这一步就会留下一个常亮不走的环。
+                miniDock?.setProgressRunning(false)
+                miniDock?.setProgressActive(false)
                 // 记下收尾时刻：紧随其后的导航（重定向、JS 跳转）仍算同一轮，不能重走一遍进度。
                 progressRoundEndAt = android.os.SystemClock.elapsedRealtime()
                 setRefreshLoading(false)
@@ -8685,6 +8967,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             progressBar?.progress = 0
             dockProgressClip?.setActive(false)
             classicProgress?.setActive(false)
+            miniDock?.setProgressActive(false)
             syncDockProgress()
             return
         }
@@ -8837,6 +9120,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             }
             setDownloadListener { url, _, contentDisposition, mimeType, _ ->
                 if (url.isNullOrBlank()) return@setDownloadListener
+                // 视图已销毁时 DownloadListener 仍可能被 WebView 回调（切后台/多标签切换时）。
+                // 此时访问 viewLifecycleOwner 会抛 IllegalStateException 直接崩溃，必须先挡掉。
+                // 注意：真正的下载由 DownloadService 前台服务接管，这里返回不会丢任务。
+                if (!isAdded || view == null) return@setDownloadListener
                 val quickName = com.sii.browser.download.DownloadNaming
                     .resolve(url, contentDisposition, mimeType)
                 if (isUserScriptUrl(url) || quickName.lowercase().endsWith(".user.js")) {
@@ -8857,7 +9144,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                     return@setDownloadListener
                 }
                 // 先向服务器要一次真实头信息（Content-Disposition / 大小），拿到再弹框，避免哈希名。
-                viewLifecycleOwner.lifecycleScope.launch {
+                // 用 Activity 的 scope 而非 viewLifecycleOwner：探测期间视图可能被销毁，
+                // 用视图 scope 会在恢复时抛 IllegalStateException；函数内部已有 view == null 判断。
+                requireActivity().lifecycleScope.launch {
                     val probe = runCatching {
                         AppServices.downloadEngine.probe(url, tabManager.current?.url)
                     }.getOrNull()
@@ -9232,6 +9521,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             ) {
                 navFromHome = false
             }
+            // 注意：这里**不能**把「用户点了页面里的链接」当作放行理由。
+            // hitTestResult.type == 0 只表示没命中元素，点到广告图片/广告链接恰好
+            // 非 0；若据此打标记，点广告反而会绕过重定向询问直接跳走。
+            // 页面内点击的跨主域跳转一律交给 handleRedirectDecision() 按配置判定。
             return 0
         }
 
@@ -9273,6 +9566,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         }
 
         override fun onPageStarted(webView: SiiWebView?, url: String, favicon: Bitmap?) {
+            webView?.let { mainFrameUrls[it] = url }
             if (webView === tabManager.currentWebView) {
                 com.sii.browser.core.mcp.DiagLog.record("start", url)
                 revealToolbarOnNavigate()
@@ -9295,6 +9589,27 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 webView?.injectJavaScript(com.sii.browser.core.webview.SniffJsBridge.SNIFF_JS)
             }
             val startedUrl = url.ifBlank { webView?.url.orEmpty() }
+            // 用户批准的那次跳转真正落地了：这一轮放行到此为止，链标记清掉，
+            // 站内后续再发生的跨站跳转要重新追问（否则一次批准等于永久放行）。
+            if (redirectAllowedChain && redirectAllowedUrl != null &&
+                (startedUrl == redirectAllowedUrl || startedUrl.startsWith(redirectAllowedUrl.orEmpty()))
+            ) {
+                redirectAllowedChain = false
+                redirectAllowedUrl = null
+            }
+            // 注意：不在这里清 pendingOpenerHost。新标签的 shouldLoad 判定可能晚于
+            // 这个回调，提前清掉会让 target=_blank 的跨站跳转直接放行。
+            // 它由 handleRedirectDecision() 内部在放行/拦截后自行清理。
+            // 换页就清零「本页拦截数」，气泡永远只反映当前页面。
+            if (webView === tabManager.currentWebView) {
+                AppServices.adBlock.resetPageStats()
+                refreshMiniBadge(0, 0)
+                // 新页面开始加载：不管上一次是否被点开过，都回到「迷你」常态。
+                if (dockMinimized || shouldMinimizeDock(startedUrl)) {
+                    dockMinimized = true
+                    view?.post { syncMiniDockState(animated = true) }
+                }
+            }
             // 抓包：新导航清空该标签旧记录（保留本次主文档），再注入 fetch/XHR hook。
             webView?.let { target ->
                 com.sii.browser.core.webview.NetworkCapture.clear(target, startedUrl)
@@ -9559,6 +9874,12 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             // 占位用空 url：真实地址由首次 onPageStarted 写入，避免地址栏闪现 about:home 与联想。
             val openerId = tabManager.tabs.firstOrNull { it.webView === webView }?.id
             val tab = tabManager.newTab("", openerId)
+            // 记下来源 host：新标签的首次导航要拿它判断「是否跨站」，
+            // 否则 target=_blank 打开的新页面 currentUrl 为空，重定向判定会直接放行
+            // ——这正是广告最常走的一条路。
+            pendingOpenerHost = runCatching {
+                android.net.Uri.parse(webView?.url.orEmpty()).host?.lowercase()
+            }.getOrNull()
             // 新标签是独立导航，来源标签的主页覆盖态与“来自主页”标记不能带过来。
             navFromHome = false
             homeOverlayActive = false
@@ -9714,17 +10035,41 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 tab.security = SiteSecurity.CERT_ERROR
                 if (webView === tabManager.currentWebView) updateSiteInfoIcon()
             }
+            val errorUrl = error.url.orEmpty()
+            val errorHost = runCatching { android.net.Uri.parse(errorUrl).host }
+                .getOrNull()?.lowercase().orEmpty()
+            // 子资源（图片/脚本/统计像素）证书出错时不再每次都弹框：
+            // 主文档已经由用户确认过，子资源重复询问只会把界面钉在弹窗上。
+            // 地址栏左侧依旧显示告警图标，安全状态对用户可见。
+            val pageUrl = tabManager.current?.url.orEmpty()
+            val pageHost = runCatching { android.net.Uri.parse(pageUrl).host }
+                .getOrNull()?.lowercase().orEmpty()
+            // 主文档 host 以最近一次 onPageStarted 为准（换站导航时也已是新域），
+            // 域名不同即视为子资源（图片/脚本/统计像素），不再重复弹框。
+            val mainUrl = (webView?.let { mainFrameUrls[it] }).orEmpty().ifEmpty { pageUrl }
+            val mainHost = runCatching {
+                android.net.Uri.parse(mainUrl).host
+            }.getOrNull()?.lowercase().orEmpty().ifEmpty { pageHost }
+            val isSubResource = errorHost.isNotEmpty() && mainHost.isNotEmpty() &&
+                errorHost != mainHost && !errorHost.endsWith("." + mainHost)
+            if (isSubResource || (errorHost.isNotEmpty() && errorHost in sslAllowedHosts)) {
+                handler.proceed()
+                return true
+            }
             if (AppServices.settings.ignoreSslError()) {
                 android.app.AlertDialog.Builder(requireContext())
                     .setTitle(R.string.ssl_error_title)
                     .setMessage(
                         getString(
                             R.string.ssl_error_message,
-                            error.url.orEmpty(),
+                            errorUrl,
                             sslErrorText(error.primaryError)
                         ) + "\n\n" + getString(R.string.ssl_ignore_warning)
                     )
-                    .setPositiveButton(R.string.ssl_continue) { _, _ -> handler.proceed() }
+                    .setPositiveButton(R.string.ssl_continue) { _, _ ->
+                        if (errorHost.isNotEmpty()) sslAllowedHosts.add(errorHost)
+                        handler.proceed()
+                    }
                     .setNegativeButton(android.R.string.cancel) { _, _ -> handler.cancel() }
                     .setOnCancelListener { handler.cancel() }
                     .show()
@@ -9735,11 +10080,22 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 .setMessage(
                     getString(
                         R.string.ssl_error_message,
-                        error.url.orEmpty(),
+                        errorUrl,
                         sslErrorText(error.primaryError)
                     )
                 )
-                .setPositiveButton(R.string.ssl_continue) { _, _ -> handler.proceed() }
+                .setPositiveButton(R.string.ssl_continue) { _, _ ->
+                    // 记住本域名：本次运行内同一站点不再重复询问（关掉 App 后失效）。
+                    if (errorHost.isNotEmpty()) {
+                        sslAllowedHosts.add(errorHost)
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.ssl_continue_once, errorHost),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    handler.proceed()
+                }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> handler.cancel() }
                 .setNeutralButton(R.string.ssl_view_cert) { _, _ -> showCertificate(error) }
                 .setOnCancelListener { handler.cancel() }
@@ -10221,6 +10577,138 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         legacyKey: String? = null
     ): Boolean = sitePermissionDecision(host, key, legacyKey) != 2
 
+    /**
+     * 页面重定向决策。返回 true 表示本次导航已被处理（放行/拦截/弹询问），调用方应立即返回。
+     *
+     * 不用 [android.webkit.WebResourceRequest.isRedirect] 判定：那个标记只覆盖「页面已加载后
+     * 由 JS/链接触发的跳转」。服务端 301/302、location.href、多数 meta refresh 都不会带这个
+     * 标记，甚至不走 shouldOverrideUrlLoading——那样「设了询问却直接跳过去」就成了随机现象。
+     *
+     * 改为看「主域是否变化」：跨主域 + 不是用户主动发起 = 站点自行跳转，按配置处理。
+     * 跨子域（m.xx.com → www.xx.com）算站内，不打扰用户。
+     */
+    private fun handleRedirectDecision(
+        webView: SiiWebView?,
+        url: String,
+        request: android.webkit.WebResourceRequest?
+    ): Boolean {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false
+        if (request != null && !request.isForMainFrame) return false
+        // 用户主动发起的导航（点链接、地址栏输入、书签、外部跳转回站内）不算重定向。
+        if (userInitiatedNavigation) return false
+        // 本次跳转链已放行过：同一条链上的后续跳转不再重复追问。
+        if (redirectAllowedChain) return false
+        val currentUrl = tabManager.currentWebView?.url.orEmpty()
+        // 新标签由 target=_blank / window.open 打开，首次导航时 currentUrl 还是空，
+        // 改用记录的来源 host 判断是否跨站（否则广告新标签会直接放行）。
+        val openerHost = if (currentUrl.isBlank() || currentUrl == "about:blank" ||
+            !currentUrl.startsWith("http")
+        ) {
+            pendingOpenerHost
+        } else null
+        val currentHost = if (openerHost != null) {
+            openerHost
+        } else {
+            if (currentUrl.isBlank() || currentUrl == "about:blank") return false
+            if (!currentUrl.startsWith("http")) return false
+            runCatching { android.net.Uri.parse(currentUrl).host }.getOrNull()
+                ?.lowercase() ?: return false
+        }
+        val targetHost = runCatching { android.net.Uri.parse(url).host }.getOrNull()
+            ?.lowercase() ?: return false
+        // 同一主域（含子域互换）视为站内跳转：站内换页、m→www 都不该被当成重定向拦。
+        if (hostRollup(currentHost) == hostRollup(targetHost)) return false
+        // 单站配置以「有显式配置的那个 host」为准：先看跳转发起方，再看目标方。
+        val host = listOfNotNull(currentHost, targetHost).firstOrNull { candidate ->
+            AppServices.siteConfigRepository.cachedConfig(candidate) != null
+        } ?: currentHost
+        // 走统一的四态判定：尊重单站总开关，行为与摄像头/麦克风/外部应用一致。
+        val policy = when (sitePermissionDecision(host, "redirect")) {
+            1, 3 -> 1
+            2 -> 2
+            4 -> 0
+            else -> AppServices.settings.siteRedirectPolicy()
+        }
+        when (policy) {
+            1 -> {
+                pendingOpenerHost = null
+                return false
+            }
+            2 -> {
+                finishBlockedRedirect(webView)
+                return true
+            }
+        }
+        if (permissionDialogShowing) {
+            // 弹窗正开着时不能静默吃掉这一跳：页面会卡在「加载中」。
+            finishBlockedRedirect(webView)
+            return true
+        }
+        // 同一条链上同一个「发起方>目标方」在 10 秒内只问一次：一次跨站跳转常裂成
+        // 好几个主框架导航（location.href → 302 → 落地页），逐个弹条就是「连弹好几次」。
+        // 用时间窗而不是永久去重：用户忽略后再点同一广告，超过窗口仍会问，不会毫无反馈。
+        val now = android.os.SystemClock.elapsedRealtime()
+        val pairKey = hostRollup(currentHost) + ">" + hostRollup(targetHost)
+        val askedAt = redirectAskedChain[pairKey]
+        if (askedAt == null || now - askedAt > 10_000L) {
+            redirectAskedChain[pairKey] = now
+            showBottomActionPrompt(
+                getString(
+                    R.string.redirect_prompt_message,
+                    currentHost,
+                    targetHost
+                )
+            ) {
+                redirectAllowedChain = true
+                redirectAllowedUrl = url
+                pendingOpenerHost = null
+                redirectAskedChain.clear()
+                (webView ?: tabManager.currentWebView)?.loadUrl(url)
+            }
+        }
+        return true
+    }
+
+    /** 主域归并：m.xx.com / www.xx.com → xx.com，用于判断是否跨站。 */
+    private fun hostRollup(host: String): String {
+        val parts = host.lowercase().split('.')
+        // 只有两段（xx.com）或更短时原样返回；三段以上取最后两段。
+        // 这是启发式：不处理 com.cn / co.uk 这类二级后缀，宁可把少见域名当站外也不漏拦。
+        return if (parts.size <= 2) host.lowercase()
+        else parts.takeLast(2).joinToString(".")
+    }
+
+    /**
+     * 拒绝跳转后的收尾。
+     *
+     * 导航被取消后 WebView 不会再回调 onPageFinished，加载遮罩/进度/刷新按钮
+     * 会一直停在「加载中」，页面看起来像卡死。这里把它们全部复位。
+     */
+    private fun finishBlockedRedirect(webView: SiiWebView?) {
+        val wv = webView ?: tabManager.currentWebView ?: return
+        hidePageLoadingCover(fade = true)
+        pageLoadFinished[wv] = true
+        finishProgressBar()
+        setRefreshLoading(false)
+        hidePageLoadingCover(fade = true)
+        val stayed = wv.url.orEmpty()
+        // 被拦下的若是 target=_blank 开出的新标签，它还没有任何内容：
+        // 把空标签关掉、回到来源页，而不是给用户留一个白屏标签。
+        if (!stayed.startsWith("http")) {
+            if (closeCurrentTabToOpener()) {
+                pendingOpenerHost = null
+                return
+            }
+        }
+        // 地址栏 / 标签地址回到实际停留的页面，避免显示没进去的那个地址。
+        if (stayed.startsWith("http")) {
+            tabManager.current?.url = stayed
+            tabManager.current?.title = wv.title.orEmpty()
+        }
+        updateAddressBarForCurrent()
+        updateNavigationState()
+    }
+
     private fun resourceLabel(resource: String): String = when (resource) {
         android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
             getString(R.string.site_rule_cam)
@@ -10377,7 +10865,28 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             url: String,
             action: Int
         ): Boolean {
+            // 错误页的「本站暂停隐私拦截并重试」：不走网络，直接暂停本站隐私规则并重载。
+            if (url.startsWith(PAUSE_PRIVACY_URL)) {
+                val host = url.removePrefix(PAUSE_PRIVACY_URL)
+                    .substringBefore('/').lowercase()
+                if (host.isNotEmpty()) {
+                    // 错误页由 loadDataWithBaseURL 渲染，reload 只会把错误页再画一遍。
+                    // 这里先停掉隐私规则，再回到真实地址重新加载。
+                    val target = (webView?.let { errorPageUrl[it] })
+                        ?.takeIf { it.startsWith("http") } ?: "https://$host/"
+                    toggleSitePrivacyPause(host, reload = false)
+                    webView?.let { wv ->
+                        errorPageLoading.remove(wv)
+                        errorPageUrl.remove(wv)
+                        wv.loadUrl(target)
+                    }
+                }
+                return true
+            }
             applySiteSettings(webView, url)
+            // 重定向判定必须最早做：后面的「程序化加载 1200ms 内放行」「HTTPS 升级」
+            // 「电脑版换域」都会提前 return，把重定向设置整段吞掉。
+            if (handleRedirectDecision(webView, url, request)) return true
             val recentlyProgrammatic =
                 android.os.SystemClock.elapsedRealtime() - programmaticPrivacyLoadAt < 1200L
             // 只吞掉程序加载后网页自身的重复回调；深链等非 http(s) 导航必须继续判定，
@@ -10467,47 +10976,6 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
                 val target = targetUserAgent(host)
                 if (webView.settings.userAgentString != target) {
                     webView.settings.userAgentString = target
-                }
-            }
-            if (request?.isRedirect == true) {
-                if (allowRedirectOnce == url) {
-                    allowRedirectOnce = null
-                } else {
-                    val host = currentPageHost()
-                    val siteRedirect = SiteConfig.permission(
-                        siteConfigFor(host), "redirect"
-                    )
-                    val policy = when (siteRedirect) {
-                        1, 3 -> 1
-                        2 -> 2
-                        4 -> 0
-                        else -> AppServices.settings.siteRedirectPolicy()
-                    }
-                    when (policy) {
-                        1 -> Unit
-                        2 -> return true
-                        else -> {
-                            if (permissionDialogShowing) return true
-                            showPermissionDialog(
-                                host.orEmpty(),
-                                listOf(getString(R.string.site_rule_redirect)),
-                                onAllowOnce = {
-                                    allowRedirectOnce = url
-                                    tabManager.currentWebView?.loadUrl(url)
-                                },
-                                onAlways = {
-                                    persistSitePermission(host.orEmpty(), listOf("redirect"))
-                                    allowRedirectOnce = url
-                                    tabManager.currentWebView?.loadUrl(url)
-                                },
-                                onDeny = {},
-                                onAlwaysDeny = {
-                                    persistSitePermission(host.orEmpty(), listOf("redirect"), 2)
-                                }
-                            )
-                            return true
-                        }
-                    }
                 }
             }
             if ((request == null || request.isForMainFrame) && isUserScriptUrl(url)) {
@@ -10692,6 +11160,30 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         if (openAppPrompt?.visibility == View.VISIBLE) scheduleHintRelayout()
         openAppPrompt?.visibility = View.GONE
         openAppPending = null
+        bottomPromptAction = null
+    }
+
+    /**
+     * 底部单按钮动作条（与「拉起外部软件」共用同一个浮条）。
+     *
+     * 只放一个「允许」：允许就执行 [onAllow]，点页面别处或 8 秒无操作即视为忽略，
+     * 不写任何站点配置——记忆交给「单站设置」页，浮条只负责这一次决策。
+     */
+    private fun showBottomActionPrompt(message: String, onAllow: () -> Unit) {
+        if (!isAdded) return
+        if (homeContainer?.visibility == View.VISIBLE) return
+        bottomPromptAction = onAllow
+        openAppPending = null
+        val bar = openAppPrompt ?: return
+        bar.findViewById<TextView>(R.id.open_app_prompt_title)?.text = message
+        // 同一条动作已经在屏幕上时不重放入场动画：重放会让用户看到「又弹了一次」。
+        if (bar.visibility != View.VISIBLE) {
+            bar.visibility = View.VISIBLE
+            showHintBarEnter(bar)
+            scheduleHintRelayout()
+        }
+        view?.removeCallbacks(autoHideOpenAppPrompt)
+        view?.postDelayed(autoHideOpenAppPrompt, 8000L)
     }
 
     /** 是否为 UserScript 安装地址（.user.js）。 */
@@ -10895,6 +11387,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         view?.postDelayed({ maybeShowUpdatePrompt() }, 2000)
         applyKeepScreenOn()
         applyIncognitoBadge()
+        maybeShowPrivacyMigrationToast()
         applyTabActionLayout()
         applyToolbarPosition()
         applyTabsPanelAlpha()
@@ -11264,6 +11757,17 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             if (AppServices.privacyManager.isIncognito) R.string.incognito_badge else R.string.address_hint
         )
         updateSiteInfoIcon()
+    }
+
+    /** 升级到 1.6.3 后第一次进前台：告知「标准」档的跟踪器拦截已按新默认关掉。 */
+    private fun maybeShowPrivacyMigrationToast() {
+        // 迁移结论存在设置里，界面只消费一次，避免每次冷启动都弹。
+        if (!AppServices.settings.consumePrivacyTrackingMigrated()) return
+        Toast.makeText(
+            requireContext(),
+            R.string.privacy_tracking_migrated,
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     /** 密码库：记录域名、注入提交监控，并按填充方式自动填充。 */
@@ -11727,7 +12231,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         updateAddressBarForCurrent()
         updateNavigationState()
         applyQuickEnginePosition()
+        // 换样式/恢复时按当前页面重新决定「完整底栏 or 迷你胶囊」。
+        dockMinimized = false
         root.post { applyFloatingBarLift() }
+        root.post { syncMiniDockState(animated = false) }
         applyPageFullscreenChrome()
     }
 
@@ -11810,6 +12317,14 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val dock = root.findViewById<View>(R.id.modern_chrome)
         dock?.animate()?.cancel()
         dock?.translationY = 0f
+        if (editing) {
+            // 编辑地址栏要把完整底栏露出来，迷你胶囊必须一起收起，否则两者同屏。
+            miniDock?.hideMini(true)
+            restoreFullDock(animated = true)
+        } else {
+            restoreFullDock(animated = false)
+            view?.post { syncMiniDockState(animated = true) }
+        }
         applyDockImeOffset()
         if (editing) {
             toolbarHidden = false
@@ -11821,6 +12336,609 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
             tools.visibility = View.VISIBLE
             tools.animate().alpha(1f).translationY(0f).setDuration(160)
                 .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        }
+    }
+
+    // ---- 网页页迷你底栏：常态收成小胶囊，点击展开完整底栏 ----
+
+    private fun setupMiniDock(root: View) {
+        // 无条件创建：界面样式可以在设置里切换，创建时是经典模式也要备好，
+        // 否则切到新版后 syncMiniDockState 拿不到对象，胶囊永远不出现。
+        val dock = MiniDock(
+            requireContext(),
+            onTap = { expandDockFromMini() },
+            onTapTranslate = { onMiniTranslateTap() }
+        )
+        miniDock = dock
+        // 必须插在 modern_chrome 之前：既在网页之上，又在标签/菜单遮罩之下，
+        // 否则打开面板时会有一条盾牌浮在遮罩上方。
+        val parent = (root as? android.widget.FrameLayout) ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome)
+        val insertAt = (0 until parent.childCount)
+            .firstOrNull { chrome != null && parent.getChildAt(it) === chrome }
+            ?: parent.childCount
+        dock.attach(parent, insertAt)
+        dock.applyStyle(AppServices.settings.isNightMode(), AppServices.settings.glassStrength())
+        // 恢复上次拖动的位置（按比例存，换分辨率不会错位）。
+        runCatching {
+            val saved = AppServices.settings.miniDockPos()
+            if (saved.isNotBlank()) {
+                val parts = saved.split(",")
+                if (parts.size == 2) {
+                    dock.restorePosition(parts[0].toFloatOrNull(), parts[1].toFloatOrNull())
+                }
+            }
+        }
+        // 拖动结束：把位置按比例写回设置。
+        dock.onDragFinished = { x, y ->
+            runCatching {
+                val ratio = dock.positionRatio()
+                if (ratio != null) {
+                    AppServices.settings.setMiniDockPos("${ratio.first},${ratio.second}")
+                } else {
+                    val p = dock.view.parent as? android.view.ViewGroup
+                    if (p != null) {
+                        val mx = (p.width - dock.view.width).coerceAtLeast(1).toFloat()
+                        val my = (p.height - dock.view.height).coerceAtLeast(1).toFloat()
+                        AppServices.settings.setMiniDockPos("${x / mx},${y / my}")
+                    }
+                }
+            }
+        }
+        // 首次拖动时把「已提示」标记落地，避免下次再提示。
+        dock.onFirstDrag = {
+            if (!AppServices.settings.miniDockHintShown()) {
+                AppServices.settings.setMiniDockHintShown(true)
+            }
+        }
+        // 引擎侧拦截计数变化（任意线程）→ 主线程刷新气泡数字。
+        AppServices.adBlock.onPageBlocked = { ads, privacy ->
+            view?.post {
+                refreshMiniBadge(ads, privacy)
+                // 首次出现拦截时弹起提示；之后继续有新增来源只在原地刷新文字，
+                // 不重播入场动画，所以观感是「出现一次 → 数字跳动 → 平稳消失」。
+                showBlockHint(ads, privacy)
+            }
+        }
+        view?.post { syncMiniDockState(animated = false) }
+    }
+
+    /** 刷新迷你胶囊上的拦截数；关闭「拦截提醒」时只留盾牌。 */
+    private fun refreshMiniBadge(ads: Int, privacy: Int) {
+        val dock = miniDock ?: return
+        val engine = AppServices.adBlock
+        // 广告拦截与隐私拦截是独立开关，任一开启都要显示计数。
+        val show = AppServices.settings.adblockBadge() && (engine.enabled || engine.privacyEnabled)
+        // 胶囊上显示的是「去重后的来源数」，不是原始请求条数：
+        // 同一广告源的十几个请求只算 1，用户看到 3 就更接近「拦了 3 个来源」的直觉。
+        dock.updateBadge(engine.pageBlockedSources, 0, show)
+    }
+
+    /**
+     * 拦截提示：与翻译提示同款外观，出现在当前工具栏正上方，1000ms 后淡出。
+     *
+     * 与翻译提示占同一位置，所以弹出时直接把翻译提示顶掉，不排队、不平移。
+     */
+    private fun showBlockHint(ads: Int, privacy: Int) {
+        val settings = AppServices.settings
+        val engine = AppServices.adBlock
+        // 主页不是网页：主页上不该出现拦截提示。引擎回调是单例，回主页后
+        // WebView 里的请求、其他标签页的拦截仍会打到这里，必须挡在入口。
+        if (homeContainer?.visibility == View.VISIBLE) return
+        val adSources = engine.pageAdSources
+        val privacySources = engine.pagePrivacySources
+        // 广告段与隐私段各自受开关控制：都关掉就不弹。
+        if (!settings.blockHint() && !settings.privacyHint()) return
+        if (adSources + privacySources <= 0) return
+        val hint = blockHint ?: return
+        // 顶掉翻译提示，避免两条浮条叠在一起。
+        hideTranslateStatus()
+        // 文案按开关与实际拦截内容拼段：
+        // 广告段（开关+有拦截才显示）与隐私段（开关+有拦截才显示）用 · 连接。
+        val segs = mutableListOf<String>()
+        if (settings.blockHint() && adSources > 0) {
+            segs += getString(R.string.block_hint_ads, adSources)
+        }
+        if (settings.privacyHint() && privacySources > 0) {
+            segs += privacyHintText()
+        }
+        if (segs.isEmpty()) return
+        // 两段都有时用「来源总数 + 细分」的合并版；单段直接用该段。
+        val finalText = if (segs.size == 2) {
+            getString(R.string.block_hint_both, adSources + privacySources, adSources, privacySources)
+        } else segs[0]
+        val wasVisible = hint.visibility == View.VISIBLE && hint.alpha > 0.5f
+        hint.animate().cancel()
+        hint.text = finalText
+        hint.visibility = View.VISIBLE
+        applyFloatingBarLift()
+        if (!wasVisible) {
+            // 首次不立刻弹：等 400ms 让首屏请求集中一波，避免先弹「1」再跳成「5」。
+            // 若 400ms 内又有新拦截，本 Runnable 会因被取消而不再执行，由下一次调用接管。
+            blockHintStart?.let { hint.removeCallbacks(it) }
+            val start = Runnable {
+                if (!isAdded) return@Runnable
+                if (blockHint !== hint) return@Runnable
+                // 延迟期间可能已经退回主页：主页上不允许再把它点亮。
+                if (homeContainer?.visibility == View.VISIBLE) return@Runnable
+                // 广告与隐私是独立开关：只开隐私提醒时也必须能弹（原先只看广告开关，
+                // 会导致「关掉广告提醒、只开隐私提醒」时首次提示永远不出现）。
+                if (!AppServices.settings.blockHint() && !AppServices.settings.privacyHint()) {
+                    return@Runnable
+                }
+                if (AppServices.adBlock.pageBlockedSources <= 0) return@Runnable
+                hint.animate().cancel()
+                hint.text = blockHintText()
+                hint.visibility = View.VISIBLE
+                hint.alpha = 0f
+                hint.animate().alpha(1f).setDuration(140L).start()
+                val fade = Runnable {
+                if (!isAdded) return@Runnable
+                    if (blockHint !== hint) return@Runnable
+                    hint.animate().cancel()
+                    hint.animate().alpha(0f).setDuration(180L).withEndAction {
+                        if (blockHint === hint) hint.visibility = View.GONE
+                    }.start()
+                }
+                blockHintFade?.let { hint.removeCallbacks(it) }
+                blockHintFade = fade
+                hint.postDelayed(fade, BLOCK_HINT_DURATION_MS)
+            }
+            blockHintStart = start
+            hint.postDelayed(start, BLOCK_HINT_START_DELAY_MS)
+        } else {
+            // 已经在显示：只就地刷新文字，不重播入场、不重置计时，避免闪烁。
+            hint.alpha = 1f
+        }
+    }
+
+    /** 按引擎当前计数与两个开关组装提示文案（400ms 延迟弹起时取最新值）。 */
+    private fun blockHintText(): String {
+        val settings = AppServices.settings
+        val engine = AppServices.adBlock
+        val adSources = engine.pageAdSources
+        val privacySources = engine.pagePrivacySources
+        val segs = mutableListOf<String>()
+        if (settings.blockHint() && adSources > 0) {
+            segs += getString(R.string.block_hint_ads, adSources)
+        }
+        if (settings.privacyHint() && privacySources > 0) {
+            segs += privacyHintText()
+        }
+        return when (segs.size) {
+            2 -> getString(R.string.block_hint_both, adSources + privacySources, adSources, privacySources)
+            1 -> segs[0]
+            else -> getString(R.string.block_hint_privacy, privacySources)
+        }
+    }
+
+    /**
+     * 隐私段文案：按实际发生的分类动态拼接（跟踪器/社交/挖矿/指纹），
+     * 只列非零项，最多 3 类防止一行放不下。
+     */
+    private fun privacyHintText(): String {
+        val cats = AppServices.adBlock.pageCategorySources
+        val parts = mutableListOf<String>()
+        cats[PRIVACY_CAT_TRACKING]?.takeIf { it > 0 }?.let {
+            parts += getString(R.string.privacy_hint_tracking, it)
+        }
+        cats[PRIVACY_CAT_SOCIAL]?.takeIf { it > 0 }?.let {
+            parts += getString(R.string.privacy_hint_social, it)
+        }
+        cats[PRIVACY_CAT_MINERS]?.takeIf { it > 0 }?.let {
+            parts += getString(R.string.privacy_hint_miners, it)
+        }
+        cats[PRIVACY_CAT_FINGERPRINT]?.takeIf { it > 0 }?.let {
+            parts += getString(R.string.privacy_hint_fingerprint, it)
+        }
+        cats[PRIVACY_CAT_CONTENT]?.takeIf { it > 0 }?.let {
+            parts += getString(R.string.privacy_hint_content, it)
+        }
+        val body = parts.take(3).joinToString(" · ")
+        if (body.isEmpty()) {
+            // 没有细分数据（例如只开了兼容模式）就退回总数。
+            return getString(R.string.block_hint_privacy, AppServices.adBlock.pagePrivacySources)
+        }
+        return getString(R.string.privacy_hint_prefix) + body
+    }
+
+    private fun hideBlockHint() {
+        val hint = blockHint ?: return
+        blockHintStart?.let { hint.removeCallbacks(it) }
+        blockHintStart = null
+        blockHintFade?.let { hint.removeCallbacks(it) }
+        blockHintFade = null
+        hint.animate().cancel()
+        hint.visibility = View.GONE
+        hint.alpha = 1f
+    }
+
+    /** 迷你胶囊上取最近一次计数（用于刚显示时补齐数字）。 */
+    private fun refreshMiniBadge() =
+        refreshMiniBadge(AppServices.adBlock.pageBlockedAds, AppServices.adBlock.pageBlockedPrivacy)
+
+    /** 胶囊上的翻译入口：状态与地址栏翻译按钮完全一致，点击走同一状态机。 */
+    private fun onMiniTranslateTap() {
+        when (translateFabState) {
+            1 -> translatePage()
+            2 -> cancelTranslate()
+            3 -> toggleTranslation()
+        }
+        syncMiniTranslateState()
+    }
+
+    /** 把当前翻译状态同步到胶囊左侧的「文A」入口。 */
+    private fun syncMiniTranslateState() {
+        val dock = miniDock ?: return
+        val label = when (translateFabState) {
+            3 -> getString(
+                if (translateShowOriginal) R.string.translate_switch_to_translated
+                else R.string.translate_switch_to_original
+            )
+            else -> null
+        }
+        dock.setTranslateState(translateFabState, label)
+    }
+
+    /**
+     * 迷你胶囊中心图标：优先当前站点 favicon，失败回退域名首字母，再回退盾牌。
+     *
+     * 胶囊只回答「我现在在哪个站」，所以图标必须跟着页面走；
+     * 拦截数仍由右侧徽章承担，两者不抢同一块信息位。
+     */
+    private fun refreshMiniSiteIcon() {
+        val dock = miniDock ?: return
+        val host = currentPageHost()?.takeIf { it.isNotBlank() }
+        if (host == null) {
+            dock.updateSiteIcon(null, null)
+            return
+        }
+        if (host != miniIconHost) {
+            miniIconHost = host
+            // 先落首字母，避免换站瞬间还挂着上一个站的图标。
+            dock.updateSiteIcon(null, host.removePrefix("www."))
+        }
+        val context = context ?: return
+        // 内存/磁盘有缓存就直接用，没有才走一次网络（每域名只请求一次）。
+        val cachedIcon = SiteIconCache.cached(context, host)
+        if (cachedIcon != null) {
+            dock.updateSiteIcon(cachedIcon, null)
+            return
+        }
+        if (miniIconPending.contains(host)) return
+        miniIconPending.add(host)
+        SiteIconCache.load(context, host) { bitmap ->
+            miniIconPending.remove(host)
+            view?.post {
+                if (!isAdded) return@post
+                // 回调期间可能已切站，只在仍是同一站时落图。
+                if (currentPageHost() == host && bitmap != null) {
+                    miniDock?.updateSiteIcon(bitmap, null)
+                }
+            }
+        }
+    }
+
+    /**
+     * 决定网页页是否收起成迷你胶囊：
+     * 只在「新版界面 + 实际网页 + 非地址栏编辑 + 非主页」时收起，其它一律展开。
+     */
+    private fun shouldMinimizeDock(url: String? = null): Boolean {
+        if (AppServices.settings.uiStyle() != 1) return false
+        // 用户在「界面 DIY → 工具栏」关掉小胶囊时，底栏保持完整形态。
+        if (!AppServices.settings.miniDock()) return false
+        if (addressEditing) return false
+        if (homeContainer?.visibility == View.VISIBLE) return false
+        val target = url ?: tabManager.current?.url.orEmpty()
+        return target.startsWith("http://") || target.startsWith("https://")
+    }
+
+    /**
+     * 首次真正显示小胶囊时提示「可以拖动」。
+     *
+     * 放在「显示时机」而不是 setupMiniDock：setupMiniDock 在 onCreateView 就创建了对象，
+     * 那时用户可能根本没开小胶囊模式，提示会误触发。
+     */
+    private fun maybeShowMiniDockDragHint() {
+        if (AppServices.settings.miniDockHintShown()) return
+        AppServices.settings.setMiniDockHintShown(true)
+        val ctx = context ?: return
+        android.widget.Toast.makeText(
+            ctx,
+            R.string.mini_dock_drag_hint,
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+    }
+
+    /**
+     * 按当前页面状态把底栏切到完整或迷你形态。
+     *
+     * 完整底栏与迷你胶囊互斥：任何一条路径都必须让其中一方不可见，
+     * 否则回到网页时会同时挂着底栏和盾牌。
+     */
+    private fun syncMiniDockState(animated: Boolean = true) {
+        val dock = miniDock ?: return
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        // 经典界面没有悬浮底栏，迷你胶囊必须一直收着。
+        if (AppServices.settings.uiStyle() != 1) {
+            dock.hideMini(false)
+            dockMinimized = false
+            return
+        }
+        if (shouldMinimizeDock()) {
+            val alreadyMini = dockMinimized && chrome.visibility != View.VISIBLE
+            dockMinimized = true
+            dock.applyStyle(AppServices.settings.isNightMode(), AppServices.settings.glassStrength())
+            refreshMiniBadge()
+            // 首次真正显示小胶囊时提示「可拖动」，只提示一次。
+            maybeShowMiniDockDragHint()
+            // 只有在「还没收起」时才启动收起动画。重复启动会 cancel 掉上一次，
+            // 上一次的收尾回调永不执行，底栏就卡在半透明不动。
+            if (alreadyMini) {
+                dock.showMini(animated)
+            } else if (chrome.visibility == View.VISIBLE) {
+                collapseDockToMini(animated)
+            } else {
+                dock.showMini(animated)
+            }
+        } else {
+            dockMinimized = false
+            dock.hideMini(animated)
+            restoreFullDock(animated)
+        }
+    }
+
+    /**
+     * 完整底栏与迷你胶囊之间的形变衔接。
+     *
+     * 两者是同一块「右下角面板」的两种尺寸。过渡不做「一个消失、另一个出现」，
+     * 而是让两个视图**同时在场**、用同一插值器与同一段时间交叉过渡：
+     *
+     * - 完整底栏：锚点放右下角（pivot 右/底），朝胶囊位置缩放 + 平移，全程淡出。
+     *   缩放方向天然向着胶囊，所以看起来是「被吸进角落里」，不是原地压扁。
+     * - 迷你胶囊：从略小（[MINI_SCALE]）长到自身尺寸，透明度在后半程接管。
+     *   同一时刻胶囊已就位，底栏还在淡出，因此看不到空档，也看不到两段动画。
+     *
+     * [reverse]=false 收起（完整→胶囊），true 展开（胶囊→完整）。
+     */
+    private fun animateDockMorph(reverse: Boolean) {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        val mini = dock.view
+        if (mini.parent == null) return
+        // 布局未就绪时两端尺寸都是 0，硬算会跳变，直接无动画落地。
+        if (chrome.width == 0 || chrome.height == 0) {
+            if (reverse) expandDockImmediate() else collapseDockImmediate()
+            return
+        }
+
+        chrome.animate().cancel()
+        mini.animate().cancel()
+        dockMorphGuard?.let { view?.removeCallbacks(it) }
+
+        val chromeW = chrome.width.toFloat()
+        val chromeH = chrome.height.toFloat()
+        val miniW = mini.width.takeIf { it > 0 }?.toFloat() ?: dp(52).toFloat()
+        val miniH = mini.height.takeIf { it > 0 }?.toFloat() ?: dp(40).toFloat()
+
+        // 两端中心点的差值：完整底栏要朝胶囊方向移动这么多才「贴合」。
+        val dx = (mini.x + miniW / 2f) - (chrome.x + chromeW / 2f)
+        val dy = (mini.y + miniH / 2f) - (chrome.y + chromeH / 2f)
+
+        // 锚点都固定在右下角，缩放时朝同一个角落收。
+        chrome.pivotX = chromeW
+        chrome.pivotY = chromeH
+        mini.pivotX = miniW
+        mini.pivotY = miniH
+
+        val duration = DOCK_MORPH_DURATION_MS
+        val interpolator = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
+
+        // 起手态：两端都摆到正确位置，只有透明度区分谁是「当前」。
+        if (!reverse) {
+            chrome.visibility = View.VISIBLE
+            chrome.alpha = 1f
+            chrome.scaleX = 1f
+            chrome.scaleY = 1f
+            chrome.translationX = 0f
+            chrome.translationY = 0f
+            mini.visibility = View.VISIBLE
+            mini.alpha = 0f
+            mini.scaleX = MINI_SCALE
+            mini.scaleY = MINI_SCALE
+            mini.translationX = 0f
+            mini.translationY = 0f
+        } else {
+            mini.visibility = View.VISIBLE
+            mini.alpha = 1f
+            mini.scaleX = 1f
+            mini.scaleY = 1f
+            mini.translationX = 0f
+            mini.translationY = 0f
+            chrome.visibility = View.VISIBLE
+            chrome.alpha = 0f
+            chrome.scaleX = MINI_SCALE
+            chrome.scaleY = MINI_SCALE
+            chrome.translationX = dx
+            chrome.translationY = dy
+        }
+
+        val animator = android.animation.ValueAnimator.ofFloat(0f, 1f)
+        animator.duration = duration
+        animator.interpolator = interpolator
+        animator.addUpdateListener { va ->
+            val f = va.animatedValue as Float
+            if (!reverse) {
+                // 完整底栏被吸向角落：位移 + 缩小 + 全程淡出。
+                chrome.translationX = dx * f
+                chrome.translationY = dy * f
+                val s = 1f + (MINI_SCALE - 1f) * f
+                chrome.scaleX = s
+                chrome.scaleY = s
+                chrome.alpha = 1f - f
+                // 胶囊在后 60% 里长出，此时底栏仍有残影，两层重叠不留空档。
+                val mf = ((f - 0.4f) / 0.6f).coerceIn(0f, 1f)
+                mini.alpha = mf
+                val ms = MINI_SCALE + (1f - MINI_SCALE) * mf
+                mini.scaleX = ms
+                mini.scaleY = ms
+            } else {
+                // 展开：胶囊先缩回角落并淡出，完整底栏从角落长出来。
+                mini.translationX = 0f
+                mini.translationY = 0f
+                val mf = (f / 0.55f).coerceIn(0f, 1f)
+                mini.alpha = 1f - mf
+                val ms = 1f + (MINI_SCALE - 1f) * mf
+                mini.scaleX = ms
+                mini.scaleY = ms
+                // 底栏后 60% 显形，同时从角落滑回原位、放大到满尺寸。
+                val cf = ((f - 0.35f) / 0.65f).coerceIn(0f, 1f)
+                chrome.alpha = cf
+                val cs = MINI_SCALE + (1f - MINI_SCALE) * cf
+                chrome.scaleX = cs
+                chrome.scaleY = cs
+                chrome.translationX = dx * (1f - cf)
+                chrome.translationY = dy * (1f - cf)
+            }
+        }
+        animator.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                if (!reverse) finishDockCollapseMorph() else finishDockExpandMorph()
+            }
+        })
+        dockMorphGuard = Runnable {
+            if (!reverse) finishDockCollapseMorph() else finishDockExpandMorph()
+        }
+        animator.start()
+        // 兜底：动画被外部 cancel 时不会回调 onAnimationEnd，这里保证状态落地。
+        dockMorphGuard?.let { view?.postDelayed(it, duration + 90L) }
+    }
+
+    /** 形变收起收尾：藏掉完整底栏，胶囊停在自身尺寸。 */
+    private fun finishDockCollapseMorph() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        val mini = dock.view
+        chrome.animate().cancel()
+        mini.animate().cancel()
+        chrome.visibility = View.GONE
+        chrome.alpha = 1f
+        chrome.scaleX = 1f
+        chrome.scaleY = 1f
+        chrome.translationX = 0f
+        chrome.translationY = 0f
+        mini.visibility = View.VISIBLE
+        mini.alpha = 1f
+        mini.scaleX = 1f
+        mini.scaleY = 1f
+        mini.translationX = 0f
+        mini.translationY = 0f
+        applyFloatingBarLift()
+    }
+
+    /** 形变展开收尾：藏掉胶囊，完整底栏归位。 */
+    private fun finishDockExpandMorph() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        val mini = dock.view
+        chrome.animate().cancel()
+        mini.animate().cancel()
+        mini.visibility = View.GONE
+        mini.alpha = 0f
+        mini.scaleX = 1f
+        mini.scaleY = 1f
+        mini.translationX = 0f
+        mini.translationY = 0f
+        chrome.visibility = View.VISIBLE
+        chrome.alpha = 1f
+        chrome.scaleX = 1f
+        chrome.scaleY = 1f
+        chrome.translationX = 0f
+        chrome.translationY = 0f
+        applyFloatingBarLift()
+        refreshMiniBadge()
+    }
+
+    /** 无动画直接收起。 */
+    private fun collapseDockImmediate() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        chrome.animate().cancel()
+        dock.view.animate().cancel()
+        chrome.visibility = View.GONE
+        chrome.alpha = 1f
+        chrome.scaleX = 1f
+        chrome.scaleY = 1f
+        chrome.translationX = 0f
+        chrome.translationY = 0f
+        dock.showMini(false)
+        applyFloatingBarLift()
+    }
+
+    /** 无动画直接展开。 */
+    private fun expandDockImmediate() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        chrome.animate().cancel()
+        dock.view.animate().cancel()
+        dock.hideMini(false)
+        chrome.visibility = View.VISIBLE
+        chrome.alpha = 1f
+        chrome.scaleX = 1f
+        chrome.scaleY = 1f
+        chrome.translationX = 0f
+        chrome.translationY = 0f
+        applyFloatingBarLift()
+        refreshMiniBadge()
+    }
+
+    /** 完整底栏收起为迷你胶囊。 */
+    private fun collapseDockToMini(animated: Boolean) {
+        toolbarHidden = false
+        if (!animated) {
+            collapseDockImmediate()
+            return
+        }
+        animateDockMorph(reverse = false)
+    }
+
+    /** 收起收尾（兜底路径：动画被外部 cancel 时用）。 */
+    private fun finishDockCollapse() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        if (!dockMinimized) return
+        if (chrome.visibility != View.VISIBLE) return
+        finishDockCollapseMorph()
+    }
+
+    /** 迷你胶囊点开：完整底栏从胶囊所在角落长回来。 */
+    private fun expandDockFromMini() {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        val dock = miniDock ?: return
+        dockMinimized = false
+        animateDockMorph(reverse = true)
+    }
+
+    /** 完整底栏复位（回主页 / 切样式 / 编辑地址栏）。 */
+    private fun restoreFullDock(animated: Boolean) {
+        val root = view ?: return
+        val chrome = root.findViewById<View>(R.id.modern_chrome) ?: return
+        if (AppServices.settings.uiStyle() != 1) return
+        chrome.animate().cancel()
+        chrome.visibility = View.VISIBLE
+        if (!animated) {
+            chrome.alpha = 1f
+            chrome.scaleX = 1f
+            chrome.scaleY = 1f
+            if (!toolbarHidden) chrome.translationY = 0f
         }
     }
 
@@ -11887,6 +13005,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val iconTint = android.content.res.ColorStateList.valueOf(primary)
         root.findViewById<ImageView>(R.id.refresh_button)?.imageTintList = iconTint
         root.findViewById<ImageView>(R.id.site_info_button)?.imageTintList = iconTint
+        // 站点图标按钮 40dp + 内 padding 6dp，实际只有 28dp 绘制区；
+        // 换成盾牌+锁这类细节多的图标会显得又小又糊，收到 4dp 让绘制区到 32dp。
+        root.findViewById<ImageView>(R.id.site_info_button)?.setPadding(
+            dp(4), dp(4), dp(4), dp(4)
+        )
         updateSiteInfoIcon()
         root.findViewById<TextView>(R.id.modern_cancel)?.setTextColor(
             ThemeAccent.color(requireContext())
@@ -11972,6 +13095,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         )
         root.findViewById<ImageView>(R.id.refresh_button)?.imageTintList = iconTint
         root.findViewById<ImageView>(R.id.site_info_button)?.imageTintList = iconTint
+        // 站点图标按钮 40dp + 内 padding 6dp，实际只有 28dp 绘制区；
+        // 换成盾牌+锁这类细节多的图标会显得又小又糊，收到 4dp 让绘制区到 32dp。
+        root.findViewById<ImageView>(R.id.site_info_button)?.setPadding(
+            dp(4), dp(4), dp(4), dp(4)
+        )
         updateSiteInfoIcon()
         root.findViewById<View>(R.id.modern_cancel)?.visibility = View.GONE
         updateSiteInfoVisibility()
@@ -12380,6 +13508,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         val current = progressBar?.progress ?: 0
         dockProgressClip?.setProgress(current)
         classicProgress?.setProgress(current)
+        // 悬浮模式收成胶囊后，底栏背景里的进度层跟着底栏一起不可见，
+        // 所以进度必须同时灌到胶囊的环形层，否则进站完全看不到进度。
+        miniDock?.setProgress(current)
         updateDockStall()
     }
 
@@ -12410,6 +13541,7 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         dockStallPending = false
         dockProgressClip?.setRunning(false)
         classicProgress?.setRunning(false)
+        miniDock?.setProgressRunning(false)
     }
 
     /** 悬浮底栏底色：选中「工具栏」且（主页或已开网页应用）时用主色淡底，与玻璃强度叠加。 */
@@ -12456,20 +13588,46 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         scrollDir = dir
         scrollAccum += rawDy
         val show = dir < 0
-        // 目标状态已达成：清掉累计，避免状态变化后拿着旧累计直接触发。
-        if (show != toolbarHidden) {
+        // 「是否已经收起」在小胶囊模式下看 dockMinimized，滚动隐藏模式看 toolbarHidden。
+        // 两者混用会让小胶囊永远收不起来：展开后 toolbarHidden 一直是 false，
+        // 下滚会被判成「目标已达成」直接丢弃。
+        val miniOn = AppServices.settings.miniDock()
+        val collapsed = if (miniOn) dockMinimized else toolbarHidden
+        if (miniOn) {
+            // 小胶囊模式：展开态下不分方向，滑一下就收回胶囊；胶囊态靠点按展开，不靠滑动。
+            if (collapsed) {
+                scrollAccum = 0
+                return
+            }
+        } else if (show != collapsed) {
             scrollAccum = 0
             return
         }
-        val threshold = if (show) dp(SCROLL_SHOW_THRESHOLD_DP) else dp(SCROLL_HIDE_THRESHOLD_DP)
+        val threshold = when {
+            miniOn -> dp(SCROLL_DOCK_HIDE_THRESHOLD_DP)
+            show -> dp(SCROLL_SHOW_THRESHOLD_DP)
+            else -> dp(SCROLL_HIDE_THRESHOLD_DP)
+        }
         if (kotlin.math.abs(scrollAccum) < threshold) return
-        val pending = if (show) -1 else 1
+        // 小胶囊模式只有「收回」一个动作，方向和上滑无关。
+        val pending = if (miniOn) 1 else if (show) -1 else 1
         scrollAccum = 0
         // 同一方向已在排队时不再重复排期，否则持续滚动会把执行时间一直往后推。
         if (pendingScrollDir == pending) return
         pendingScrollDir = pending
         // 按住时的“显示”先记下，松手时立即结算，不依赖松手后的惯性。
-        if (show && webTouching) return
+        // 小胶囊模式没有“显示”动作（滑动只会收回），不能被这条挡住上滑。
+        if (!miniOn && show && webTouching) return
+        if (miniOn) {
+            // 小胶囊收起要「稳」：手指停下 120ms 再收，且两次收起之间至少隔 300ms，
+            // 避免轻微滑动或连续抖动把底栏收掉。
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastDockHideAt < SCROLL_DOCK_COOLDOWN_MS) return
+            lastDockHideAt = now
+            view?.removeCallbacks(applyScrollDirection)
+            view?.postDelayed(applyScrollDirection, SCROLL_DOCK_HIDE_DELAY_MS)
+            return
+        }
         view?.removeCallbacks(applyScrollDirection)
         view?.postDelayed(
             applyScrollDirection,
@@ -12486,11 +13644,28 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     }
 
     private fun applyToolbarScrollHidden(dy: Int) {
-        if (!AppServices.settings.toolbarAutoHide()) return
+        // 两种收起方式任一开启都要处理滚动：小胶囊靠这里收，滚动隐藏也靠这里收。
+        // （两者互斥，但判断要放一起，否则小胶囊会把 toolbarAutoHide 置 false 而整段失效。）
+        val miniDockOn = AppServices.settings.miniDock()
+        if (!miniDockOn && !AppServices.settings.toolbarAutoHide()) return
         // 主页没有可滚动的网页，迟到的滚动回调不能把底栏收走。
         if (homeContainer?.visibility == View.VISIBLE) return
         if (AppServices.settings.uiStyle() == 1) {
             if (addressEditing) return
+            // 小胶囊开着时：完整底栏只在「用户点开胶囊」那一刻出现，
+            // 之后任何方向的滑动都立刻收回胶囊（第 2 条要求）。
+            if (miniDockOn) {
+                if (!dockMinimized) {
+                    dockMinimized = true
+                    miniDock?.applyStyle(
+                        AppServices.settings.isNightMode(), AppServices.settings.glassStrength()
+                    )
+                    refreshMiniBadge()
+                    collapseDockToMini(animated = true)
+                }
+                return
+            }
+            // 小胶囊关掉时：退回原来的整条底栏移出屏幕。
             val dock = view?.findViewById<View>(R.id.modern_chrome) ?: return
             val hidden = (dock.height.takeIf { it > 0 } ?: dp(56)) + dp(12)
             if (dy > 0 && !toolbarHidden) {
@@ -12610,6 +13785,10 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     override fun onDestroyView() {
         AppServices.onUpdatePromptReady = null
+        // 引擎是单例，回调必须解绑；否则旧 Fragment 的 view 会被一路引用住。
+        AppServices.adBlock.onPageBlocked = null
+        miniDock = null
+        dockMinimized = false
         // 离开浏览器（进入设置等页面）时回收窗口背景，否则状态栏会残留主页背景图。
         (activity as? ShellActivity)?.applyChromeBackground(null)
         restoreAutoDismiss?.let { runnable ->
@@ -12656,6 +13835,9 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
         addressInput = null
         siteInfoButton = null
         progressBar = null
+        blockHint = null
+        blockHintFade = null
+        blockHintStart = null
         tabStrip = null
         tabBar = null
         homeContainer = null
@@ -12791,6 +13973,11 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
 
     /** 导航/后退时把滚动收起的工具栏调出来，避免新页面或返回后底栏停在屏幕外。 */
     private fun revealToolbarOnNavigate() {
+        // 迷你态下完整底栏是「收起」的一部分，不是被滚动藏起来的，别在这里拉出来。
+        if (dockMinimized) {
+            view?.post { syncMiniDockState(animated = false) }
+            return
+        }
         if (!toolbarHidden) return
         toolbarHidden = false
         if (AppServices.settings.uiStyle() == 1) {
@@ -12968,10 +14155,35 @@ class BrowserFragment : Fragment(), ThemeAware, SoftInputAware, IntentAware, Foc
     private var addressTextProgrammatic = false
 
     private companion object {
+        /** 错误页「本站暂停隐私拦截并重试」按钮的自定义 scheme 前缀，后面直接拼 host。 */
+        private const val PAUSE_PRIVACY_URL = "sii-pause-privacy://"
+
         /** 滚动收展工具栏：向上显示 12dp 且立即执行，向下隐藏 24dp、32ms 防抖。 */
         private const val SCROLL_SHOW_THRESHOLD_DP = 12
         private const val SCROLL_HIDE_THRESHOLD_DP = 24
+
+        /** 小胶囊的收起阈值：胶囊本身很轻，比整条底栏更容易触发，手感更跟手。 */
+        private const val SCROLL_DOCK_HIDE_THRESHOLD_DP = 36
+        /** 迷你胶囊在形变起止时的缩放比例（约等于它与完整底栏的尺寸比）。 */
+        private const val MINI_SCALE = 0.22f
+        /** 底栏与胶囊互相形变的时长：一屏之内完成，用户感知为「一个动作」。 */
+        private const val DOCK_MORPH_DURATION_MS = 240L
         private const val SCROLL_SHOW_DELAY_MS = 0L
+        /** 小胶囊收起前的等待：手指停下来再收，滑动过程中不触发。 */
+        private const val SCROLL_DOCK_HIDE_DELAY_MS = 120L
+        /** 小胶囊连续两次收起之间的最小间隔，避免反复触发。 */
+        private const val SCROLL_DOCK_COOLDOWN_MS = 300L
+        /** 拦截提示停留时长：1.5 秒后淡出（1 秒读一行字太赶）。 */
+        private const val BLOCK_HINT_DURATION_MS = 1500L
+        /** 首次弹出的延迟：等首屏请求集中一波再显示，数字一步到位。 */
+        private const val BLOCK_HINT_START_DELAY_MS = 400L
+
+        // 与 PrivacyPacks 的分类名一致，用于取按页分类计数。
+        private const val PRIVACY_CAT_TRACKING = "tracking"
+        private const val PRIVACY_CAT_SOCIAL = "social"
+        private const val PRIVACY_CAT_MINERS = "miners"
+        private const val PRIVACY_CAT_FINGERPRINT = "fingerprint"
+        private const val PRIVACY_CAT_CONTENT = "content"
         private const val SCROLL_HIDE_DELAY_MS = 32L
         private const val SCROLL_TOGGLE_COOLDOWN_MS = 120L
 

@@ -584,7 +584,7 @@
     <string name="privacy_custom">自訂</string>
     <string name="privacy_stats">攔截統計</string>
     <string name="privacy_stats_empty">暫無攔截記錄</string>
-    <string name="privacy_compat">相容模式（標準）</string>
+    <string name="privacy_compat">網站相容模式</string>
     <string name="privacy_compat_desc">放行人機驗證、第三方登入、支付與客服等必要網域；廣告規則仍生效。</string>
     <string name="privacy_breakage_hint">攔截跟蹤器後，部分網站可能出現登入、驗證碼、留言或播放異常。可長按網址列熊貓頭選擇「本站暫停隱私攔截」，或在下方放行被封鎖網域。</string>
     <string name="privacy_tracking">跟蹤器</string>
@@ -760,6 +760,7 @@
     <string name="site_rule_clip">剪貼簿</string>
     <string name="site_rule_openapp">開啟外部應用</string>
     <string name="site_rule_redirect">頁面重定向</string>
+    <string name="redirect_prompt_message">%1$s 正跳轉到 %2$s，是否允許？</string>
     <string name="site_permission_generic">網站許可權</string>
     <string name="permission_request_title">網站許可權請求</string>
     <string name="permission_request_message">%1$s 請求使用：%2$s</string>
@@ -864,6 +865,14 @@
     <string name="ssl_error_message">%1$s\n%2$s</string>
     <string name="ssl_continue">繼續訪問</string>
     <string name="ssl_ignore_warning">已開啟“忽略 SSL 憑證錯誤”。繼續訪問可能洩露帳號、Cookie 或頁面內容，確定繼續？</string>
+    <string name="adblock_badge">顯示攔截提醒</string>
+    <string name="adblock_badge_desc">攔截提醒</string>
+    <string name="mini_dock_drag_hint">小膠囊可以拖動，按住不放拖到順手的位置</string>
+    <string name="adblock_badge_detail">本頁攔截廣告 %1$d 個、隱私請求 %2$d 個</string>
+    <string name="adblock_badge_summary">在頁面右下角顯示盾牌與本頁攔截數量，點一下展開工具列</string>
+    <string name="privacy_icon_desc">隱私保護已開啟</string>
+    <string name="privacy_tracking_migrated">跟蹤器攔截已按新版預設關閉，可在此頁手動開啟</string>
+    <string name="ssl_continue_once">本次執行期間不再提示 %1$s 的證書錯誤</string>
     <string name="ssl_view_cert">檢視憑證</string>
     <string name="site_info_title">頁面資訊</string>
     <string name="site_menu_cookies">檢視 Cookies</string>
@@ -1073,7 +1082,6 @@
     <string name="netlog_clear">清空日誌</string>
     <string name="netlog_blocked">已攔截</string>
     <string name="netlog_allowed">放行</string>
-    <string name="settings_site_permissions">許可權</string>
     <string name="settings_permission_geo">定位</string>
     <string name="settings_permission_cam">攝像頭</string>
     <string name="settings_permission_mic">麥克風</string>
@@ -1202,7 +1210,7 @@
     <string name="download_bar_downloading">檔案正在下載：%1$s</string>
     <string name="history_load_more">載入更多</string>
     <string name="settings_sniff">資源嗅探</string>
-    <string name="settings_sniff_sites">資源嗅探啟用站點</string>
+    <string name="settings_sniff_sites">資源嗅探</string>
     <string name="sniff_sites_empty">還沒有啟用嗅探的站點。預設全部關閉，需要時在網頁選單裡為單一站點開啟。</string>
     <string name="sniff_sites_remove">移除</string>
     <string name="sniff_sites_removed">已移除本站嗅探</string>
@@ -1513,7 +1521,6 @@
     <string name="ai_reply_copy">複製</string>
     <string name="ai_reply_share">分享</string>
     <string name="ai_reply_copied">已複製</string>
-    <string name="settings_special_group_ai">AI 助手</string>
     <string name="settings_ai_enabled">啟用 AI 助手</string>
     <string name="settings_ai_enabled_desc">在網頁選單中出現「AI 助手」入口</string>
     <string name="settings_ai_privacy_note">開啟後，使用 AI 助手時會把目前網頁正文傳送到你設定的服務商（預設 DeepSeek）。內容不經任何第三方中轉。可在「特別功能 → AI 助手」裡修改介面位址。</string>
@@ -1552,4 +1559,24 @@
     <string name="about_support_share">分享</string>
     <string name="about_support_saved">已儲存到相簿</string>
     <string name="about_support_op_failed">操作失敗，請重試</string>
+    <string name="block_hint">攔截提示</string>
+    <string name="block_hint_summary">有新攔截時在工具列上方短暫提示，1.5 秒後自動消失</string>
+    <string name="block_hint_ads">已攔截 %1$d 個廣告</string>
+    <string name="block_hint_privacy">已攔截 %1$d 項隱私請求</string>
+    <string name="block_hint_both">已攔截 %1$d 個來源（廣告 %2$d · 隱私 %3$d）</string>
+    <string name="translate_offline_unavailable_desc">離線翻譯依賴 Google Play 服務下載語言包。你可以打開谷歌服務後再試，或改用雲翻譯。</string>
+    <string name="translate_switch_cloud">切換雲翻譯</string>
+    <string name="translate_open_gms">打開谷歌服務</string>
+    <string name="translate_mode_switched">已切換到雲翻譯</string>
+    <string name="privacy_hint">隱私保護提醒</string>
+    <string name="privacy_hint_summary">本頁攔到追蹤器、挖礦腳本等時，按分類提醒各攔了幾個</string>
+    <string name="privacy_hint_tracking">追蹤器 %1$d</string>
+    <string name="privacy_hint_social">社群追蹤 %1$d</string>
+    <string name="privacy_hint_miners">挖礦腳本 %1$d</string>
+    <string name="privacy_hint_fingerprint">指紋採集 %1$d</string>
+    <string name="privacy_hint_content">內容攔截 %1$d</string>
+    <string name="privacy_hint_prefix">隱私：</string>
+    <string name="settings_ai_title">AI 助手</string>
+    <string name="settings_ai_off">未啟用</string>
+    <string name="settings_ai_about">AI 助手基於當前頁面正文回答問題，可自訂介面位址、模型與預設。</string>
 </resources>

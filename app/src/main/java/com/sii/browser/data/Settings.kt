@@ -55,6 +55,21 @@ interface Settings :
 
     fun setIgnoredSslWarning(value: Int)
 
+    /** 拦截提醒（盾牌 + 拦截数气泡）是否显示。 */
+    fun adblockBadge(): Boolean
+
+    /** 拦截提示浮条：页面加载时若本页有拦截，在工具栏上方弹一次提醒。 */
+    fun blockHint(): Boolean
+
+    fun setAdblockBadge(value: Boolean)
+
+    fun setBlockHint(value: Boolean)
+
+    /** 隐私保护提醒：本页拦到跟踪器/挖矿等时在工具栏上方弹一条细分提醒。 */
+    fun privacyHint(): Boolean
+
+    fun setPrivacyHint(value: Boolean)
+
     /** 广告拦截累计次数。 */
     fun adBlockedTimes(): Int
 
@@ -1134,6 +1149,9 @@ interface WebPageSettings {
 
     fun setIncognitoSessionStartedAt(value: Long)
 
+    /** 1.6.3 一次性迁移已应用「跟踪器拦截默认关闭」时返回一次 true，供界面提示。 */
+    fun consumePrivacyTrackingMigrated(): Boolean
+
     /** 隐私保护等级：0 关闭 / 1 标准 / 2 严格 / 3 自定义。 */
     fun privacyLevel(): Int
 
@@ -1416,6 +1434,21 @@ interface WebPageSettings {
     fun setToolbarPosition(value: Int)
 
     /** 滚动时自动隐藏工具栏。 */
+    /** 悬浮底栏小胶囊：开启后网页里常驻小胶囊，与「滚动自动隐藏」互斥。 */
+    fun miniDock(): Boolean
+
+    fun setMiniDock(value: Boolean)
+
+    /** 小胶囊拖动后的位置比例（"x,y"）；空串 = 默认贴底居右。 */
+    fun miniDockPos(): String
+
+    fun setMiniDockPos(value: String)
+
+    /** 小胶囊「可拖动」提示是否已展示过。 */
+    fun miniDockHintShown(): Boolean
+
+    fun setMiniDockHintShown(value: Boolean)
+
     fun toolbarAutoHide(): Boolean
 
     fun setToolbarAutoHide(value: Boolean)

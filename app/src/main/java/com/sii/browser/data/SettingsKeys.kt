@@ -81,6 +81,11 @@ object SettingsKeys {
     const val PASSWORD_BIOMETRIC = "pwdbiometric"
     const val TOOLBAR_POS = "toolbarpos"
     const val TOOLBAR_AUTOHIDE = "toolbarautohide"
+    const val MINI_DOCK = "minidock"
+    /** 小胶囊被拖动后的位置（相对父容器比例，0~1），空串表示未拖动过。 */
+    const val MINI_DOCK_POS = "minidockpos"
+    /** 小胶囊「可拖动」提示是否已展示过。 */
+    const val MINI_DOCK_HINT = "minidockhint"
     const val TOOLBAR_ORDER = "toolbarorder"
     const val QUICK_ENGINE_POS = "quickenginepos"
     const val THEME_COLOR = "themecolor"
@@ -250,6 +255,9 @@ object SettingsKeys {
     const val LOGIN = "login"
     const val ADBLOCKED_TIMES = "adblockedtimes"
     const val ADBLOCK_ENABLED = "adblockenabled"
+    const val ADBLOCK_BADGE = "adblockbadge"
+    const val BLOCK_HINT = "blockhint"
+    const val PRIVACY_HINT = "privacyhint"
     const val PAGE_REQUESTS = "page_requests"
     const val ADBLOCK_BUILTIN = "adblockbuiltin"
     const val SUB_INTERVAL = "subinterval"

@@ -41,7 +41,11 @@ class DataStoreSettings(private val context: Context) : Settings {
         SettingsKeys.INCOG_ACTIVE,
         SettingsKeys.INCOG_SESSION_START,
         SettingsKeys.INCOG_CLEAN_DOWNLOADS,
-        SettingsKeys.INCOG_CLEAN_TRANSLATION
+        SettingsKeys.INCOG_CLEAN_TRANSLATION,
+        // 广告拦截总开关：必须镜像到 SharedPreferences。
+        // DataStore 是异步落盘的，进程在写盘前被杀（退出软件）就会读回默认值 false，
+        // 表现为「每次重启广告拦截都自动关闭」。
+        SettingsKeys.ADBLOCK_ENABLED
     )
 
     init {
@@ -53,6 +57,11 @@ class DataStoreSettings(private val context: Context) : Settings {
                     dataStore.data.first().asMap().forEach { (key, value) -> cache[key.name] = value }
                 }
                 migrateMenuOrderPrivacy()
+                migratePrivacyTracking()
+            } else {
+                // 全新安装：没有任何旧设置需要迁移，直接落标记，避免用户日后手动
+                // 在「标准」档打开跟踪器后被误当成老设置再关掉一次。
+                mirror.edit().putBoolean("privacy_tracking_migrated", true).apply()
             }
             mirror.edit().putBoolean("migrated", true).apply()
             writeMirror()
@@ -64,30 +73,42 @@ class DataStoreSettings(private val context: Context) : Settings {
                         cache.putIfAbsent(key.name, value)
                     }
                     migrateMenuOrderPrivacy()
+                    migratePrivacyTracking()
                     writeMirror()
                 }
             }
         }
     }
 
-    /** 旧版菜单顺序没有「隐私保护」：把 privacy 插到 refresh 原位置，refresh 移到末尾；已有 privacy 时幂等。 */
+    /** 旧版菜单顺序迁移：补「隐私保护」与「AI 助手」两个后来新增的菜单项（幂等）。 */
     private fun migrateMenuOrderPrivacy() {
         val raw = cache[SettingsKeys.DISPLAYED_MENUS] as? String ?: return
         val order = raw.split(",").filter { it.isNotEmpty() }
-        if (order.isEmpty() || "privacy" in order) return
+        if (order.isEmpty()) return
         val migrated = order.toMutableList()
-        val refreshAt = migrated.indexOf("refresh")
-        if (refreshAt >= 0) {
-            migrated[refreshAt] = "privacy"
-            migrated.removeAll { it == "refresh" }
-            migrated.add("refresh")
-        } else {
-            migrated.add("privacy")
+        var changed = false
+        // 旧版菜单顺序没有「隐私保护」：把 privacy 插到 refresh 原位置，refresh 移到末尾。
+        if ("privacy" !in migrated) {
+            val refreshAt = migrated.indexOf("refresh")
+            if (refreshAt >= 0) {
+                migrated[refreshAt] = "privacy"
+                migrated.removeAll { it == "refresh" }
+                migrated.add("refresh")
+            } else {
+                migrated.add("privacy")
+            }
+            changed = true
         }
-        putStr(SettingsKeys.DISPLAYED_MENUS, migrated.joinToString(","))
+        // 1.6.3 起「AI 助手」进入菜单目录：老顺序里没有它，插到「阅读模式」前。
+        if ("askai" !in migrated) {
+            val readerAt = migrated.indexOf("reader")
+            if (readerAt >= 0) migrated.add(readerAt, "askai") else migrated.add("askai")
+            changed = true
+        }
+        if (changed) putStr(SettingsKeys.DISPLAYED_MENUS, migrated.joinToString(","))
     }
 
-    private fun writeMirror() {
+    private fun writeMirror(commit: Boolean = false) {
         val editor = mirror.edit()
         mirrorKeys.forEach { key ->
             when (val value = cache[key]) {
@@ -98,7 +119,8 @@ class DataStoreSettings(private val context: Context) : Settings {
                 else -> editor.remove(key)
             }
         }
-        editor.apply()
+        // commit=true：关键开关（如广告拦截）需同步落盘，避免进程随即被杀时丢设置。
+        if (commit) editor.commit() else editor.apply()
     }
 
     // ---- 基础读写（缓存 + DataStore）----
@@ -127,7 +149,7 @@ class DataStoreSettings(private val context: Context) : Settings {
 
     private fun putBool(key: String, value: Boolean) {
         cache[key] = value
-        if (key in mirrorKeys) writeMirror()
+        if (key in mirrorKeys) writeMirror(commit = true)
         val prefKey = booleanPreferencesKey(key)
         scope.launch { dataStore.edit { it[prefKey] = value } }
     }
@@ -203,6 +225,21 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setIgnoredSslWarning(value: Int) {
         putInt(SettingsKeys.IGNORED_SSL_WARNING, value)
     }
+
+    override fun adblockBadge(): Boolean =
+        bool(SettingsKeys.ADBLOCK_BADGE, SettingsDefaults.ADBLOCK_BADGE)
+
+    override fun setAdblockBadge(value: Boolean) = putBool(SettingsKeys.ADBLOCK_BADGE, value)
+
+    override fun blockHint(): Boolean =
+        bool(SettingsKeys.BLOCK_HINT, SettingsDefaults.BLOCK_HINT)
+
+    override fun setBlockHint(value: Boolean) = putBool(SettingsKeys.BLOCK_HINT, value)
+
+    override fun privacyHint(): Boolean =
+        bool(SettingsKeys.PRIVACY_HINT, SettingsDefaults.PRIVACY_HINT)
+
+    override fun setPrivacyHint(value: Boolean) = putBool(SettingsKeys.PRIVACY_HINT, value)
 
     override fun adBlockedTimes(): Int = int(SettingsKeys.ADBLOCKED_TIMES, 0)
 
@@ -1493,6 +1530,32 @@ class DataStoreSettings(private val context: Context) : Settings {
         mirror.edit().putLong(SettingsKeys.INCOG_SESSION_START, value).commit()
     }
 
+    override fun consumePrivacyTrackingMigrated(): Boolean {
+        if (!mirror.getBoolean("privacy_tracking_notice", false)) return false
+        mirror.edit().putBoolean("privacy_tracking_notice", false).commit()
+        return true
+    }
+
+    /**
+     * 一次性迁移：升级到 1.6.3 前已开「标准」档的用户，跟踪器拦截改为关闭。
+     *
+     * 必须在 DataStore 值已进 cache 之后再调用（见 [init]），否则读到的是默认值 0 档，
+     * 迁移会被跳过却已把标记落盘，老用户永久失去这次迁移。
+     */
+    private fun migratePrivacyTracking() {
+        if (mirror.getBoolean("privacy_tracking_migrated", false)) return
+        if (int(SettingsKeys.PRIVACY_LEVEL, 0) != 1) return
+        if (!bool(SettingsKeys.PRIVACY_TRACKING, true)) {
+            mirror.edit().putBoolean("privacy_tracking_migrated", true).commit()
+            return
+        }
+        putBool(SettingsKeys.PRIVACY_TRACKING, false)
+        mirror.edit()
+            .putBoolean("privacy_tracking_migrated", true)
+            .putBoolean("privacy_tracking_notice", true)
+            .commit()
+    }
+
     override fun privacyLevel(): Int = int(SettingsKeys.PRIVACY_LEVEL, 0)
 
     override fun setPrivacyLevel(value: Int) = putInt(SettingsKeys.PRIVACY_LEVEL, value)
@@ -1515,7 +1578,8 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun setDohProvider(value: String) =
         putStr(SettingsKeys.DOH_PROVIDER, value)
 
-    override fun privacyTracking(): Boolean = bool(SettingsKeys.PRIVACY_TRACKING, true)
+    override fun privacyTracking(): Boolean =
+        bool(SettingsKeys.PRIVACY_TRACKING, SettingsDefaults.PRIVACY_TRACKING)
 
     override fun setPrivacyTracking(value: Boolean) = putBool(SettingsKeys.PRIVACY_TRACKING, value)
 
@@ -1787,6 +1851,22 @@ class DataStoreSettings(private val context: Context) : Settings {
     override fun toolbarPosition(): Int = int(SettingsKeys.TOOLBAR_POS, 0)
 
     override fun setToolbarPosition(value: Int) = putInt(SettingsKeys.TOOLBAR_POS, value)
+
+    override fun miniDock(): Boolean =
+        bool(SettingsKeys.MINI_DOCK, SettingsDefaults.MINI_DOCK)
+
+    override fun setMiniDock(value: Boolean) = putBool(SettingsKeys.MINI_DOCK, value)
+
+    override fun miniDockPos(): String =
+        str(SettingsKeys.MINI_DOCK_POS, SettingsDefaults.MINI_DOCK_POS).orEmpty()
+
+    override fun setMiniDockPos(value: String) = putStr(SettingsKeys.MINI_DOCK_POS, value)
+
+    override fun miniDockHintShown(): Boolean =
+        bool(SettingsKeys.MINI_DOCK_HINT, SettingsDefaults.MINI_DOCK_HINT)
+
+    override fun setMiniDockHintShown(value: Boolean) =
+        putBool(SettingsKeys.MINI_DOCK_HINT, value)
 
     override fun toolbarAutoHide(): Boolean =
         bool(SettingsKeys.TOOLBAR_AUTOHIDE, SettingsDefaults.TOOLBAR_AUTOHIDE)

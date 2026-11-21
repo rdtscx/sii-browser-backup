@@ -800,9 +800,30 @@ class HomeCustomizeFragment : Fragment() {
         }
         rows.add(noLabelRow)
         if (modern) disableRow(noLabelRow, true)
-        rows.add(switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
+        // 小胶囊与「滚动自动隐藏」是两种互斥的收起方式：小胶囊把底栏收成角落的按钮，
+        // 滚动隐藏是把整条底栏移出屏幕。同时开启会互相打架，所以只允许开一个。
+        val miniDockOn = settings.miniDock()
+        val miniDockRow = switchRow("悬浮工具栏小胶囊", miniDockOn) { on ->
+            settings.setMiniDock(on)
+            // 开启小胶囊即关闭滚动隐藏，两者互斥。
+            if (on) settings.setToolbarAutoHide(false)
+            refreshPreview()
+            view?.post { buildControls() }
+        }
+        rows.add(miniDockRow)
+        // 小胶囊是「悬浮底栏」的收起形态，只在新版界面有意义，经典界面才置灰。
+        // （之前把条件写反成 modern，导致新版界面下这个开关点不动。）
+        if (!modern) disableRow(miniDockRow, true)
+
+        val autoHideRow = switchRow("滚动自动隐藏", settings.toolbarAutoHide()) {
             settings.setToolbarAutoHide(it)
-        })
+            // 开启滚动隐藏即关闭小胶囊，两者互斥。
+            if (it) settings.setMiniDock(false)
+            refreshPreview()
+            view?.post { buildControls() }
+        }
+        rows.add(autoHideRow)
+        // 互斥靠回调里互相关闭实现，不靠置灰：置灰会让用户「两个都调不动」。
         val hideOnImageRow = switchRow(
             "看图时隐藏工具栏",
             settings.hideChromeOnImageView()
@@ -811,7 +832,8 @@ class HomeCustomizeFragment : Fragment() {
             refreshPreview()
         }
         rows.add(hideOnImageRow)
-        if (!modern) disableRow(hideOnImageRow, true)
+        // 小胶囊开着时同样置灰：胶囊本身已经是最小形态，再加一层看图隐藏只会互相打架。
+        if (!modern || miniDockOn) disableRow(hideOnImageRow, true)
         val tabBarRow = choiceRow(
             "标签栏位置",
             arrayOf("地址栏上方", "工具栏上方", "隐藏"),
