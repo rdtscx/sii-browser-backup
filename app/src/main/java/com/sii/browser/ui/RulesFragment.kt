@@ -101,7 +101,23 @@ class RulesFragment : Fragment() {
                 if (!enabled) com.sii.browser.core.webview.PageRequests.clearAll()
                 render(latestRules)
             },
-            cosmeticStatsRow()
+            cosmeticStatsRow(),
+            switchRow(
+                getString(R.string.adblock_badge),
+                getString(R.string.adblock_badge_summary),
+                AppServices.settings.adblockBadge()
+            ) { enabled ->
+                AppServices.settings.setAdblockBadge(enabled)
+                render(latestRules)
+            },
+            switchRow(
+                getString(R.string.block_hint),
+                getString(R.string.block_hint_summary),
+                AppServices.settings.blockHint()
+            ) { enabled ->
+                AppServices.settings.setBlockHint(enabled)
+                render(latestRules)
+            }
         )
 
         container.addView(CardList.sectionTitle(requireContext(), getString(R.string.adblock_source)))

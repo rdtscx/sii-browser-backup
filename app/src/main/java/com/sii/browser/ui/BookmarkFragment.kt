@@ -119,24 +119,38 @@ class BookmarkFragment : Fragment() {
         sizeMode = AppServices.settings.bookmarkSize()
         iconMode = AppServices.settings.bookmarkIcon()
         folderId = savedInstanceState?.getString(ARG_FOLDER) ?: arguments?.getString(ARG_FOLDER)
-        startObserve()
-        val folder = folderId ?: return
-        viewLifecycleOwner.lifecycleScope.launch {
-            val exists = repository.findFolderById(folder) != null
-            if (!exists && isAdded) applyFolder(null)
+        // 从「书签」入口重新进入时，恢复上次停留的文件夹（用户要求的「回到上一次打开的文件夹」）。
+        // 只在没有显式指定文件夹（即从菜单进入）且没有保存实例时恢复。
+        if (folderId == null && savedInstanceState == null) {
+            folderId = AppServices.bookmarkFolderId
         }
+
+        // ★ 返回回调必须在任何 return 之前注册。
+        // 旧代码把「folderId 为 null 就 return」写在注册之前，导致从书签根目录进入时
+        // 回调根本没注册，返回键落到 BrowserFragment 的全局回调 → 直接退出书签页。
+        // 这就是「有时返回上一级、有时直接回主页」的根因：取决于进入时是否停在文件夹里。
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
             object : androidx.activity.OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    // 统一规则：还有上一级就上一级；已在书签根目录才关闭书签页。
                     if (folderId != null) {
                         goUpLevel()
                     } else {
-                        view?.post { if (isAdded) closePage() }
+                        closePage()
                     }
                 }
             }
         )
+
+        startObserve()
+        // 校验记录的文件夹是否还存在（可能已被删除），不存在则回到根目录。
+        folderId?.let { folder ->
+            viewLifecycleOwner.lifecycleScope.launch {
+                val exists = repository.findFolderById(folder) != null
+                if (!exists && isAdded) applyFolder(null)
+            }
+        }
     }
 
     /** 在页面内切换层级：整页只占一个回退栈条目，返回键不会直接退回浏览器。 */
@@ -181,12 +195,20 @@ class BookmarkFragment : Fragment() {
         }
     }
 
-    /** 页头返回：一次关掉整个书签页，回到打开前的网站或主页。 */
+    /**
+     * 关闭书签页，回到打开前的网站或主页。
+     *
+     * 记录当前停留的文件夹（用户要求「重新打开书签回到上次的文件夹」），
+     * 然后**只**弹出书签页自己的回退栈条目；匹配不到就什么都不做，
+     * 避免 fallback 的 popBackStack() 误弹出别的页面。
+     */
     private fun closePage() {
-        if (folderId == null) AppServices.bookmarkFolderId = null
+        AppServices.bookmarkFolderId = folderId
         val fm = parentFragmentManager
-        if (!fm.popBackStackImmediate(BACK_STACK, FragmentManager.POP_BACK_STACK_INCLUSIVE)) {
-            fm.popBackStack()
+        if (!fm.popBackStackImmediate(BACK_STACK, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)) {
+            // 书签页总是带 BACK_STACK tag 入栈，正常不会走到这里。
+            // 万一不匹配，宁可不处理也不要乱 pop。
+            com.sii.browser.core.mcp.DiagLog.record("bookmark-close-page", "back stack not matched")
         }
     }
 

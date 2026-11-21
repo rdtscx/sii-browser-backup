@@ -152,6 +152,14 @@ object SettingsDefaults {
     /** 菜单隐私保护开关关闭前的快照（0 = 无）。 */
     const val PRIVACY_TOGGLE_STATE = 0
 
+    /** 跟踪器拦截默认关：EasyPrivacy 规则量最大，误杀导致网站打不开的主因。 */
+    const val PRIVACY_TRACKING = false
+
+    /** 快捷引擎栏的拦截提醒气泡（盾牌 + 拦截数）默认开。 */
+    const val ADBLOCK_BADGE = true
+    const val BLOCK_HINT = true
+    const val PRIVACY_HINT = true
+
     /** 应用内 DoH 代理：默认关。 */
     const val DOH_PROXY_ENABLED = false
     const val DOH_PROVIDER = "ali"
@@ -215,6 +223,15 @@ object SettingsDefaults {
     /** 滚动自动隐藏工具栏。 */
     const val TOOLBAR_AUTOHIDE = true
 
+    /** 网页页把悬浮底栏收成小胶囊（与「滚动自动隐藏」互斥）。 */
+    const val MINI_DOCK = false
+
+    /** 小胶囊位置比例（"x,y"），空串 = 默认贴底居右。 */
+    const val MINI_DOCK_POS = ""
+
+    /** 小胶囊拖动提示是否已展示。 */
+    const val MINI_DOCK_HINT = false
+
     /** 快捷引擎栗。 */
     const val SEARCH_TOOLBAR = true
 
@@ -247,7 +264,7 @@ object SettingsDefaults {
     const val DEFAULT_MENU_ORDER =
         "home,privacy,bookmarks,addbookmark,history," +
             "sniff,share,copylink,adpick,adblock," +
-            "reader,userscripts,desktop,translatepage,find," +
+            "askai,reader,userscripts,desktop,translatepage,find," +
             "font,uiscale,netlog,readaloud,savepage," +
             "scriptmenu,jsconsole,noimg,adblockstats,readlaterlist," +
             "source,print,devtools,scan,passwords," +

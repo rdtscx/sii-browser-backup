@@ -46,6 +46,9 @@ class DownloadService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        // 下载协程改绑到本服务：只要前台服务存活，下载就不会因界面销毁或进程优先级下降中断。
+        AppServices.downloadEngine.bindScope(scope)
+        acquireWakeLock()
         AppServices.downloadEngine.onTaskProgress = { taskId, downloaded, total ->
             progressByTask[taskId] = longArrayOf(downloaded, total)
             updateNotification(taskId, downloaded, total)
@@ -95,16 +98,51 @@ class DownloadService : Service() {
     override fun onDestroy() {
         AppServices.downloadEngine.onTaskProgress = null
         AppServices.downloadEngine.onTaskCompleted = null
+        // 服务结束：下载协程回落到引擎自身作用域，并释放唤醒锁。
+        AppServices.downloadEngine.unbindScope()
+        releaseWakeLock()
         scope.cancel()
         super.onDestroy()
+    }
+
+    // ---- 唤醒锁：下载期间保持 CPU 唤醒，避免息屏/后台被挂起 ----
+
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        runCatching {
+            val pm = getSystemService(android.os.PowerManager::class.java) ?: return
+            wakeLock = pm.newWakeLock(
+                android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                "Sii:download"
+            ).apply {
+                setReferenceCounted(false)
+                acquire(MAX_WAKE_LOCK_MS)
+            }
+        }
+    }
+
+    private fun releaseWakeLock() {
+        runCatching {
+            wakeLock?.let { if (it.isHeld) it.release() }
+        }
+        wakeLock = null
     }
 
     /** 无进行中任务且无 HLS 下载时自动停止前台服务（空闲回收）。 */
     private fun maybeStopIdle() {
         scope.launch {
-            val anyActive = AppServices.downloadRepository.allTasks().first()
-                .any { it.state == DownloadState.DOWNLOADING || it.state == DownloadState.PENDING }
-            if (anyActive || hlsActive) return@launch
+            // 只有「真的没有任何活动任务」才停服务。
+            // 之前只看 DOWNLOADING/PENDING；断点续传恢复的瞬间可能还停留在 PAUSED，
+            // 导致刚恢复就被 stopSelf 停掉，表现为「切后台下载停住」。
+            val tasks = AppServices.downloadRepository.allTasks().first()
+            val anyActive = tasks.any {
+                it.state == DownloadState.DOWNLOADING || it.state == DownloadState.PENDING
+            }
+            val anyEngineJob = AppServices.downloadEngine.hasActiveJobs()
+            if (anyActive || anyEngineJob || hlsActive) return@launch
+            releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -531,6 +569,8 @@ class DownloadService : Service() {
     companion object {
         private const val CHANNEL_ID = "downloads"
         private const val NOTIFICATION_ID = 1
+        /** 唤醒锁最长持有 2 小时，防止异常退出时长期占用。 */
+        private const val MAX_WAKE_LOCK_MS = 2L * 60 * 60 * 1000
 
         const val ACTION_DOWNLOAD = "com.sii.browser.download.DOWNLOAD"
         const val ACTION_DOWNLOAD_HLS = "com.sii.browser.download.DOWNLOAD_HLS"

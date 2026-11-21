@@ -362,7 +362,9 @@ class SiteRuleDetailFragment : Fragment() {
         val labels = arrayOf(
             "跟随全局",
             "询问",
-            getString(R.string.site_always_allow),
+            // 长期策略选项用「允许/拒绝」即可，不必写「始终」：
+            // 弹窗里的「允许一次 / 始终允许」才需要靠「始终」区分语义。
+            getString(R.string.site_allow),
             getString(R.string.site_deny)
         )
         val selected = when (SiteConfig.permission(config, key, legacyKey)) {

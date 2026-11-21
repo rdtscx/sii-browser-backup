@@ -26,7 +26,9 @@ object PrivacyLevels {
                 settings.setPrivacyHttpsOnly(false)
             }
             1 -> {
-                settings.setPrivacyTracking(true)
+                // 1.6.3 起「标准」档默认不拦跟踪器：EasyPrivacy 规则量最大、误杀最多，
+                // 是网站登录/验证码/播放异常的主要来源。用户可在自定义里手动开启。
+                settings.setPrivacyTracking(false)
                 settings.setPrivacySocial(true)
                 settings.setPrivacyMiners(true)
                 settings.setPrivacyFingerprint(true)
@@ -49,6 +51,40 @@ object PrivacyLevels {
             }
         }
     }
+
+    /**
+     * 当前各分类开关的位掩码（不含等级本身），用于判断「是否仍等于某个预设档」。
+     *
+     * 位定义与 [snapshot] / [restore] 一致，两处共用一套。
+     */
+    fun stateBits(settings: Settings): Int = snapshot(settings) and BITS_MASK
+
+    /** 指定预设档（1 标准 / 2 严格）对应的位掩码，供与 [stateBits] 比对。 */
+    fun presetBits(level: Int): Int {
+        val tracking = when (level) {
+            1 -> false
+            2 -> true
+            else -> return 0
+        }
+        val strict = level == 2
+        var bits = 0
+        fun set(index: Int, value: Boolean) {
+            if (value) bits = bits or (1 shl index)
+        }
+        set(2, tracking)
+        set(3, true)
+        set(4, true)
+        set(5, true)
+        set(6, strict)
+        set(7, strict)
+        set(8, false)
+        set(9, true)
+        set(10, false)
+        return bits
+    }
+
+    /** 各分类位合并掩码（低 2 位留给等级）。 */
+    private const val BITS_MASK = 0b11111111100
 
     /** 关闭前快照等级与各分类开关，供菜单开关下次开启时原样恢复。 */
     fun snapshot(settings: Settings): Int {

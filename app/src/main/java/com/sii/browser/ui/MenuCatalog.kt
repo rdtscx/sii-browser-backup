@@ -27,6 +27,7 @@ object MenuCatalog {
         Item("share", R.string.menu_share, R.drawable.ic_m_share),
         Item("copylink", R.string.menu_copy_link, R.drawable.ic_m_copy),
         Item("settings", R.string.menu_settings, R.drawable.ic_m_settings),
+        Item("askai", R.string.menu_ask_ai, R.drawable.ic_m_ai),
         Item("reader", R.string.menu_reader, R.drawable.ic_m_reader),
         Item("sniff", R.string.menu_sniff, R.drawable.ic_m_sniff),
         Item("scan", R.string.menu_scan, R.drawable.ic_m_scan),

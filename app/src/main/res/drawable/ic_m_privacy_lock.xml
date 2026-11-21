@@ -1,17 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  隐私保护：盾牌内嵌锁。
+  24dp 画布上盾牌占 x=4.2~19.8（宽 15.6）、y=3.2~20.6，垂直居中、左右对称；
+  锁体放宽到 8.2、锁梁跨度 5.4，小尺寸（18~22dp）下也不会糊成一团。
+  锁体与钥匙孔用同一条 evenOdd 路径：外框实心、孔洞镂空，
+  这样图标整体只依赖 tint 着色，日/夜间都能自动适配。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <path android:pathData="M12,3.5 L19,6.5 L19,11 C19,15.5 16.2,18.9 12,20.5 C7.8,18.9 5,15.5 5,11 L5,6.5 Z"
-        android:strokeColor="@color/text_primary" android:strokeWidth="1.5"
+    <!-- 盾牌外轮廓 -->
+    <path android:pathData="M12,3.2 L19.8,6.4 L19.8,11.6 C19.8,16.0 16.6,19.0 12,20.6 C7.4,19.0 4.2,16.0 4.2,11.6 L4.2,6.4 Z"
+        android:strokeColor="@color/text_primary" android:strokeWidth="1.6"
         android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M10.2,10.9 L10.2,10.1 A1.8,1.8 0 0 1 13.8,10.1 L13.8,10.9"
-        android:strokeColor="@color/text_primary" android:strokeWidth="1.5"
+    <!-- 锁梁 -->
+    <path android:pathData="M9.3,11.9 L9.3,10.5 A2.7,2.7 0 0 1 14.7,10.5 L14.7,11.9"
+        android:strokeColor="@color/text_primary" android:strokeWidth="1.6"
         android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M9.4,10.9 L14.6,10.9 L14.6,14.4 L9.4,14.4 Z"
-        android:strokeColor="@color/text_primary" android:strokeWidth="1.5"
-        android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M12,12.1 L12,13.2"
-        android:strokeColor="@color/text_primary" android:strokeWidth="1.5"
-        android:strokeLineCap="round" />
+    <!-- 锁体：外框实心 + 钥匙孔镂空（evenOdd） -->
+    <path android:fillType="evenOdd"
+        android:pathData="M7.9,11.9 L16.1,11.9 L16.1,16.3 L7.9,16.3 Z M12,12.3 A0.85,0.85 0 1 1 12,14.0 A0.85,0.85 0 1 1 12,12.3 Z M11.45,13.7 L12.55,13.7 L12.55,15.4 L11.45,15.4 Z"
+        android:fillColor="@color/text_primary" />
 </vector>

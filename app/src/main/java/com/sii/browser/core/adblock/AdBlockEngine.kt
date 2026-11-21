@@ -34,6 +34,75 @@ class AdBlockEngine {
     var blockedCount: Int = 0
         private set
 
+    /** 本页拦截的广告请求数（不含隐私规则），供拦截提醒气泡使用。 */
+    @Volatile
+    var pageBlockedAds: Int = 0
+        private set
+
+    /** 本页拦截的隐私/跟踪器请求数。 */
+    @Volatile
+    var pageBlockedPrivacy: Int = 0
+        private set
+
+    /**
+     * 本页被拦截的**去重来源数**（按请求 host 去重）。
+     *
+     * 原始请求条数是「拦了多少个网络请求」，用户看到 11 却只看到 2 个广告位，
+     * 会觉得数字虚高。这里按 host 去重，更接近「拦了几个来源」的直觉。
+     */
+    @Volatile
+    var pageBlockedSources: Int = 0
+        private set
+
+    /** 本页去重后的广告来源数。 */
+    @Volatile
+    var pageAdSources: Int = 0
+        private set
+
+    /** 本页去重后的隐私来源数。 */
+    @Volatile
+    var pagePrivacySources: Int = 0
+        private set
+
+    /** 本页去重后的广告来源 host 集合。 */
+    private val pageAdHosts = HashSet<String>()
+
+    /** 本页去重后的隐私来源 host 集合。 */
+    private val pagePrivacyHosts = HashSet<String>()
+
+    /**
+     * 本页按隐私分类去重的来源数：key 是 PrivacyPacks 里的分类名
+     * （tracking / social / miners / fingerprint / content）。
+     * 隐私提醒用它分别报「跟踪器拦了几个、挖矿脚本拦了几个」。
+     */
+    @Volatile
+    var pageCategorySources: Map<String, Int> = emptyMap()
+        private set
+
+    /** 本页分类 → 来源 host 集合；resetPageStats 一并清空。 */
+    private val pageCategoryHosts = LinkedHashMap<String, HashSet<String>>()
+
+    /**
+     * 本页计数变化回调（任意线程触发，调用方自行切主线程）。
+     * 参数依次为：本页广告数、本页隐私数。
+     */
+    @Volatile
+    var onPageBlocked: ((Int, Int) -> Unit)? = null
+
+    /** 换页时清零本页计数。 */
+    @Synchronized
+    fun resetPageStats() {
+        pageBlockedAds = 0
+        pageBlockedPrivacy = 0
+        pageAdHosts.clear()
+        pagePrivacyHosts.clear()
+        pageBlockedSources = 0
+        pageAdSources = 0
+        pagePrivacySources = 0
+        pageCategoryHosts.clear()
+        pageCategorySources = emptyMap()
+    }
+
     private val blockedHosts = LinkedHashMap<String, Int>()
 
     @Synchronized
@@ -218,8 +287,32 @@ class AdBlockEngine {
             url, type, pageHost, thirdParty, host, adActive, privacyActive
         ) ?: return false
         blockedCount++
+        if (category.isEmpty()) pageBlockedAds++ else pageBlockedPrivacy++
+        // 按 host 去重：同一个广告源的多个请求只算一个来源。
+        val sourceKey = host.ifEmpty { pageHost.orEmpty() }
+        if (sourceKey.isNotEmpty()) {
+            val added = if (category.isEmpty()) {
+                pageAdHosts.add(sourceKey)
+            } else {
+                pagePrivacyHosts.add(sourceKey)
+            }
+            if (added) {
+                pageAdSources = pageAdHosts.size
+                pagePrivacySources = pagePrivacyHosts.size
+                pageBlockedSources = pageAdSources + pagePrivacySources
+            }
+        }
+        onPageBlocked?.invoke(pageBlockedAds, pageBlockedPrivacy)
         if (category.isNotEmpty()) {
             blockedByCategory[category] = (blockedByCategory[category] ?: 0) + 1
+            // 按分类去重：同一 host 的同类请求只算一个来源。
+            if (sourceKey.isNotEmpty()) {
+                val set = pageCategoryHosts.getOrPut(category) { HashSet() }
+                if (set.add(sourceKey)) {
+                    pageCategorySources = pageCategoryHosts.entries
+                        .associate { it.key to it.value.size }
+                }
+            }
             val privacyKey = host.ifEmpty { pageHost.orEmpty() }
             if (privacyKey.isNotEmpty() &&
                 (blockedPrivacyHosts.size < 100 || blockedPrivacyHosts.containsKey(privacyKey))

@@ -368,7 +368,8 @@ object AppServices {
     /** 依据站点规则里的「广告拦截」开关刷新单站覆盖（读内存缓存，主线程可调）。 */
     /** 重新计算隐私放行名单：用户名单 + 标准档兼容模式的功能性域名。 */
     fun syncPrivacyAllowlist() {
-        val extra = if (settings.privacyLevel() == 1 && settings.privacyCompat()) {
+        // 1.6.3 起兼容模式覆盖标准/严格/自定义三档：档位越高越需要救急通道。
+        val extra = if (settings.privacyLevel() >= 1 && settings.privacyCompat()) {
             com.sii.browser.core.privacy.PrivacyCompat.HOSTS
         } else {
             emptySet()

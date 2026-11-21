@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  拦截胶囊图标：实心盾牌 + 镂空对勾。
+  18dp 显示尺寸下，纯描边的小图标会糊成一团，所以盾牌改成实心填充，
+  对勾用 evenOdd 镂空出来（透出后面的胶囊底色），轮廓在任何背景上都清晰。
+  盾牌占 x=4.0~20.0、y=2.8~21.0，居中对称。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillType="evenOdd"
+        android:fillColor="@color/text_primary"
+        android:pathData="M12,2.8 L20,6.1 L20,11.6 C20,16.2 16.7,19.4 12,21.0 C7.3,19.4 4,16.2 4,11.6 L4,6.1 Z
+                          M10.6,15.6 L7.5,12.4 L8.9,11.0 L10.6,12.8 L15.2,8.2 L16.6,9.6 Z" />
+</vector>

@@ -15,14 +15,26 @@ import androidx.lifecycle.lifecycleScope
 import com.sii.browser.R
 import com.sii.browser.data.db.DownloadState
 import com.sii.browser.di.AppServices
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 下载列表（下载任务列表）。
  * Room Flow 响应式驱动，每行：名称/进度条/状态/暂停恢复/删除。
  */
 class DownloadFragment : Fragment() {
+
+    /**
+     * 删除类操作用的应用级作用域。
+     *
+     * 删除涉及「停下载协程 → 删文件 → 删记录」，中途若随视图销毁被取消，
+     * 会留下「记录还在但文件没了」或反之的脏状态，因此不受 Fragment 生命周期约束。
+     */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private lateinit var container: LinearLayout
     private var sortBy: Int = SORT_TIME
@@ -1046,47 +1058,55 @@ class DownloadFragment : Fragment() {
     }
 
     private fun confirmDelete(task: com.sii.browser.data.db.DownloadTask) {
-        viewLifecycleOwner.lifecycleScope.launch {
+        // 用应用级 scope：删除涉及 cancelAndWait + 删文件 + 删记录，
+        // 中途 Fragment 视图销毁会把协程取消，导致「删一半」留下脏数据。
+        appScope.launch {
             // 未完成任务先停止下载，否则删完记录协程还在往外写。
             if (task.state == DownloadState.DOWNLOADING || task.state == DownloadState.PENDING) {
                 AppServices.downloadEngine.cancelAndWait(task.id)
             }
-            val unfinished = task.state != DownloadState.COMPLETED
-            if (!taskFileExists(task) && !unfinished) {
-                deleteRecordOnly(task)
+            // 任务可能已被引擎收尾删除，重新取一次再判断。
+            val latest = AppServices.downloadRepository.allTasks().first()
+                .firstOrNull { it.id == task.id } ?: return@launch
+            val unfinished = latest.state != DownloadState.COMPLETED
+            if (!taskFileExists(latest) && !unfinished) {
+                deleteRecordOnly(latest)
                 return@launch
             }
-            android.app.AlertDialog.Builder(requireContext())
-                .setTitle(R.string.delete)
-                .setMessage(
-                    if (unfinished) getString(R.string.download_delete_unfinished_confirm)
-                    else getString(R.string.download_clear_confirm)
-                )
-                .apply {
-                    if (unfinished) {
-                        // 未完成任务默认连文件一起删，否则残包会留在磁盘里。
-                        setPositiveButton(R.string.download_delete_with_file) { _, _ ->
-                            deleteTaskAndFile(task)
-                        }
-                        setNeutralButton(R.string.download_remove_record) { _, _ ->
-                            deleteRecordOnly(task)
-                        }
-                    } else {
-                        setPositiveButton(R.string.download_remove_record) { _, _ ->
-                            deleteRecordOnly(task)
-                        }
-                        setNeutralButton(R.string.download_delete_with_file) { _, _ ->
-                            deleteTaskAndFile(task)
+            withContext(Dispatchers.Main) {
+                if (!isAdded || view == null) return@withContext
+                android.app.AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.delete)
+                    .setMessage(
+                        if (unfinished) getString(R.string.download_delete_unfinished_confirm)
+                        else getString(R.string.download_clear_confirm)
+                    )
+                    .apply {
+                        if (unfinished) {
+                            // 未完成任务默认连文件一起删，否则残包会留在磁盘里。
+                            setPositiveButton(R.string.download_delete_with_file) { _, _ ->
+                                deleteTaskAndFile(latest)
+                            }
+                            setNeutralButton(R.string.download_remove_record) { _, _ ->
+                                deleteRecordOnly(latest)
+                            }
+                        } else {
+                            setPositiveButton(R.string.download_remove_record) { _, _ ->
+                                deleteRecordOnly(latest)
+                            }
+                            setNeutralButton(R.string.download_delete_with_file) { _, _ ->
+                                deleteTaskAndFile(latest)
+                            }
                         }
                     }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
         }
     }
 
     private fun deleteRecordOnly(task: com.sii.browser.data.db.DownloadTask) {
-        viewLifecycleOwner.lifecycleScope.launch {
+        appScope.launch {
             if (task.state == DownloadState.DOWNLOADING || task.state == DownloadState.PENDING) {
                 AppServices.downloadEngine.cancelAndWait(task.id)
             }
@@ -1098,7 +1118,7 @@ class DownloadFragment : Fragment() {
 
     private fun deleteTaskAndFile(task: com.sii.browser.data.db.DownloadTask) {
         val ctx = requireContext().applicationContext
-        viewLifecycleOwner.lifecycleScope.launch {
+        appScope.launch {
             if (task.state == DownloadState.DOWNLOADING || task.state == DownloadState.PENDING) {
                 AppServices.downloadEngine.cancelAndWait(task.id)
             }
@@ -1106,7 +1126,7 @@ class DownloadFragment : Fragment() {
                 com.sii.browser.download.IncognitoCleanup.deleteFile(ctx, task.path, task.name)
             }
             AppServices.downloadRepository.deleteTask(task.id)
-            context?.let { com.sii.browser.download.DownloadService.onTasksChanged(it) }
+            com.sii.browser.download.DownloadService.onTasksChanged(ctx)
             fileExists.remove(task.id)
         }
     }

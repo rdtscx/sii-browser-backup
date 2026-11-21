@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 /**
  * 资源嗅探启用站点：默认所有站点关闭嗅探，只有这里列出的站点会记录资源。
  *
- * 视觉与设置页保持一致：根背景 bg_page、内容边距 14/10/14/20、卡片统一用
+ * 视觉与设置页保持一致：根背景 bg_page、内容边距 20/10/20/20、卡片统一用
  * CardList.pageCard + addRows（跟随后卡片透明度与外框设置）、分组用 sectionTitle、
  * 页尾说明用 aboutText 同款样式。
  */
@@ -50,7 +50,7 @@ class SniffSitesFragment : Fragment() {
         })
         val content = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(20))
+            setPadding(dp(20), dp(10), dp(20), dp(20))
         }
         root.addView(
             CardList.scroll(requireContext(), content),

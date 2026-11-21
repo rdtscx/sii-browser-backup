@@ -55,7 +55,31 @@ class DownloadEngine(
     private val client: OkHttpClient = defaultClient()
 ) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * 下载协程作用域。
+     *
+     * 默认挂在引擎自身（应用进程级）。**DownloadService 启动后会改绑到前台服务的 scope**，
+     * 这样只要前台服务存活，下载协程就不会随 Activity/Fragment 销毁或进程优先级下降而中断。
+     * 见 `DownloadEngine.bindScope()`。
+     */
+    @Volatile
+    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * 把下载协程改绑到宿主作用域（前台服务）。
+     *
+     * 切换时**不取消**已有的 Job：旧 job 会跟随旧 scope 结束，新启动的任务用新 scope。
+     * 服务销毁时调用 `unbindScope()` 回落。
+     */
+    fun bindScope(host: CoroutineScope) {
+        scope = host
+    }
+
+    /** 前台服务销毁：回落到引擎自身的进程级作用域。 */
+    fun unbindScope() {
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    }
+
     private val jobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     /** 正在占用下载额度的任务。 */
     private val activeTasks = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
@@ -720,4 +744,7 @@ class DownloadEngine(
     fun shutdown() {
         scope.cancel()
     }
+
+    /** 是否仍有正在运行的下载 Job（服务空闲回收判定用）。 */
+    fun hasActiveJobs(): Boolean = jobs.values.any { it.isActive } || activeTasks.isNotEmpty()
 }

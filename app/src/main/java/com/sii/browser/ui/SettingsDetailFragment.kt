@@ -132,7 +132,6 @@ class SettingsDetailFragment : Fragment() {
         VIEW_APPEARANCE -> getString(R.string.settings_appearance)
         VIEW_HOME_SET -> getString(R.string.settings_home)
         VIEW_UI -> getString(R.string.settings_ui_layout)
-        VIEW_MENU_CUSTOM -> getString(R.string.settings_menu_custom)
         VIEW_TOOLBAR_CUSTOM -> getString(R.string.settings_toolbar_custom)
         VIEW_LP_CUSTOM -> getString(R.string.settings_lp_custom)
         VIEW_THEME_COLOR -> getString(R.string.settings_theme_color_detect)
@@ -167,7 +166,6 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_UI_LAYOUT -> getString(R.string.settings_ui_layout)
         VIEW_V2_SITE -> getString(R.string.settings_site_settings)
         VIEW_V2_SITE_DEFAULT -> getString(R.string.settings_site_default)
-        VIEW_V2_SITE_PERMISSIONS -> getString(R.string.settings_site_permissions)
         VIEW_V2_INCOG -> getString(R.string.settings_incognito)
         VIEW_V2_PRIVACY_PROTECTION -> getString(R.string.settings_privacy_protection)
         VIEW_V2_PASSWORD -> getString(R.string.settings_password)
@@ -179,6 +177,7 @@ class SettingsDetailFragment : Fragment() {
         VIEW_V2_NETLOG -> getString(R.string.settings_netlog)
         VIEW_V2_IMPORT -> getString(R.string.settings_import_export)
         VIEW_V2_LAB -> getString(R.string.settings_lab)
+        VIEW_V2_AI -> getString(R.string.settings_ai_title)
         VIEW_V2_MCP -> getString(R.string.settings_mcp)
         VIEW_V2_SCREEN_TRANSLATE -> getString(R.string.settings_screen_translate)
         VIEW_ABOUT -> getString(R.string.settings_about)
@@ -197,7 +196,6 @@ class SettingsDetailFragment : Fragment() {
             VIEW_APPEARANCE -> buildAppearance()
             VIEW_HOME_SET -> buildHomeSet()
             VIEW_UI -> buildUi()
-            VIEW_MENU_CUSTOM -> buildMenuCustom()
             VIEW_TOOLBAR_CUSTOM -> buildToolbarCustom()
             VIEW_LP_CUSTOM -> buildLongPressCustom()
             VIEW_THEME_COLOR -> buildThemeColor()
@@ -232,7 +230,6 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_UI_LAYOUT -> buildUi()
             VIEW_V2_SITE -> buildV2Site()
             VIEW_V2_SITE_DEFAULT -> buildV2SiteDefault()
-            VIEW_V2_SITE_PERMISSIONS -> buildV2SitePermissions()
             VIEW_V2_INCOG -> buildV2Incog()
             VIEW_V2_PRIVACY_PROTECTION -> buildV2PrivacyProtection()
             VIEW_V2_PASSWORD -> buildV2Password()
@@ -244,6 +241,7 @@ class SettingsDetailFragment : Fragment() {
             VIEW_V2_NETLOG -> buildV2Netlog()
             VIEW_V2_IMPORT -> buildV2Import()
             VIEW_V2_LAB -> buildV2Lab()
+            VIEW_V2_AI -> buildV2Ai()
             VIEW_V2_MCP -> buildV2Mcp()
             VIEW_V2_SCREEN_TRANSLATE -> buildV2ScreenTranslate()
             VIEW_ABOUT -> buildAbout()
@@ -405,52 +403,17 @@ class SettingsDetailFragment : Fragment() {
         card(
             navRow(getString(R.string.settings_scripts)) { openFragment(ScriptsFragment()) },
             navRow(getString(R.string.settings_rules)) { openFragment(RulesFragment()) },
-            navRow(getString(R.string.settings_sniff_sites)) { openFragment(SniffSitesFragment()) }
+            navRow(getString(R.string.settings_sniff_sites)) { openFragment(SniffSitesFragment()) },
+            // AI 助手收纳为二级页：入口在这一组，配置项全部移到新页面。
+            navRow(
+                getString(R.string.settings_ai_title),
+                aiPageSummary()
+            ) { open(VIEW_V2_AI) }
         )
         sectionTitle(R.string.settings_special_group_translate)
         card(
             navRow(getString(R.string.settings_translate)) { open(VIEW_V2_TRANSLATE) },
             navRow(getString(R.string.settings_screen_translate)) { open(VIEW_V2_SCREEN_TRANSLATE) }
-        )
-        sectionTitle(R.string.settings_special_group_ai)
-        card(
-            switchRow(
-                getString(R.string.settings_ai_enabled),
-                settings.aiEnabled(),
-                getString(R.string.settings_ai_enabled_desc)
-            ) { value ->
-                if (value && !settings.aiOnboarded()) {
-                    AlertDialog.Builder(requireContext())
-                        .setTitle(R.string.settings_ai_enabled)
-                        .setMessage(R.string.settings_ai_privacy_note)
-                        .setPositiveButton(android.R.string.ok) { _, _ ->
-                            settings.setAiOnboarded(true)
-                        }
-                        .setNegativeButton(android.R.string.cancel) { _, _ ->
-                            settings.setAiEnabled(false)
-                        }
-                        .setOnCancelListener { settings.setAiEnabled(false) }
-                        .show()
-                }
-                settings.setAiEnabled(value)
-                build()
-            },
-            textRow(
-                getString(R.string.settings_ai_endpoint),
-                settings.aiEndpoint().orEmpty()
-            ) { settings.setAiEndpoint(it.trim()) },
-            navRow(
-                getString(R.string.settings_ai_key),
-                maskAiKey(settings.aiApiKey().orEmpty())
-            ) { showAiKeyDialog() },
-            navRow(
-                getString(R.string.settings_ai_model),
-                settings.aiModel().orEmpty().ifBlank { getString(R.string.settings_ai_key_empty) }
-            ) { showAiModelDialog() },
-            navRow(
-                getString(R.string.settings_ai_presets),
-                presetCountText()
-            ) { showAiPresetsDialog() }
         )
         sectionTitle(R.string.settings_special_group_network)
         card(
@@ -2294,6 +2257,8 @@ class SettingsDetailFragment : Fragment() {
     }
 
     private fun buildV2SiteDefault() {
+        // 分为两段：站点行为（开关与跳转策略） ／ 权限（地理、摄像头、麦克风）。
+        // 权限原来藏在二级页里，用户要连点两层才能看到；改成同页分组后与单站设置一致。
         card(
             switchRow(
                 getString(R.string.settings_site_no_image),
@@ -2331,14 +2296,9 @@ class SettingsDetailFragment : Fragment() {
             switchRow(
                 getString(R.string.settings_save_data),
                 settings.saveDataEnabled(),
-            ) { settings.setSaveDataEnabled(it) },
-            navRow(getString(R.string.settings_site_permissions)) {
-                open(VIEW_V2_SITE_PERMISSIONS)
-            }
+            ) { settings.setSaveDataEnabled(it) }
         )
-    }
-
-    private fun buildV2SitePermissions() {
+        sectionTitle(R.string.site_section_permissions)
         card(
             choiceRow(
                 getString(R.string.settings_permission_geo),
@@ -2453,10 +2413,17 @@ class SettingsDetailFragment : Fragment() {
                 getString(R.string.privacy_compat),
                 settings.privacyCompat(),
                 getString(R.string.privacy_compat_desc),
-                enabled = level == 1
+                enabled = level >= 1
             ) {
                 settings.setPrivacyCompat(it)
                 AppServices.syncPrivacyAllowlist()
+            },
+            switchRow(
+                getString(R.string.privacy_hint),
+                settings.privacyHint(),
+                getString(R.string.privacy_hint_summary)
+            ) {
+                settings.setPrivacyHint(it)
             }
         )
 
@@ -2504,30 +2471,31 @@ class SettingsDetailFragment : Fragment() {
 
         sectionTitle(R.string.privacy_custom)
         card(
+            // 1.6.3 起任何已开启的等级都能单独开关某个分类（不再强制「自定义」）。
             switchRow(
                 getString(R.string.privacy_tracking),
                 settings.privacyTracking(),
-                enabled = level == 3
+                enabled = level >= 1
             ) { setPrivacyCategory { settings.setPrivacyTracking(it) } },
             switchRow(
                 getString(R.string.privacy_social),
                 settings.privacySocial(),
-                enabled = level == 3
+                enabled = level >= 1
             ) { setPrivacyCategory { settings.setPrivacySocial(it) } },
             switchRow(
                 getString(R.string.privacy_miners),
                 settings.privacyMiners(),
-                enabled = level == 3
+                enabled = level >= 1
             ) { setPrivacyCategory { settings.setPrivacyMiners(it) } },
             switchRow(
                 getString(R.string.privacy_fingerprint),
                 settings.privacyFingerprint(),
-                enabled = level == 3
+                enabled = level >= 1
             ) { setPrivacyCategory { settings.setPrivacyFingerprint(it) } },
             switchRow(
                 getString(R.string.privacy_content),
                 settings.privacyContent(),
-                enabled = level == 3
+                enabled = level >= 1
             ) { setPrivacyCategory { settings.setPrivacyContent(it) } },
             switchRow(
                 getString(R.string.privacy_cookies),
@@ -2571,8 +2539,21 @@ class SettingsDetailFragment : Fragment() {
 
     private fun setPrivacyCategory(action: () -> Unit) {
         action()
-        settings.setPrivacyLevel(3)
+        // 只在真的偏离预设时才标「自定义」：与 1/2 档完全一致就保留该档位，
+        // 否则用户碰一下开关就从「标准」跳成「自定义」，档位标签会失真。
+        val level = settings.privacyLevel().coerceIn(0, 3)
+        settings.setPrivacyLevel(
+            when (level) {
+                1, 2 -> if (PrivacyLevels.stateBits(settings) == PrivacyLevels.presetBits(level)) {
+                    level
+                } else 3
+                else -> 3
+            }
+        )
         build()
+        // 档位变化会影响兼容模式的放行名单（level>=1 才生效），必须立刻重算，
+        // 否则引擎内存里还留着旧名单，出现「开关灰了但域名仍在放行」的错位。
+        AppServices.syncPrivacyAllowlist()
         refreshPrivacyRules()
     }
 
@@ -3285,6 +3266,62 @@ class SettingsDetailFragment : Fragment() {
         aboutText(R.string.settings_screen_translate_desc)
     }
 
+    /** AI 助手二级页：原特别功能「AI 助手」分组的全部配置项，功能不变。 */
+    private fun buildV2Ai() {
+        container.removeAllViews()
+        card(
+            switchRow(
+                getString(R.string.settings_ai_enabled),
+                settings.aiEnabled(),
+                getString(R.string.settings_ai_enabled_desc)
+            ) { value ->
+                if (value && !settings.aiOnboarded()) {
+                    AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.settings_ai_enabled)
+                        .setMessage(R.string.settings_ai_privacy_note)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            settings.setAiOnboarded(true)
+                        }
+                        .setNegativeButton(android.R.string.cancel) { _, _ ->
+                            settings.setAiEnabled(false)
+                        }
+                        .setOnCancelListener { settings.setAiEnabled(false) }
+                        .show()
+                }
+                settings.setAiEnabled(value)
+                build()
+            },
+            textRow(
+                getString(R.string.settings_ai_endpoint),
+                settings.aiEndpoint().orEmpty()
+            ) { settings.setAiEndpoint(it.trim()) },
+            navRow(
+                getString(R.string.settings_ai_key),
+                maskAiKey(settings.aiApiKey().orEmpty())
+            ) { showAiKeyDialog() },
+            navRow(
+                getString(R.string.settings_ai_model),
+                settings.aiModel().orEmpty().ifBlank { getString(R.string.settings_ai_key_empty) }
+            ) { showAiModelDialog() },
+            navRow(
+                getString(R.string.settings_ai_presets),
+                presetCountText()
+            ) { showAiPresetsDialog() }
+        )
+        aboutText(R.string.settings_ai_about)
+    }
+
+    /** 特别功能入口右侧的摘要：开关状态 + 模型名。 */
+    private fun aiPageSummary(): String {
+        val on = settings.aiEnabled()
+        val model = settings.aiModel().orEmpty()
+        return when {
+            !on -> getString(R.string.settings_ai_off)
+            model.isNotBlank() -> model
+            else -> getString(R.string.settings_ai_key_empty)
+        }
+    }
+
     private fun buildV2Mcp() {        val server = AppServices.mcpServer
         val enabled = settings.mcpEnabled()
         val running = server.isRunning
@@ -3667,65 +3704,6 @@ class SettingsDetailFragment : Fragment() {
         )
     }
 
-    /** 菜单定制：「菜单项」（上方两行）与「固定菜单栏」（下方一行）两个同源分组，均支持开关 + ☰ 拖动排序。 */
-    private fun buildMenuCustom() {
-        val context = requireContext()
-        val fixedIds = settings.fixedItems()?.split(",")?.filter { it.isNotEmpty() } ?: DEFAULT_FIXED_IDS
-        val hidden = settings.hiddenMenus().orEmpty()
-            .split(",").filter { it.isNotEmpty() }.toMutableSet()
-
-        // 上方菜单项
-        container.addView(CardList.sectionTitle(context, getString(R.string.menu_items)))
-        val upperOrder = settings.displayedMenus()?.split(",")?.filter { it.isNotEmpty() }
-        val upperItems = CATALOG.sortedBy { (id, _) ->
-            upperOrder?.indexOf(id)?.takeIf { it >= 0 } ?: Int.MAX_VALUE
-        }
-        container.addView(
-            dragSortCard(
-                items = upperItems,
-                checkedOf = { id -> id !in hidden && id !in fixedIds },
-                onToggle = { id, visible ->
-                    if (visible) {
-                        hidden.remove(id)
-                        // 与固定栏重复时，把固定栏那份移除（后操作者生效）
-                        if (id in fixedIds) {
-                            settings.setFixedItems((fixedIds - id).joinToString(","))
-                        }
-                    } else {
-                        hidden.add(id)
-                    }
-                    settings.setHiddenMenus(hidden.joinToString(","))
-                    view?.post { build() }
-                },
-                onOrderChanged = { settings.setDisplayedMenus(it.joinToString(",")) }
-            )
-        )
-
-        // 下方固定菜单栏
-        container.addView(CardList.sectionTitle(context, getString(R.string.fixed_toolbar)))
-        val fixedItems = CATALOG.sortedBy { (id, _) ->
-            fixedIds.indexOf(id).takeIf { it >= 0 } ?: Int.MAX_VALUE
-        }
-        container.addView(
-            dragSortCard(
-                items = fixedItems,
-                checkedOf = { id -> id in fixedIds },
-                onToggle = { id, visible ->
-                    if (visible) {
-                        settings.setFixedItems((fixedIds + id).joinToString(","))
-                        // 固定栏开启后，关掉上方可移动区里的同一项
-                        hidden.add(id)
-                        settings.setHiddenMenus(hidden.joinToString(","))
-                    } else {
-                        settings.setFixedItems((fixedIds - id).joinToString(","))
-                    }
-                    view?.post { build() }
-                },
-                onOrderChanged = { settings.setFixedItems(it.joinToString(",")) }
-            )
-        )
-    }
-
     /** 可拖动排序的开关列表：按住左侧 ☰ 上下拖动，松手落位（对齐 index.html bindDragSort）。 */
     private fun dragSortCard(
         items: List<Pair<String, String>>,
@@ -4089,7 +4067,6 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_APPEARANCE = "appearance"
         const val VIEW_HOME_SET = "homeSet"
         const val VIEW_UI = "ui"
-        const val VIEW_MENU_CUSTOM = "menuCustom"
         const val VIEW_TOOLBAR_CUSTOM = "toolbarCustom"
         const val VIEW_LP_CUSTOM = "lpCustom"
         const val VIEW_THEME_COLOR = "themeColor"
@@ -4124,7 +4101,6 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_UI_LAYOUT = "v2UiLayout"
         const val VIEW_V2_SITE = "v2Site"
         const val VIEW_V2_SITE_DEFAULT = "v2SiteDefault"
-        const val VIEW_V2_SITE_PERMISSIONS = "v2SitePermissions"
         const val VIEW_V2_INCOG = "v2Incog"
         const val VIEW_V2_PRIVACY_PROTECTION = "v2PrivacyProtection"
         const val VIEW_V2_PASSWORD = "v2Password"
@@ -4138,6 +4114,7 @@ class SettingsDetailFragment : Fragment() {
         const val VIEW_V2_NETLOG = "v2Netlog"
         const val VIEW_V2_IMPORT = "v2Import"
         const val VIEW_V2_LAB = "v2Lab"
+        const val VIEW_V2_AI = "v2Ai"
         const val VIEW_V2_MCP = "v2Mcp"
         const val VIEW_V2_SCREEN_TRANSLATE = "v2ScreenTranslate"
         const val VIEW_ABOUT = "about"
@@ -4165,7 +4142,7 @@ class SettingsDetailFragment : Fragment() {
         private val STARTUP_BEHAVIOR_NAMES = arrayOf("打开主页", "恢复上次页面", "空白页")
         private val TOOLBAR_ACTION_NAMES =
             arrayOf("无", "刷新", "主页", "新建标签", "菜单", "后退", "前进")
-        private val OPEN_APP_POLICY_NAMES = arrayOf("每次询问", "始终允许", "禁止")
+        private val OPEN_APP_POLICY_NAMES = arrayOf("询问", "允许", "禁止")
         private val HOME_GRID_COLUMNS_NAMES = arrayOf("4 列", "5 列", "6 列")
         private val HOME_ICON_SIZE_NAMES = arrayOf("小", "中", "大")
         private val HOME_ICON_SHAPE_NAMES = arrayOf("圆形", "圆角方形")
@@ -4254,52 +4231,6 @@ class SettingsDetailFragment : Fragment() {
             "menu" to "菜单"
         )
 
-        /** 菜单项目录（上方可移动区与下方固定栏共用同一套候选项）。 */
-        private val CATALOG = listOf(
-            "refresh" to "刷新/停止",
-            "home" to "主页",
-            "addbookmark" to "添加书签",
-            "bookmarks" to "书签",
-            "downloads" to "下载列表",
-            "history" to "历史",
-            "adblockstats" to "广告拦截统计",
-            "adblock" to "广告拦截",
-            "find" to "页内查找",
-            "font" to "字体大小",
-            "uiscale" to "界面缩放",
-            "share" to "分享链接",
-            "copylink" to "复制链接",
-            "settings" to "设置",
-            "reader" to "阅读模式",
-            "sniff" to "资源嗅探",
-            "scan" to "扫码",
-            "readaloud" to "朗读网页",
-            "savepage" to "保存网页",
-            "screenshot" to "截图",
-            "print" to "打印/PDF",
-            "passwords" to "密码库",
-            "scriptmenu" to "脚本菜单",
-            "addhome" to "添加到桌面",
-            "cleardata" to "清除数据",
-            "adpick" to "选取广告元素",
-            "closetabs" to "关闭全部标签",
-            "dark" to "夜间模式",
-            "nightauto" to "夜间自动跟随系统",
-            "incog" to "无痕",
-            "noimg" to "无图模式",
-            "desktop" to "电脑模式",
-            "game" to "游戏模式",
-            "readlaterlist" to "离线库",
-            "translatepage" to "翻译网页",
-            "source" to "查看源码",
-            "newtab" to "新建标签",
-            "closeothers" to "关闭其它标签",
-            "recentclosed" to "最近关闭",
-            "fullscreen" to "全屏"
-        )
-
-        /** 固定栏默认项。 */
-        private val DEFAULT_FIXED_IDS = listOf("dark", "incog", "noimg", "desktop")
     }
     private fun applyImport(uri: android.net.Uri) {
         val bytes = FileExchange.readBytes(requireContext(), uri)
