@@ -1,10 +1,11 @@
 name: sync-upstream
 
-# 每天 08:00（北京时间 = UTC+8）检查上游 wanwuwww/Sii
-# GitHub 的 cron 用 UTC，所以写 0 0 * * *
+# 每天 08:00 / 20:00（北京时间 = UTC+8）检查上游 wanwuwww/Sii
+# GitHub 的 cron 用 UTC，所以写 0 0 / 0 12
 on:
   schedule:
     - cron: "0 0 * * *"
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -113,3 +114,26 @@ jobs:
               gh release upload "${tag}" "${tmp}/dl/${name}" --repo "${ours}"
             done
           done
+
+  refresh-downloads:
+    needs: mirror-releases
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild downloads.html from this repo's releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          python3 scripts/build_downloads.py
+          git add downloads.html
+          if git diff --cached --quiet; then
+            echo "下载页无变化"
+          else
+            git commit -m "chore: 按最新 Release 重建下载页 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin HEAD:main
+          fi
