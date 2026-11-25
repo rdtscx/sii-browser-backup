@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全部版本下载 · Sii 浏览器</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--fg:#e6edf3;--muted:#9198a1;
+        --accent:#4493f8;--accent-soft:#1f6feb22;--green:#3fb950;--radius:12px;
+        --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:light){
+    :root{--bg:#f6f8fa;--card:#fff;--border:#d0d7de;--fg:#1f2328;--muted:#59636e;
+          --accent:#0969da;--accent-soft:#0969da14;--green:#1a7f37}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);line-height:1.65;font-size:16px;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:40px 20px 72px}
+  .badge{display:inline-block;font-size:12px;font-weight:600;color:var(--accent);
+         background:var(--accent-soft);border-radius:999px;padding:3px 10px}
+  h1{font-size:26px;margin:12px 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0;font-size:14px}
+  .note{margin:20px 0 26px;padding:14px 16px;border:1px solid var(--border);border-left:3px solid var(--accent);
+        border-radius:8px;background:var(--card);font-size:13.5px;color:var(--muted)}
+  .note b{color:var(--fg)}
+  .toolbar{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;font-size:13px;color:var(--muted)}
+  .toolbar a{color:var(--accent);text-decoration:none}
+  .list{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--card)}
+  .item{padding:16px 18px;border-top:1px solid var(--border)}
+  .item:first-child{border-top:none}
+  .item.newest{background:var(--accent-soft)}
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .vwrap{min-width:0}
+  .ver{font-family:var(--mono);font-weight:700;font-size:17px}
+  .latest{font-size:11px;font-weight:600;color:#fff;background:var(--green);
+          border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:2px}
+  .meta{color:var(--muted);font-size:12.5px;font-family:var(--mono);margin-top:3px}
+  .btn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;
+       text-decoration:none;font-weight:600;font-size:13.5px;padding:8px 15px;border-radius:9px;white-space:nowrap}
+  .btn:hover{filter:brightness(1.08)}
+  .btn svg{width:15px;height:15px}
+  details{margin-top:12px}
+  summary{cursor:pointer;font-size:13px;color:var(--accent);list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary:before{content:"▸ ";display:inline-block;transition:transform .15s}
+  details[open] summary:before{content:"▾ "}
+  .notes{margin:10px 0 0;padding:12px 14px;border-radius:8px;background:var(--bg);
+         border:1px solid var(--border);font-size:13.5px;color:var(--muted)}
+  .notes ul{margin:6px 0 0;padding-left:20px}
+  .notes li{margin:3px 0}
+  .notes p{margin:6px 0}
+  .notes code{font-family:var(--mono);font-size:12.5px;background:var(--accent-soft);
+              border-radius:4px;padding:1px 5px;color:var(--fg)}
+  .empty{padding:22px 18px;color:var(--muted);font-size:14px}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+  footer a{color:var(--accent);text-decoration:none}
+  .back{margin-top:22px;font-size:13px}
+  .back a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">安装包下载页</span>
+    <h1>Sii 浏览器 · 全部版本</h1>
+    <p class="sub">基于 Chromium 的 Android 浏览器备份站</p>
+  </header>
+
+  <div class="note">
+    <b>下载链接全部指向本备份仓库。</b>所有安装包已上传至 <code>rdtscx/sii-browser-backup</code> 的 Releases，
+    页面内每个版本均使用本仓库地址，不使用上游项目的下载链接；上游仓库删除或改名不影响此处下载。
+  </div>
+
+  <div class="toolbar">
+    <span>共 16 个版本，按版本号从新到旧排列</span>
+    <a href="./">← 返回站点首页</a>
+  </div>
+
+  <div class="list">
+    <div class="item newest" id="v1.6.1">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.6.1<span class="latest">最新</span></div>
+          <div class="meta">2026-11-17 · 32.8 MB · Sii-1.6.1-release.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.6.1/Sii-1.6.1-release.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.6.1</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>1.6.1更新：</p>
+<p>新增 AI 助手，浏览网页时可随时提问</p>
+<p>支持页面摘要、提取要点、翻译成中文，也可自定义预设</p>
+<p>回答支持 Markdown 显示，可选中、复制、分享</p>
+<p>可在设置里配置自己的 AI 服务和模型</p>
+<p>部分手机安装时提示病毒属误报，选择继续安装即可（源码见本仓库）。</p></div></details>
+    </div>
+    <div class="item" id="v1.6.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.6.0</div>
+          <div class="meta">2026-11-16 · 32.8 MB · Sii-1.6.0-release.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.6.0/Sii-1.6.0-release.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.6.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>1.6.0更新：</p>
+<p>设置页面重新分类</p>
+<p>新增加手动添加书签功能</p>
+<p>优化了进度条显示效果</p>
+<p>修复了进度条不显示的bug</p></div></details>
+    </div>
+    <div class="item" id="v1.5.9">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.5.9</div>
+          <div class="meta">2026-11-16 · 32.8 MB · Sii-1.5.9.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.5.9/Sii-1.5.9.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.5.9</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p><b>改进</b></p>
+<ul>
+<li>悬浮工具栏进度条改为自绘渐变，随主题色填充胶囊，加载停滞时播放流光提示</li>
+<li>菜单标题行新增「长按图标可进入对应设置」提示，点击后可永久关闭</li>
+</ul>
+<p><b>修复</b></p>
+<ul>
+<li>冷启动时进度条短暂空跑一遍</li>
+<li>从主页搜索框聚焦唤起键盘时，悬浮工具栏被顶到键盘上方</li>
+<li>部分网站加载时进度条不显示，需切换后台再返回才出现</li>
+</ul>
+<p><b>说明</b></p>
+<ul>
+<li>签名与 1.5.8 相同，可直接覆盖升级，无需卸载</li>
+</ul></div></details>
+    </div>
+    <div class="item" id="v1.5.3">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.5.3</div>
+          <div class="meta">2026-11-07 · 20.1 MB · Sii-1.5.3.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.5.3/Sii-1.5.3.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.5.3</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.5.3</p>
+<p>· 新增应用内开发者工具：控制台、元素、网络与页面信息，可点选元素改样式</p>
+<p>· 用户脚本支持 @resource 与更多 GM 接口，页面内点击 .user.js 可直接安装</p>
+<p>· 界面 DIY：透明度与阴影分开调，菜单项补全并支持自定义顺序，预览可缩到最小</p>
+<p>· 修复「选取广告元素」点图片广告会跳走的问题</p>
+<p>· 修复其它已知问题</p></div></details>
+    </div>
+    <div class="item" id="v1.5.2">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.5.2</div>
+          <div class="meta">2026-11-06 · 20.1 MB · Sii-1.5.2.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.5.2/Sii-1.5.2.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.5.2</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.5.2</p>
+<p>· 资源嗅探改为按站点开启，列表新增缩略图</p>
+<p>· 内置播放器支持横竖屏、倍速与音轨选择</p>
+<p>· 工具栏随滚动收展更稳定</p>
+<p>· 下载支持 HLS 暂停与进度显示</p>
+<p>· 修复其它已知问题</p></div></details>
+    </div>
+    <div class="item" id="v1.5.1">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.5.1</div>
+          <div class="meta">2026-11-05 · 20.1 MB · Sii-1.5.1.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.5.1/Sii-1.5.1.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.5.1</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.5.1</p>
+<p>· 备份升级为 zip：书签 / 历史 / 密码 / 脚本等打包；设置备份密码后，密码库可跨设备恢复</p>
+<p>· 导入支持按类别勾选、合并去重，以及带二次确认的覆盖模式</p>
+<p>· 修复其它已知问题</p></div></details>
+    </div>
+    <div class="item" id="v1.5.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.5.0</div>
+          <div class="meta">2026-11-05 · 20.1 MB · Sii-1.5.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.5.0/Sii-1.5.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.5.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.5.0</p>
+<p>· 地址栏熊猫头：点击收藏/取消收藏，长按打开站点菜单，已收藏显示主题色</p>
+<p>· 嗅探：同一页多个视频分别提示，叉号只忽略当前；列表改用内建播放器，按页面归类</p>
+<p>· HLS 下载：请求带 Cookie/Referer/UA，失效链接与加密视频给出明确提示</p>
+<p>· 隐私：本站暂停拦截（元素隐藏一起停用）、被拦域名一键放行、已放行域名管理、兼容模式</p>
+<p>· 修复元素隐藏规则从未生效的问题</p>
+<p>· 修复其它已知问题</p></div></details>
+    </div>
+    <div class="item" id="v1.4.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.4.0</div>
+          <div class="meta">2026-11-02 · 20.1 MB · Sii-1.4.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.4.0/Sii-1.4.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.4.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.4.0</p>
+<p>· 书签页支持整页关闭与文件夹层级记忆，返回键只退一层</p>
+<p>· 密码库新增分组列表与详情编辑页</p>
+<p>· 密码填充支持「询问 / 自动 / 不填」三档，保存密码弹窗可改用户名、可隐藏密码</p>
+<p>· 新增文本翻译页，可添加到桌面；本地翻译支持 20 种语言按需下载</p>
+<p>· 界面新增繁體中文、日本語</p>
+<p>· 新增私人 DNS 引导与应用内 DoH（实验）：网页、下载、更新、翻译等请求可优先走加密 DNS，菜单里可一键开关</p>
+<p>· 安装 APK 前显示应用名、版本、包名供确认</p>
+<p>· 内置中文《使用协议》《隐私政策》，关于页新增 Bug 反馈群</p>
+<p>· 修复自定义链接（intent:/mailto: 等）导致闪退的问题</p>
+<p>· 修复若干已知问题</p></div></details>
+    </div>
+    <div class="item" id="v1.3.3">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.3.3</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.3.3.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.3.3/Sii-1.3.3.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.3.3</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>1.3.3</p>
+<p>· 修复翻译按钮在进入新网页再返回后消失、再翻译提示“没有可翻译的文字”</p>
+<p>· 修复在设置、书签、主页等非网页页面时，从外部拉起的链接打不开</p>
+<p>· 修复搜索结果页加载进度扫过搜索引擎芯片行、进入网站后进度只剩底部一截</p>
+<p>新增与改进</p>
+<p>· 新增「看图时隐藏工具栏」：看大图时自动收起悬浮工具栏（界面DIY → 工具栏，默认开）</p>
+<p>· 新增标题跟随：单页应用切换内容时，标签卡与地址栏标题同步更新</p></div></details>
+    </div>
+    <div class="item" id="v1.3.2">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.3.2</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.3.2.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.3.2/Sii-1.3.2.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.3.2</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>1.3.2</p>
+<p>· 修复自定义背景图在主页不显示、进入设置后状态栏残留背景图</p>
+<p>· 修复下载「背景填充」把主页背景也染色</p>
+<p>· 修复收起悬浮工具栏后，点链接或返回时底栏不恢复</p>
+<p>· 修复搜索页加载进度扫过搜索引擎那一行</p>
+<p>· 修复搜索框高度（小/中/大）没有效果</p>
+<p>· 修复修改常用网站列数时闪退</p>
+<p>新增与改进</p>
+<p>· 磨砂质感：界面DIY → 背景，一次作用于搜索框、常用网站、主页悬浮底栏和搜索建议</p>
+<p>· 阴影合并为「卡片与工具栏阴影」，与磨砂互斥，开一个自动关另一个</p>
+<p>· 主页底栏与搜索框、常用网站使用同一材质；网页页底栏仍是玻璃</p>
+<p>· 玻璃强度可以调得更透明</p>
+<p>· 悬浮工具栏新增「背景色」开关，关掉后只留图标与加载进度</p></div></details>
+    </div>
+    <div class="item" id="v1.3.1">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.3.1</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.3.1.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.3.1/Sii-1.3.1.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.3.1</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>外观与主题</p>
+<ul>
+<li>主题色可逐项应用：工具栏、标签页、常用网站背景、主页背景、菜单页、状态栏</li>
+<li>新增卡片背景色、搜索框阴影、常用网站阴影</li>
+<li>毛玻璃效果升级，界面风格预设更统一，首次安装直接套用「玻璃胶囊」</li>
+<li>悬浮界面细节优化，翻译按钮 30 秒自动收起</li>
+<li>设置页主题入口重新分组，清理重复设置项</li>
+</ul>
+<p>下载</p>
+<ul>
+<li>进度条新增 7 种样式，默认「背景填充」，多个任务各自显示进度</li>
+<li>下载列表按时间分组，显示实时速度与剩余时间</li>
+<li>文件命名优先使用服务器文件名，APK 完成后自动改名为「应用名_版本号」</li>
+<li>多任务并发与连接优化，大文件下载更快</li>
+</ul>
+<p>修复</p>
+<ul>
+<li>修复异常退出后「恢复标签」提示 5 秒后闪退</li>
+</ul></div></details>
+    </div>
+    <div class="item" id="v1.3.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.3.0</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.3.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.3.0/Sii-1.3.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.3.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>1.3.0 更新</p>
+<ul>
+<li>搜索建议出现更快，返回或切换页面后不会再冒出残留的建议。</li>
+<li>下载更快更稳，可以同时下多个文件，也能按需切换下载方式。</li>
+<li>删除未完成的下载会一并清掉残留文件，删除前会再确认一次。</li>
+<li>广告拦截更好用：可以选中广告先试隐藏、看清楚效果再保存；新增「查看本页请求」，方便针对某个来源做拦截。</li>
+<li>翻译入口收进了工具栏 / 地址栏，切换原文和译文更顺手。</li>
+<li>修了几个影响体验的问题：从主页搜索后返回会直接回主页、经典工具栏滚动收起后回主页会消失、下载页返回空白、下载通知出现慢。</li>
+</ul></div></details>
+    </div>
+    <div class="item" id="v1.2.1">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.2.1</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.2.1.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.2.1/Sii-1.2.1.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.2.1</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>必应搜索紧急修复！ !  !</p>
+<ul>
+<li>修复必应搜索后跳到首页、看不到结果的问题</li>
+<li>已保存的必应预设会自动切换，无需手动修改</li>
+</ul>
+<p>其他</p>
+<ul>
+<li>「更新提示」简化为两档：关闭自动检查 / 启动时提醒，默认后者</li>
+<li>检查更新、更新提示移到「关于」页</li>
+</ul></div></details>
+    </div>
+    <div class="item" id="v1.2.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.2.0</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.2.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.2.0/Sii-1.2.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.2.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p><b>1.2.0 更新内容</b></p>
+<p><b>主页与搜索</b></p>
+<ul>
+<li>新增「显示主页搜索框」「主页顶部搜索入口」开关，两者互斥</li>
+<li>搜索框位置可选上/中/下（悬浮样式不支持置底）；居中改为固定偏移，常用网站开关不再移动时钟</li>
+<li>下拉即聚焦；键盘不再顶起整页，底栏让键盘覆盖；地址栏编辑只抬升底栏</li>
+</ul>
+<p><b>界面与 DIY</b></p>
+<ul>
+<li>4 套风格预设（经典/玻璃胶囊/极简白/专注），可调项 17 个，首装默认玻璃胶囊</li>
+<li>玻璃强度 0–100 全程有效；卡片透明度与外框覆盖书签、历史、下载、密码库等页面</li>
+<li>DIY 预览合并刷新，主页网格只在图标/名称变化时重建</li>
+</ul>
+<p><b>导航与工具栏</b></p>
+<ul>
+<li>网页全屏与页内滚动都能收起工具栏；支持左右滑动切标签</li>
+<li>主页地址栏保持空白；前进可回被覆盖网页；从主页搜索返回先回主页、再返回退出</li>
+</ul>
+<p><b>搜索建议与标签</b></p>
+<ul>
+<li>弹层跟随输入框、宽度左对齐、圆角跟随设置；修复崩溃</li>
+<li>缩略图落盘：进程回收或正常重启不丢，从最近任务划掉会清理</li>
+</ul>
+<p><b>其它</b></p>
+<ul>
+<li>修复语言误判、输入法延迟、全屏遮挡、搜索焦点；新增「没有可前进的页面」提示</li>
+</ul>
+<p>安装：versionCode 3，仅 arm64-v8a，Android 8.0+，可覆盖 1.1.0 升级。</p></div></details>
+    </div>
+    <div class="item" id="v1.1.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.1.0</div>
+          <div class="meta">2026-11-05 · 19.8 MB · Sii-1.1.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.1.0/Sii-1.1.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.1.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p><b>新增</b></p>
+<ul>
+<li><b>本地 MCP 服务</b>：设置 → 高级 → MCP 服务。支持 Streamable HTTP 与 SSE，工具按权限组下发生效，令牌鉴权；可一键复制含令牌的连接地址，只填 URL 的客户端也能接入。</li>
+<li><b>页面网络抓包</b>：记录资源请求元数据，并补充 fetch/XHR 的状态、耗时与响应体（单条上限 64KB）。数据仅存内存，页面导航即清空，不做 HTTPS 解密。</li>
+<li><b>玻璃质感</b>：底栏、标签面板、菜单与主页卡片统一玻璃背景；标签面板改为浮动玻璃卡片，新增标签缩略图。</li>
+<li><b>主页</b>：Logo 支持文字、图标、时间三种显示；常用网站网格列数与图标尺寸可调。</li>
+<li><b>固定菜单位置</b>：固定栏可放在移动项上方或下方，预览与真实菜单一致。</li>
+<li><b>设置搜索</b>：设置页顶部支持搜索，可直接定位到具体设置或界面DIY 分类。</li>
+<li><b>异常退出恢复</b>：进程被杀后重新打开可恢复上次的标签。</li>
+</ul>
+<p><b>改进</b></p>
+<ul>
+<li><b>更新检测</b>：默认读取 GitHub Releases，新增「仅设置页 / 通知栏」提示档位、忽略指定版本、24 小时节流；此前需要手动填写自定义 JSON 地址。</li>
+<li><b>隐私规则包</b>：下载放宽超时，失败后自动重试一次。</li>
+<li><b>交互</b>：工具栏滚动收展去抖、快捷引擎展开不再逐帧改高度、日夜切换增加过渡并恢复网页滚动位置。</li>
+</ul>
+<p><b>说明</b></p>
+<ul>
+<li>仅包含 arm64-v8a，界面语言中文与英文。</li>
+<li>不含统计与崩溃上报 SDK，不收集用户信息。</li>
+<li>更新检测只请求公开接口，不携带设备标识。</li>
+</ul></div></details>
+    </div>
+    <div class="item" id="v1.0.0">
+      <div class="head">
+        <div class="vwrap">
+          <div class="ver">v1.0.0</div>
+          <div class="meta">2026-11-05 · 19.7 MB · Sii-1.0.0.apk</div>
+        </div>
+        <a class="btn" href="https://github.com/rdtscx/sii-browser-backup/releases/download/v1.0.0/Sii-1.0.0.apk" download><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"/><path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"/></svg><span>下载 v1.0.0</span></a>
+      </div>
+      <details><summary>更新记录</summary><div class="notes"><p>Sii 1.0.0</p>
+<p>一个用 Kotlin 从零编写的 Android 浏览器：原生界面、体积轻量，不捆绑统计与广告 SDK，也不收集用户数据。</p>
+<p>主要特性</p>
+<ul>
+<li>两种界面风格：经典底栏 / 悬浮玻璃胶囊，跟随日夜自动切换</li>
+<li>多标签浏览：标签面板、关闭后恢复、最近关闭</li>
+<li>资源嗅探与内置播放器，支持 HLS 播放与分片合并</li>
+<li>翻译：在线、离线、双语对照，支持站点级设置</li>
+<li>广告拦截与隐私控制：跟踪器与社交拦截、跨站 Cookie、GPC、强制 HTTPS、URL 清理</li>
+<li>下载管理：分块并行、断点续传、暂停恢复、系统下载器</li>
+<li>阅读模式、网页朗读、扫码、密码库、用户脚本</li>
+<li>数据本地保存：书签、历史、收藏、稍后读</li>
+</ul>
+<p>适用 Android 8.0 及以上，arm64-v8a。</p>
+<p>SHA-256: 7c45fa7ba134a554a14b9793589ef1afdbf4d9f73335fe10cc92b503fceb66c6</p></div></details>
+    </div></div>
+
+  <footer>
+    <div>安装包文件：Sii-1.6.1-release.apk、Sii-1.6.0-release.apk、Sii-1.5.9.apk、Sii-1.5.3.apk、Sii-1.5.2.apk、Sii-1.5.1.apk、Sii-1.5.0.apk、Sii-1.4.0.apk、Sii-1.3.3.apk、Sii-1.3.2.apk、Sii-1.3.1.apk、Sii-1.3.0.apk、Sii-1.2.1.apk、Sii-1.2.0.apk、Sii-1.1.0.apk、Sii-1.0.0.apk</div>
+    <div>备份仓库：<a href="https://github.com/rdtscx/sii-browser-backup">rdtscx/sii-browser-backup</a> · 上游：<a href="https://github.com/wanwuwww/Sii">wanwuwww/Sii</a></div>
+    <div class="back"><a href="./">返回站点首页</a></div>
+  </footer>
+</div>
+</body>
+</html>
