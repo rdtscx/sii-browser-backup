@@ -61,7 +61,8 @@ jobs:
         if: steps.upstream.outputs.ok == 'true'
         run: |
           # 只覆盖与新增，不删除：上游删掉的文件在本仓库继续保留
-          git checkout "${{ steps.upstream.outputs.sha }}" -- . ':(exclude).github'
+          git checkout "${{ steps.upstream.outputs.sha }}" -- . \
+            ':(exclude).github' ':(exclude)index.html' ':(exclude)scripts'
           # GITHUB_TOKEN 不允许改写 .github/，回退该目录而不是让推送天天失败
           git reset -q HEAD -- .github
           git checkout HEAD -- .github
@@ -130,10 +131,10 @@ jobs:
           git config user.name "backup-bot"
           git config user.email "backup-bot@users.noreply.github.com"
           python3 scripts/build_downloads.py
-          git add downloads.html
+          git add index.html
           if git diff --cached --quiet; then
-            echo "下载页无变化"
+            echo "下载区块无变化"
           else
-            git commit -m "chore: 按最新 Release 重建下载页 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "chore: 按最新 Release 重建页尾下载区块 $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push origin HEAD:main
           fi
