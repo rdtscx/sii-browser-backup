@@ -1,8 +1,17 @@
 {
-  "repo": "wanwuwww/Sii",
+  "repo": "wanwuwww/Sii-Browser",
   "branch": "auto",
   "mode": "mirror",
-  "aliases": [],
-  "resolved_at": "",
-  "history": []
+  "aliases": [
+    "wanwuwww/Sii"
+  ],
+  "resolved_at": "2026-11-27T10:55:56Z",
+  "history": [
+    {
+      "from": "wanwuwww/Sii",
+      "to": "wanwuwww/Sii-Browser",
+      "at": "2026-11-27T10:55:56Z"
+    }
+  ],
+  "branch_resolved": "main"
 }
