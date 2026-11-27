@@ -1,6 +1,6 @@
 name: sync-upstream
 
-# 每天 08:00 / 20:00（北京时间 = UTC+8）检查上游 wanwuwww/Sii
+# 每天 08:00 / 20:00（北京时间 = UTC+8）检查上游 wanwuwww/Sii-Browser（原 wanwuwww/Sii 已改名）
 # GitHub 的 cron 用 UTC，所以写 0 0 / 0 12
 on:
   schedule:
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  UPSTREAM_REPO: wanwuwww/Sii
+  UPSTREAM_REPO: wanwuwww/Sii-Browser
   UPSTREAM_BRANCH: main
 
 jobs:
@@ -75,10 +75,12 @@ jobs:
       - name: Mirror tags add-only
         if: steps.upstream.outputs.ok == 'true'
         run: |
-          git fetch --tags upstream
+          # 上游可能重打过同版本 tag，本地强制对齐；推送仍是只增不删，
+          # 已存在的远端 tag 不动，避免 fetch 因 would clobber existing tag 直接失败
+          git fetch --no-tags --force upstream '+refs/tags/*:refs/tags/*'
           git ls-remote --tags origin | cut -f2 > /tmp/remote-tags
           for tag in $(git tag); do
-            grep -qx "refs/tags/${tag}" /tmp/remote-tags || git push origin "refs/tags/${tag}"
+            grep -qx "refs/tags/${tag}" /tmp/remote-tags || git push origin "refs/tags/${tag}" || true
           done
 
   mirror-releases:
@@ -130,6 +132,10 @@ jobs:
           set -euo pipefail
           git config user.name "backup-bot"
           git config user.email "backup-bot@users.noreply.github.com"
+          if [ ! -f scripts/build_downloads.py ]; then
+            echo "::error::缺少 scripts/build_downloads.py，下载区无法重建"
+            exit 1
+          fi
           python3 scripts/build_downloads.py
           git add index.html
           if git diff --cached --quiet; then
