@@ -26,6 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 对齐远端最新 main
+        run: |
+          git fetch -q origin main
+          git reset -q --hard origin/main
+
       - name: 跟随上游：解析真实仓库名与默认分支
         id: r
         env:
@@ -58,6 +63,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: 对齐远端最新 main
+        run: |
+          git fetch -q origin main
+          git reset -q --hard origin/main
 
       - name: Configure git
         run: |
@@ -162,6 +172,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: 对齐远端最新 main
+        run: |
+          git fetch -q origin main
+          git reset -q --hard origin/main
 
       - name: 刷新映射页页尾下载区
         env:
