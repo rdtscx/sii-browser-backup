@@ -190,25 +190,35 @@ def main():
     }
 
     if args.apply:
-        cfg["repo"] = new_repo
-        cfg["branch"] = cfg.get("branch") or "auto"   # 保留 auto 语义，仅记录
-        cfg["resolved_at"] = now_iso()
-        cfg["branch_resolved"] = branch
+        # 只有内容真的变了才落盘：避免每次同步都因 resolved_at 时间戳产生空提交
+        candidate = dict(cfg)
+        candidate["repo"] = new_repo
+        candidate["branch"] = cfg.get("branch") or "auto"   # 保留 auto 语义
+        candidate["branch_resolved"] = branch
         if renamed:
-            aliases = cfg.get("aliases") or []
+            aliases = list(cfg.get("aliases") or [])
             if before and before not in aliases:
                 aliases.append(before)
-            cfg["aliases"] = aliases
-            hist = cfg.get("history") or []
-            hist.append({"from": before, "to": new_repo, "at": cfg["resolved_at"]})
-            cfg["history"] = hist[-12:]
-            print("上游改名：%s → %s" % (before, new_repo))
-            if repo_name:
-                patch_build_downloads(root, repo_name, new_repo)
-                patch_description(repo_name, before, new_repo)
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-            f.write("\n")
+            candidate["aliases"] = aliases
+            hist = list(cfg.get("history") or [])
+            hist.append({"from": before, "to": new_repo, "at": now_iso()})
+            candidate["history"] = hist[-12:]
+        dirty = json.dumps({k: v for k, v in candidate.items() if k != "resolved_at"},
+                           sort_keys=True, ensure_ascii=False) != \
+                json.dumps({k: v for k, v in cfg.items() if k != "resolved_at"},
+                           sort_keys=True, ensure_ascii=False)
+        if dirty:
+            candidate["resolved_at"] = now_iso()
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(candidate, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+            if renamed:
+                print("上游改名：%s → %s" % (before, new_repo))
+                if repo_name:
+                    patch_build_downloads(root, repo_name, new_repo)
+                    patch_description(repo_name, before, new_repo)
+        else:
+            print("上游关系无变化，配置不重写")
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False))

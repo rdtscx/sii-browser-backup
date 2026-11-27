@@ -37,11 +37,13 @@ jobs:
           set -euo pipefail
           git config user.name "upstream-follow-bot"
           git config user.email "upstream-follow-bot@users.noreply.github.com"
-          git add upstream.json scripts/build_downloads.py
+          git add -f upstream.json scripts/build_downloads.py
           if git diff --cached --quiet; then
             echo "上游关系无变化"
           else
             git commit -m "chore: 跟随上游变更 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull --rebase -q origin main
+            git pull --rebase -q origin main
             git push origin HEAD:main
           fi
 
@@ -100,7 +102,10 @@ jobs:
           git diff --cached --quiet || git commit -m "sync: ${UPSTREAM_REPO}@$(git rev-parse --short ${{ steps.upstream.outputs.sha }})"
 
       - name: Push
-        run: git push origin "HEAD:main"
+        run: |
+          # 同一次运行里 resolve 可能刚推过配置提交，先 rebase 再推，避免 non-fast-forward
+          git pull --rebase -q origin main
+          git push origin "HEAD:main"
 
       - name: Mirror tags add-only
         if: steps.upstream.outputs.ok == 'true'
@@ -175,5 +180,6 @@ jobs:
             echo "下载区块无变化"
           else
             git commit -m "chore: 按最新 Release 重建页尾下载区块 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull --rebase -q origin main
             git push origin HEAD:main
           fi
