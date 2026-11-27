@@ -6,7 +6,7 @@ import json, re, os, subprocess, sys, html as H
 
 APPS = {
  'Android-AI-gateway': dict(title='AI 聚合网关', up='alarmedvine/Android-AI-gateway', group=False),
- 'sii-browser-backup': dict(title='Sii 浏览器', up='wanwuwww/Sii-Browser', group=False),
+ 'sii-browser-backup': dict(title='Sii 浏览器', up='wanwuwww/Sii', group=False),
  'AccessibilityManagerPro': dict(title='无障碍管理器 Pro', up='', group=False),
  'shurufa': dict(title='Fcitx5 输入法', up='fcitx5-android/fcitx5-android', group=True),
 }
